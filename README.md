@@ -55,12 +55,5 @@ dotnet test LootPulse.Tests/LootPulse.Tests.csproj
 
 ---
 
-## ⚠️ PoE2 SME Constraints
-This tool strictly conforms to the Path of Exile 2 design philosophy:
-- **No Gold Trading**: In accordance with game mechanics, Gold is account-bound and untradable. This tool has no calculator, exchange rate, or support for Gold trading between players.
-- **Uncut Gem Progression**: Respects the Path of Exile 2 Uncut Gem tiering requirements rather than legacy PoE1 socket systems.
-
----
-
 ## 📄 License & Disclaimers
 This is a fan-made tool and is not affiliated with, authorized, or endorsed by Grinding Gear Games. Path of Exile 2 is a trademark of Grinding Gear Games.
