@@ -1,0 +1,21 @@
+# dotnet / Visual Studio build artifacts
+[Bb]in/
+[Oo]bj/
+.vs/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.docstates
+
+# Testing and Coverage
+test_output.txt
+*.Coverage/
+*.coverage
+_ReSharper*/
+
+# OS generated files
+.DS_Store
+Thumbs.db

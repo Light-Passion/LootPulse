@@ -1,0 +1,22 @@
+# App Defaults Configuration
+
+application:
+  name: "PoE2 Market Filter Overlay"
+  version: "1.0.0"
+  target_framework: "net9.0-windows"
+
+overlay:
+  initial_opacity: 0.85
+  click_through: true
+  hotkey: "Ctrl+F"
+  theme: "Dark"
+
+poe2:
+  trade_api_base_url: "https://www.pathofexile.com/api/trade"
+  poe_ninja_base_url: "https://poe.ninja/api/data"
+  default_base_currencies:
+    - "Exalted Orb"
+    - "Divine Orb"
+    - "Chaos Orb"
+  check_interval_minutes: 15
+  auto_update_filter: true
