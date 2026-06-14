@@ -8,4 +8,12 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Exclude the test project folder from compilation in the main app -->
+    <Compile Remove="LootPulse.Tests\**" />
+    <EmbeddedResource Remove="LootPulse.Tests\**" />
+    <None Remove="LootPulse.Tests\**" />
+    <Page Remove="LootPulse.Tests\**" />
+  </ItemGroup>
+
 </Project>
