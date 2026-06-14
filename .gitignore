@@ -19,3 +19,18 @@ _ReSharper*/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# --- Local Agent Workspace & Development Files ---
+# IDE/Agent Framework configurations
+.agents/
+AGENTS.md
+args/
+context/
+goals/
+memory/
+mempalace.yaml
+entities.json
+
+# Test project and test files
+LootPulse.Tests/
+testfiles/
