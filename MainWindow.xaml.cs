@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -23,6 +24,7 @@ namespace LootPulse
 
         // Active State Data
         private PoeBuild? _activeBuild;
+        public FilterTheme ActiveTheme { get; set; } = new();
         private List<MarketItem> _marketItems = new();
         private PlayerState _playerState = new();
         private bool _isClickThroughEnabled = false;
@@ -64,6 +66,9 @@ namespace LootPulse
             string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             LogPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\logs\Client.txt");
             FilterPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\MyMarketFilter.filter");
+
+            // Load Saved Theme
+            LoadActiveTheme();
 
             // Mock list view items until sync
             LoadMockItems();
@@ -152,8 +157,9 @@ namespace LootPulse
             Dispatcher.Invoke(() =>
             {
                 _playerState.CurrentZone = e.ZoneName;
-                CharZoneText.Text = e.ZoneName;
-                StatusText.Text = $"Entered zone: {e.ZoneName}. Regenerating filter...";
+                _playerState.ZoneLevel = e.ZoneLevel;
+                CharZoneText.Text = $"{e.ZoneName} (Level {e.ZoneLevel})";
+                StatusText.Text = $"Entered zone: {e.ZoneName} (Level {e.ZoneLevel}). Regenerating filter...";
                 
                 // Dynamic regeneration based on zone transition
                 TriggerFilterRegeneration();
@@ -171,8 +177,10 @@ namespace LootPulse
                 _marketItems,
                 _activeBuild,
                 _playerState.Level,
+                _playerState.ZoneLevel,
                 t1 > 0 ? t1 : 100,
-                t2 > 0 ? t2 : 10
+                t2 > 0 ? t2 : 10,
+                ActiveTheme
             );
 
             if (success)
@@ -316,6 +324,53 @@ namespace LootPulse
                 new MarketItem { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             };
             ItemListView.ItemsSource = _marketItems;
+        }
+
+        private void LoadActiveTheme()
+        {
+            string themePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "args", "active_theme.json");
+            if (File.Exists(themePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(themePath);
+                    var theme = JsonSerializer.Deserialize<FilterTheme>(json);
+                    if (theme != null)
+                    {
+                        ActiveTheme = theme;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to load active theme: {ex.Message}");
+                }
+            }
+        }
+
+        private void SaveActiveTheme()
+        {
+            string themePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "args", "active_theme.json");
+            try
+            {
+                string json = JsonSerializer.Serialize(ActiveTheme, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(themePath, json);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save active theme: {ex.Message}");
+            }
+        }
+
+        private void CustomizeStyles_Click(object sender, RoutedEventArgs e)
+        {
+            var editor = new StyleEditorWindow(ActiveTheme);
+            editor.Owner = this;
+            if (editor.ShowDialog() == true)
+            {
+                ActiveTheme = editor.WorkingTheme;
+                SaveActiveTheme();
+                TriggerFilterRegeneration();
+            }
         }
     }
 }

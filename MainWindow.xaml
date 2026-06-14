@@ -231,7 +231,10 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" VerticalAlignment="Bottom" Click="SyncAll_Click"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <Button Style="{StaticResource DarkButton}" Content="Customize Styles" Margin="0,0,10,0" Click="CustomizeStyles_Click"/>
+                                <Button Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" Click="SyncAll_Click"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
 

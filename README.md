@@ -4,7 +4,7 @@
 > **Project Status: Incomplete & Under Development / Testing**
 > This application is currently in an early development and testing phase. Features are subject to change, and bugs are expected. Use with caution.
 
-LootPulse is a lightweight, high-performance WPF overlay helper for **Path of Exile 2**, designed to streamline your in-game barter trading, zone tracking, and build progression.
+LootPulse is a lightweight, high-performance WPF overlay helper for **Path of Exile 2**, designed to streamline your in-game trading, zone tracking, and build progression.
 
 The tool provides a transparent, click-through overlay window that monitors your game state and dynamically updates your Path of Exile 2 loot filters based on real-time market valuations and build-specific necessities.
 
@@ -13,7 +13,7 @@ The tool provides a transparent, click-through overlay window that monitors your
 ## 🚀 Key Features
 
 - **🎮 Dynamic Click-Through HUD Overlay**: Toggle between **Edit Mode** (adjust thresholds, select profiles, configure settings) and **HUD Mode** (completely transparent, click-through overlay) using the `Ctrl + Shift + O` hotkey.
-- **📈 Real-Time Economy Sync**: Fetches real-time commodity, currency, and unique valuations from `poe.ninja` for Path of Exile 2 barter economies (focusing on Exalted, Divine, and Chaos Orbs).
+- **📈 Real-Time Economy Sync**: Fetches real-time commodity, currency, and unique valuations from `poe.ninja` for the Path of Exile 2 Trade Economy (focusing on Exalted, Divine, and Chaos Orbs).
 - **📋 Build Planner Integration**: 
   - Parses native Path of Exile 2 `.build` JSON schemas.
   - Decodes and parses Path of Building 2 (PoB2) compressed XML share codes.
