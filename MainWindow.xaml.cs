@@ -1102,58 +1102,52 @@ namespace LootPulse
 
         private async Task LoadBuildUniquePricesAsync(PoeBuild build)
         {
-            if (build == null || build.InventorySlots == null) return;
+            if (build?.InventorySlots == null) return;
 
             const string activeLeague = "Mirage";
             var categoriesToFetch = new HashSet<(string type, string name)>();
 
-            foreach (var slot in build.InventorySlots)
+            var missingUniques = build.InventorySlots
+                .Where(slot => !string.IsNullOrEmpty(slot.UniqueName) &&
+                               !_marketItems.Exists(i => i.Name.Equals(slot.UniqueName, StringComparison.OrdinalIgnoreCase)));
+
+            foreach (var slot in missingUniques)
             {
-                if (!string.IsNullOrEmpty(slot.UniqueName))
+                categoriesToFetch.Add(MapInventoryIdToUniqueCategory(slot.InventoryId));
+            }
+
+            if (categoriesToFetch.Count == 0) return;
+
+            StatusText.Text = "Fetching required build unique item prices from poe.ninja...";
+            bool addedAny = false;
+
+            foreach (var (type, name) in categoriesToFetch)
+            {
+                try
                 {
-                    bool exists = _marketItems.Exists(i => i.Name.Equals(slot.UniqueName, StringComparison.OrdinalIgnoreCase));
-                    if (!exists)
+                    var items = await _ninjaClient.FetchItemPricesAsync(activeLeague, type, name).ConfigureAwait(true);
+                    if (items?.Count > 0)
                     {
-                        categoriesToFetch.Add(MapInventoryIdToUniqueCategory(slot.InventoryId));
+                        var newItems = items.Where(item => !_marketItems.Exists(m => m.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+                        if (newItems.Count > 0)
+                        {
+                            _marketItems.AddRange(newItems);
+                            addedAny = true;
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to fetch build uniques for category {type}: {ex.Message}");
                 }
             }
 
-            if (categoriesToFetch.Count > 0)
+            if (addedAny)
             {
-                StatusText.Text = "Fetching required build unique item prices from poe.ninja...";
-                bool addedAny = false;
-
-                foreach (var cat in categoriesToFetch)
-                {
-                    try
-                    {
-                        var items = await _ninjaClient.FetchItemPricesAsync(activeLeague, cat.type, cat.name);
-                        if (items != null && items.Count > 0)
-                        {
-                            foreach (var item in items)
-                            {
-                                if (!_marketItems.Exists(m => m.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    _marketItems.Add(item);
-                                    addedAny = true;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Failed to fetch build uniques for category {cat.type}: {ex.Message}");
-                    }
-                }
-
-                if (addedAny)
-                {
-                    NormalizeMarketValues(_marketItems);
-                    ItemListView.ItemsSource = null;
-                    ItemListView.ItemsSource = _marketItems;
-                    StatusText.Text = $"Loaded build: {build.Name} (fetched missing unique prices)";
-                }
+                NormalizeMarketValues(_marketItems);
+                ItemListView.ItemsSource = null;
+                ItemListView.ItemsSource = _marketItems;
+                StatusText.Text = $"Loaded build: {build.Name} (fetched missing unique prices)";
             }
         }
 
@@ -1165,20 +1159,28 @@ namespace LootPulse
             if (inventoryId.Contains("weapon", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("offhand", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("shield", StringComparison.OrdinalIgnoreCase))
+            {
                 return ("UniqueWeapon", "Unique Weapons");
+            }
             if (inventoryId.Contains("body", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("chest", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("helmet", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("boots", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("gloves", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("glove", StringComparison.OrdinalIgnoreCase))
+            {
                 return ("UniqueArmour", "Unique Armour");
+            }
             if (inventoryId.Contains("ring", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("amulet", StringComparison.OrdinalIgnoreCase) ||
                 inventoryId.Contains("belt", StringComparison.OrdinalIgnoreCase))
+            {
                 return ("UniqueAccessory", "Unique Accessories");
+            }
             if (inventoryId.Contains("flask", StringComparison.OrdinalIgnoreCase))
+            {
                 return ("UniqueFlask", "Unique Flasks");
+            }
 
             return ("UniqueJewel", "Unique Jewels");
         }
