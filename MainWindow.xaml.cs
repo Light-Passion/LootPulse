@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -41,6 +43,12 @@ namespace LootPulse
 
         private HudWindow? _hudWindow;
         private AppSettings _appSettings = new();
+
+        // Tray Icon and Process Detection State
+        private System.Windows.Forms.NotifyIcon? _notifyIcon;
+        private bool _isExitingFromTray = false;
+        private bool _wasGameRunning = false;
+        private CancellationTokenSource? _processCheckCts;
 
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -116,6 +124,13 @@ namespace LootPulse
                 MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb((byte)(_appSettings.EditModeOpacity * 255), 18, 18, 18));
             }
 
+            // Initialize Tray Icon
+            InitializeTrayIcon();
+
+            // Start process detection for Path of Exile 2
+            _processCheckCts = new CancellationTokenSource();
+            _ = StartProcessDetectionAsync(_processCheckCts.Token);
+
             // Check if base filter was missing on load
             CheckMissingBaseFilter();
         }
@@ -133,9 +148,32 @@ namespace LootPulse
                 _baseFilterWatcher.Dispose();
             }
 
+            _processCheckCts?.Cancel();
+            _processCheckCts?.Dispose();
+
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+            }
+
             _hudWindow?.Close();
 
             base.OnClosed(e);
+        }
+
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            if (!_isExitingFromTray)
+            {
+                e.Cancel = true;
+                this.Hide();
+                StatusText.Text = "LootPulse minimized to tray.";
+            }
+            else
+            {
+                base.OnClosing(e);
+            }
         }
 
         private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -809,7 +847,7 @@ namespace LootPulse
 
         private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_appSettings == null) return;
+            if (_appSettings == null || EditOpacitySlider == null || HudOpacitySlider == null) return;
             
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
@@ -846,6 +884,144 @@ namespace LootPulse
                 _hudWindow.RestorePosition();
             }
             StatusText.Text = "HUD size and position reset to defaults.";
+        }
+
+        private void InitializeTrayIcon()
+        {
+            try
+            {
+                _notifyIcon = new System.Windows.Forms.NotifyIcon();
+                _notifyIcon.Text = "LootPulse Overlay";
+
+                // Load icon from pack URI resource
+                var iconUri = new Uri("pack://application:,,,/lootpulse.ico", UriKind.Absolute);
+                var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
+                if (streamInfo != null)
+                {
+                    using (var stream = streamInfo.Stream)
+                    {
+                        _notifyIcon.Icon = new System.Drawing.Icon(stream);
+                    }
+                }
+                else
+                {
+                    _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+                }
+
+                // Create Context Menu
+                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+                
+                var headerItem = new System.Windows.Forms.ToolStripMenuItem("LootPulse Overlay");
+                headerItem.Enabled = false;
+                contextMenu.Items.Add(headerItem);
+                contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+                var showDashboardItem = new System.Windows.Forms.ToolStripMenuItem("Show Dashboard", null, (s, e) => ShowDashboard());
+                contextMenu.Items.Add(showDashboardItem);
+
+                var toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Toggle Overlay Mode (Ctrl+Shift+O)", null, (s, e) => ToggleOverlayMode());
+                contextMenu.Items.Add(toggleOverlayItem);
+
+                var resetHudItem = new System.Windows.Forms.ToolStripMenuItem("Reset HUD Position", null, (s, e) => ResetHudPosition_Click(this, new RoutedEventArgs()));
+                contextMenu.Items.Add(resetHudItem);
+
+                contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+                var exitItem = new System.Windows.Forms.ToolStripMenuItem("Exit", null, (s, e) => ExitApplication());
+                contextMenu.Items.Add(exitItem);
+
+                _notifyIcon.ContextMenuStrip = contextMenu;
+                _notifyIcon.Visible = true;
+
+                // Double click behavior
+                _notifyIcon.DoubleClick += (s, e) => ShowDashboard();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize tray icon: {ex.Message}");
+            }
+        }
+
+        private void ShowDashboard()
+        {
+            if (_isClickThroughEnabled)
+            {
+                ToggleOverlayMode();
+            }
+            else
+            {
+                this.Show();
+                this.WindowState = WindowState.Normal;
+                this.Activate();
+            }
+        }
+
+        private void ExitApplication()
+        {
+            _isExitingFromTray = true;
+            Close();
+        }
+
+        private async Task StartProcessDetectionAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    bool isRunning = IsPoE2Running();
+                    if (isRunning && !_wasGameRunning)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            StatusText.Text = "Path of Exile 2 launch detected! Activating HUD overlay...";
+                            if (!_isClickThroughEnabled)
+                            {
+                                ToggleOverlayMode();
+                            }
+                            else
+                            {
+                                _appSettings.IsHudVisible = true;
+                                SaveSettings();
+                                if (_hudWindow != null)
+                                {
+                                    _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
+                                    _hudWindow.Show();
+                                }
+                            }
+                        });
+                    }
+                    _wasGameRunning = isRunning;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error in process detection: {ex.Message}");
+                }
+
+                await Task.Delay(2000, token);
+            }
+        }
+
+        private bool IsPoE2Running()
+        {
+            var processes = Process.GetProcesses();
+            foreach (var p in processes)
+            {
+                try
+                {
+                    string name = p.ProcessName;
+                    if (name.Contains("PathOfExile2", StringComparison.OrdinalIgnoreCase) || 
+                        name.Contains("PathOfExile_x64", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch { }
+                finally
+                {
+                    p.Dispose();
+                }
+            }
+            return false;
         }
     }
 
