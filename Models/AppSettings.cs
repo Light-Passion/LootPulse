@@ -5,8 +5,8 @@ namespace LootPulse.Models
         public string LogPath { get; set; } = string.Empty;
         public string FilterOutputPath { get; set; } = string.Empty;
         public string SelectedBaseFilterPath { get; set; } = string.Empty;
-        public double Tier1Threshold { get; set; } = 100.0;
-        public double Tier2Threshold { get; set; } = 10.0;
+        public double Tier1Threshold { get; set; } = 1.0;
+        public double Tier2Threshold { get; set; } = 1.0;
         public double HudWidth { get; set; } = 250;
         public double HudHeight { get; set; } = 120;
         public double HudXPercent { get; set; } = 0.80;

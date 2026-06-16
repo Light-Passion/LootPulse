@@ -268,8 +268,8 @@ namespace LootPulse
                 _activeBuild,
                 _playerState.Level,
                 _playerState.ZoneLevel,
-                t1 > 0 ? t1 : 100,
-                t2 > 0 ? t2 : 10,
+                t1 > 0 ? t1 : 1.0,
+                t2 > 0 ? t2 : 1.0,
                 ActiveTheme
             );
 
@@ -317,6 +317,7 @@ namespace LootPulse
             _marketItems.AddRange(fetchedCurrencies);
             _marketItems.AddRange(fetchedGems);
             _marketItems.AddRange(fetchedUniques);
+            NormalizeMarketValues(_marketItems);
 
             ItemListView.ItemsSource = null;
             ItemListView.ItemsSource = _marketItems;
@@ -415,8 +416,10 @@ namespace LootPulse
                 new() { Name = "Divine Orb", Category = "Currency", ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Exalted Orb", Category = "Currency", ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Chaos Orb", Category = "Currency", ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Mirror of Kalandra", Category = "Currency", ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             ];
+            NormalizeMarketValues(_marketItems);
             ItemListView.ItemsSource = _marketItems;
         }
 
@@ -525,8 +528,8 @@ namespace LootPulse
                     LogPath = LogPathBox.Text,
                     FilterOutputPath = FilterPathBox.Text,
                     SelectedBaseFilterPath = _selectedBaseFilterPath ?? string.Empty,
-                    Tier1Threshold = t1 > 0 ? t1 : 100,
-                    Tier2Threshold = t2 > 0 ? t2 : 10
+                    Tier1Threshold = t1 > 0 ? t1 : 1.0,
+                    Tier2Threshold = t2 > 0 ? t2 : 1.0
                 };
 
                 string json = JsonSerializer.Serialize(settings, _jsonOptions);
@@ -1058,6 +1061,38 @@ namespace LootPulse
                 foreach (var p in processes)
                 {
                     p.Dispose();
+                }
+            }
+        }
+
+        private static void NormalizeMarketValues(List<MarketItem> items)
+        {
+            if (items == null) return;
+
+            double divinePriceInChaos = 120.0;
+            double exaltedPriceInChaos = 15.0;
+
+            var divOrb = items.Find(i => i.Name == "Divine Orb" && i.Category == "Currency");
+            if (divOrb != null && divOrb.ChaosValue > 0)
+            {
+                divinePriceInChaos = divOrb.ChaosValue;
+            }
+
+            var exOrb = items.Find(i => i.Name == "Exalted Orb" && i.Category == "Currency");
+            if (exOrb != null && exOrb.ChaosValue > 0)
+            {
+                exaltedPriceInChaos = exOrb.ChaosValue;
+            }
+
+            foreach (var item in items)
+            {
+                if (item.DivineValue <= 0 && item.ChaosValue > 0)
+                {
+                    item.DivineValue = item.ChaosValue / divinePriceInChaos;
+                }
+                if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
+                {
+                    item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
                 }
             }
         }

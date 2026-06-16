@@ -278,12 +278,12 @@
                             
                             <StackPanel Orientation="Horizontal">
                                 <StackPanel Margin="0,0,20,0">
-                                    <TextBlock Text="Tier 1 Threshold (Chaos)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier1Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="100"/>
+                                    <TextBlock Text="Tier 1 Threshold (Divine Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Tier1Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="Tier 2 Threshold (Chaos)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier2Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="10"/>
+                                    <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Tier2Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
                                 </StackPanel>
                             </StackPanel>
 
@@ -343,10 +343,10 @@
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
-                                        <GridViewColumn Header="Chaos Value" Width="120">
+                                        <GridViewColumn Header="Value" Width="120">
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding ChaosValue, StringFormat={}{0:F1} c}" Foreground="#E5B560" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold"/>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>

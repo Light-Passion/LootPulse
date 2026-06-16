@@ -10,5 +10,25 @@ namespace LootPulse.Models
         public double ExaltedValue { get; set; }
         public double DivineValue { get; set; }
         public DateTime LastUpdated { get; set; }
+
+        public string DisplayValue
+        {
+            get
+            {
+                if (Name == "Mirror of Kalandra" || DivineValue >= 100.0)
+                {
+                    if (Name == "Mirror of Kalandra")
+                    {
+                        return "1.00 mir";
+                    }
+                    return $"{DivineValue:F2} div";
+                }
+                if (DivineValue >= 1.0 || Name == "Divine Orb")
+                {
+                    return $"{DivineValue:F2} div";
+                }
+                return $"{ExaltedValue:F2} ex";
+            }
+        }
     }
 }

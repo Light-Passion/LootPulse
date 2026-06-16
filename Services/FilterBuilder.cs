@@ -24,14 +24,46 @@ namespace LootPulse.Services
             PoeBuild? activeBuild,
             int playerLevel,
             int zoneLevel,
-            double tier1Threshold, // e.g. 100 Chaos
-            double tier2Threshold, // e.g. 10 Chaos
+            double tier1Threshold, // In Divine Orbs, e.g. 1.0
+            double tier2Threshold, // In Exalted Orbs, e.g. 1.0
             FilterTheme? activeTheme = null
         )
         {
             try
             {
                 activeTheme ??= new FilterTheme();
+                marketItems ??= [];
+
+                // Normalize prices to ensure ExaltedValue and DivineValue are populated
+                if (marketItems.Count > 0)
+                {
+                    double divinePriceInChaos = 120.0;
+                    double exaltedPriceInChaos = 15.0;
+
+                    var divOrb = marketItems.FirstOrDefault(i => i.Name == "Divine Orb" && i.Category == "Currency");
+                    if (divOrb != null && divOrb.ChaosValue > 0)
+                    {
+                        divinePriceInChaos = divOrb.ChaosValue;
+                    }
+
+                    var exOrb = marketItems.FirstOrDefault(i => i.Name == "Exalted Orb" && i.Category == "Currency");
+                    if (exOrb != null && exOrb.ChaosValue > 0)
+                    {
+                        exaltedPriceInChaos = exOrb.ChaosValue;
+                    }
+
+                    foreach (var item in marketItems)
+                    {
+                        if (item.DivineValue <= 0 && item.ChaosValue > 0)
+                        {
+                            item.DivineValue = item.ChaosValue / divinePriceInChaos;
+                        }
+                        if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
+                        {
+                            item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
+                        }
+                    }
+                }
                 var sb = new StringBuilder();
 
                 // Add header info
@@ -185,7 +217,7 @@ namespace LootPulse.Services
                 sb.AppendLine("# --------------------------------------------------");
 
                 // Tier 1 Items (Very Valuable: e.g. Divine Orb, Mirror, high-tier uniques)
-                var tier1Items = marketItems.Where(i => i.ChaosValue >= tier1Threshold).ToList();
+                var tier1Items = marketItems.Where(i => i.DivineValue >= tier1Threshold).ToList();
                 if (tier1Items.Count > 0)
                 {
                     sb.AppendLine("# Tier 1 Economy Items");
@@ -201,7 +233,7 @@ namespace LootPulse.Services
                 }
 
                 // Tier 2 Items (Valuable: e.g. Exalted Orb, medium items)
-                var tier2Items = marketItems.Where(i => i.ChaosValue >= tier2Threshold && i.ChaosValue < tier1Threshold).ToList();
+                var tier2Items = marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold).ToList();
                 if (tier2Items.Count > 0)
                 {
                     sb.AppendLine("# Tier 2 Economy Items");
