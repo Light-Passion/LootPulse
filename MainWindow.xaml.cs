@@ -17,6 +17,11 @@ using LootPulse.Services;
 
 namespace LootPulse
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching generic Exception in UI/Tray/Process-detection controllers is necessary to prevent app crashes.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "This desktop overlay utility does not support localized resource tables.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "MainWindow resources are explicitly cleaned up and disposed on the OnClosed event override, which handles the window closing lifecycle.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2007:Consider calling ConfigureAwait on the awaited task", Justification = "WPF UI synchronization context is required for dispatching UI updates.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "MainWindow is the entry point window of the WPF application and is publicly instantiated by the framework.")]
     public partial class MainWindow : Window
     {
         // Services
@@ -28,39 +33,44 @@ namespace LootPulse
         // Active State Data
         private PoeBuild? _activeBuild;
         public FilterTheme ActiveTheme { get; set; } = new();
-        private List<MarketItem> _marketItems = new();
-        private PlayerState _playerState = new();
-        private bool _isClickThroughEnabled = false;
+        private List<MarketItem> _marketItems = [];
+        private readonly PlayerState _playerState = new();
+        private bool _isClickThroughEnabled;
         private string? _selectedBaseFilterPath;
         private FileSystemWatcher? _baseFilterWatcher;
-        private bool _isBaseFilterMissingOnStartup = false;
+        private bool _isBaseFilterMissingOnStartup;
 
         // Win32 Interop Constants
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_TRANSPARENT = 0x20;
-        private const int HOTKEY_ID = 9000;
-        private const int HOTKEY_HUD_ID = 9001;
+        private const int _hotkeyId = 9000;
+        private const int _hotkeyHudId = 9001;
 
-        private HudWindow? _hudWindow;
-        private AppSettings _appSettings = new();
+        private readonly HudWindow? _hudWindow;
+        private readonly AppSettings _appSettings = new();
+        private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         // Tray Icon and Process Detection State
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
-        private bool _isExitingFromTray = false;
-        private bool _wasGameRunning = false;
+        private bool _isExitingFromTray;
+        private bool _wasGameRunning;
         private CancellationTokenSource? _processCheckCts;
 
-        [DllImport("user32.dll")]
-        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static partial int GetWindowLong(IntPtr hWnd, int nIndex);
 
-        [DllImport("user32.dll")]
-        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+        [LibraryImport("user32.dll", EntryPoint = "SetWindowLongW")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static partial int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-        [DllImport("user32.dll")]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        [LibraryImport("user32.dll", EntryPoint = "RegisterHotKey")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
-        [DllImport("user32.dll")]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        [LibraryImport("user32.dll", EntryPoint = "UnregisterHotKey")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool UnregisterHotKey(IntPtr hWnd, int id);
 
         private IntPtr _hwnd;
         private HwndSource? _hwndSource;
@@ -109,8 +119,8 @@ namespace LootPulse
             _hwndSource.AddHook(HwndHook);
 
             // Register Hotkeys
-            RegisterHotKey(_hwnd, HOTKEY_ID, 0x0006, 0x4F); // Ctrl + Shift + O
-            RegisterHotKey(_hwnd, HOTKEY_HUD_ID, 0x0006, 0x48); // Ctrl + Shift + H
+            RegisterHotKey(_hwnd, _hotkeyId, 0x0006, 0x4F); // Ctrl + Shift + O
+            RegisterHotKey(_hwnd, _hotkeyHudId, 0x0006, 0x48); // Ctrl + Shift + H
 
             // Initialize monitoring if log file exists
             if (File.Exists(LogPathBox.Text))
@@ -139,8 +149,8 @@ namespace LootPulse
         {
             _logMonitor.StopMonitoring();
             _hwndSource?.RemoveHook(HwndHook);
-            UnregisterHotKey(_hwnd, HOTKEY_ID);
-            UnregisterHotKey(_hwnd, HOTKEY_HUD_ID);
+            UnregisterHotKey(_hwnd, _hotkeyId);
+            UnregisterHotKey(_hwnd, _hotkeyHudId);
 
             if (_baseFilterWatcher != null)
             {
@@ -164,6 +174,8 @@ namespace LootPulse
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
+            ArgumentNullException.ThrowIfNull(e);
+
             if (!_isExitingFromTray)
             {
                 e.Cancel = true;
@@ -182,12 +194,12 @@ namespace LootPulse
             if (msg == WM_HOTKEY)
             {
                 int id = wParam.ToInt32();
-                if (id == HOTKEY_ID)
+                if (id == _hotkeyId)
                 {
                     ToggleOverlayMode();
                     handled = true;
                 }
-                else if (id == HOTKEY_HUD_ID)
+                else if (id == _hotkeyHudId)
                 {
                     ToggleHudVisibility();
                     handled = true;
@@ -235,7 +247,7 @@ namespace LootPulse
                 _playerState.ZoneLevel = e.ZoneLevel;
                 CharZoneText.Text = $"{e.ZoneName} (Level {e.ZoneLevel})";
                 StatusText.Text = $"Entered zone: {e.ZoneName} (Level {e.ZoneLevel}). Regenerating filter...";
-                
+
                 // Update HUD display
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, e.ZoneName, e.ZoneLevel, "Zone Changed");
 
@@ -246,8 +258,8 @@ namespace LootPulse
 
         private void TriggerFilterRegeneration()
         {
-            double.TryParse(Tier1Box.Text, out double t1);
-            double.TryParse(Tier2Box.Text, out double t2);
+            _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
+            _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
             bool success = _filterBuilder.GenerateFilterFile(
                 FilterPathBox.Text,
@@ -263,7 +275,7 @@ namespace LootPulse
 
             if (success)
             {
-                StatusText.Text = $"Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
+                StatusText.Text = "Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Filter Merged");
                 SaveSettings();
             }
@@ -295,8 +307,8 @@ namespace LootPulse
         {
             StatusText.Text = "Syncing with poe.ninja...";
             // We use Mirage/Standard or configurable league (Default to Mirage)
-            string activeLeague = "Mirage";
-            
+            const string activeLeague = "Mirage";
+
             var fetchedCurrencies = await _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
             var fetchedGems = await _ninjaClient.FetchItemPricesAsync(activeLeague, "SkillGem", "Gems");
             var fetchedUniques = await _ninjaClient.FetchItemPricesAsync(activeLeague, "UniqueWeapon", "Unique Weapons");
@@ -398,13 +410,13 @@ namespace LootPulse
 
         private void LoadMockItems()
         {
-            _marketItems = new List<MarketItem>
-            {
-                new MarketItem { Name = "Divine Orb", Category = "Currency", ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
-                new MarketItem { Name = "Exalted Orb", Category = "Currency", ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
-                new MarketItem { Name = "Chaos Orb", Category = "Currency", ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
-                new MarketItem { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
-            };
+            _marketItems =
+            [
+                new() { Name = "Divine Orb", Category = "Currency", ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Exalted Orb", Category = "Currency", ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Chaos Orb", Category = "Currency", ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
+            ];
             ItemListView.ItemsSource = _marketItems;
         }
 
@@ -434,7 +446,7 @@ namespace LootPulse
             string themePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "args", "active_theme.json");
             try
             {
-                string json = JsonSerializer.Serialize(ActiveTheme, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(ActiveTheme, _jsonOptions);
                 File.WriteAllText(themePath, json);
             }
             catch (Exception ex)
@@ -445,8 +457,7 @@ namespace LootPulse
 
         private void CustomizeStyles_Click(object sender, RoutedEventArgs e)
         {
-            var editor = new StyleEditorWindow(ActiveTheme);
-            editor.Owner = this;
+            var editor = new StyleEditorWindow(ActiveTheme) { Owner = this };
             if (editor.ShowDialog() == true)
             {
                 ActiveTheme = editor.WorkingTheme;
@@ -457,7 +468,7 @@ namespace LootPulse
 
         // --- Settings & Base Filter Merging Methods ---
 
-        private string GetSettingsFilePath()
+        private static string GetSettingsFilePath()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(appData, "LootPulse", "settings.json");
@@ -477,8 +488,8 @@ namespace LootPulse
                         LogPathBox.Text = settings.LogPath;
                         FilterPathBox.Text = settings.FilterOutputPath;
                         _selectedBaseFilterPath = settings.SelectedBaseFilterPath;
-                        Tier1Box.Text = settings.Tier1Threshold.ToString();
-                        Tier2Box.Text = settings.Tier2Threshold.ToString();
+                        Tier1Box.Text = settings.Tier1Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        Tier2Box.Text = settings.Tier2Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
                         return;
                     }
                 }
@@ -506,8 +517,8 @@ namespace LootPulse
                     Directory.CreateDirectory(directory);
                 }
 
-                double.TryParse(Tier1Box.Text, out double t1);
-                double.TryParse(Tier2Box.Text, out double t2);
+                _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
+                _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
                 var settings = new AppSettings
                 {
@@ -518,7 +529,7 @@ namespace LootPulse
                     Tier2Threshold = t2 > 0 ? t2 : 10
                 };
 
-                string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(settings, _jsonOptions);
                 File.WriteAllText(settingsFile, json);
             }
             catch (Exception ex)
@@ -531,17 +542,15 @@ namespace LootPulse
         {
             try
             {
-                using (var reader = new StreamReader(filepath))
+                using var reader = new StreamReader(filepath);
+                for (int i = 0; i < 15; i++)
                 {
-                    for (int i = 0; i < 15; i++)
-                    {
-                        var line = reader.ReadLine();
-                        if (line == null) break;
+                    var line = reader.ReadLine();
+                    if (line == null) break;
 
-                        if (line.StartsWith("#name:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return line.Substring(6).Trim();
-                        }
+                    if (line.StartsWith("#name:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return line[6..].Trim();
                     }
                 }
             }
@@ -697,7 +706,11 @@ namespace LootPulse
                 {
                     System.Media.SystemSounds.Asterisk.Play();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // Ignore exceptions if system sounds are not available or fail to play
+                    System.Diagnostics.Debug.WriteLine($"Failed to play system sound: {ex.Message}");
+                }
             }
 
             Color targetColor = _isClickThroughEnabled ? Colors.Transparent : Color.FromRgb(61, 61, 61);
@@ -726,12 +739,12 @@ namespace LootPulse
                 if (!string.IsNullOrEmpty(selectedOption.FilePath))
                 {
                     string cleanName = selectedOption.DisplayName
-                        .Replace(" (Subscribed)", "")
-                        .Replace(" (Local)", "");
-                    
+                        .Replace(" (Subscribed)", "", StringComparison.Ordinal)
+                        .Replace(" (Local)", "", StringComparison.Ordinal);
+
                     foreach (char c in Path.GetInvalidFileNameChars())
                     {
-                        cleanName = cleanName.Replace(c, '_');
+                        cleanName = cleanName.Replace(c.ToString(), "_", StringComparison.Ordinal);
                     }
                     namePart = $"{cleanName}_LootPulse";
                 }
@@ -763,7 +776,7 @@ namespace LootPulse
             if (ofd.ShowDialog() == true)
             {
                 string selectedPath = ofd.FileName;
-                
+
                 FilterOption? existing = null;
                 foreach (FilterOption item in BaseFilterComboBox.Items)
                 {
@@ -801,7 +814,7 @@ namespace LootPulse
         private void ToggleHudVisibility()
         {
             _appSettings.IsHudVisible = !_appSettings.IsHudVisible;
-            
+
             // Sync Checkbox
             HudVisibleCheckBox.Checked -= HudVisibleCheckBox_Changed;
             HudVisibleCheckBox.Unchecked -= HudVisibleCheckBox_Changed;
@@ -829,26 +842,23 @@ namespace LootPulse
         private void HudVisibleCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (_appSettings == null) return;
-            
+
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
             SaveSettings();
 
-            if (_hudWindow != null)
+            if (_hudWindow != null && _isClickThroughEnabled)
             {
-                if (_isClickThroughEnabled)
-                {
-                    if (_appSettings.IsHudVisible)
-                        _hudWindow.Show();
-                    else
-                        _hudWindow.Hide();
-                }
+                if (_appSettings.IsHudVisible)
+                    _hudWindow.Show();
+                else
+                    _hudWindow.Hide();
             }
         }
 
         private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_appSettings == null || EditOpacitySlider == null || HudOpacitySlider == null) return;
-            
+
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
             SaveSettings();
@@ -860,7 +870,7 @@ namespace LootPulse
             else
             {
                 _hudWindow?.SetClickThrough(false, _appSettings.EditModeOpacity);
-                
+
                 // Adjust MainWindow background opacity
                 if (MainWindowBorder != null)
                 {
@@ -886,22 +896,20 @@ namespace LootPulse
             StatusText.Text = "HUD size and position reset to defaults.";
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075:URIs should not be hardcoded", Justification = "WPF Pack URIs are internal application resource addresses, not external endpoints.")]
         private void InitializeTrayIcon()
         {
             try
             {
-                _notifyIcon = new System.Windows.Forms.NotifyIcon();
-                _notifyIcon.Text = "LootPulse Overlay";
+                _notifyIcon = new() { Text = "LootPulse Overlay" };
 
                 // Load icon from pack URI resource
                 var iconUri = new Uri("pack://application:,,,/lootpulse.ico", UriKind.Absolute);
                 var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
                 if (streamInfo != null)
                 {
-                    using (var stream = streamInfo.Stream)
-                    {
-                        _notifyIcon.Icon = new System.Drawing.Icon(stream);
-                    }
+                    using var stream = streamInfo.Stream;
+                    _notifyIcon.Icon = new System.Drawing.Icon(stream);
                 }
                 else
                 {
@@ -909,25 +917,24 @@ namespace LootPulse
                 }
 
                 // Create Context Menu
-                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
-                
-                var headerItem = new System.Windows.Forms.ToolStripMenuItem("LootPulse Overlay");
-                headerItem.Enabled = false;
+                System.Windows.Forms.ContextMenuStrip contextMenu = new();
+
+                System.Windows.Forms.ToolStripMenuItem headerItem = new("LootPulse Overlay") { Enabled = false };
                 contextMenu.Items.Add(headerItem);
                 contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
-                var showDashboardItem = new System.Windows.Forms.ToolStripMenuItem("Show Dashboard", null, (s, e) => ShowDashboard());
+                System.Windows.Forms.ToolStripMenuItem showDashboardItem = new("Show Dashboard", null, (s, e) => ShowDashboard());
                 contextMenu.Items.Add(showDashboardItem);
 
-                var toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Toggle Overlay Mode (Ctrl+Shift+O)", null, (s, e) => ToggleOverlayMode());
+                System.Windows.Forms.ToolStripMenuItem toggleOverlayItem = new("Toggle Overlay Mode (Ctrl+Shift+O)", null, (s, e) => ToggleOverlayMode());
                 contextMenu.Items.Add(toggleOverlayItem);
 
-                var resetHudItem = new System.Windows.Forms.ToolStripMenuItem("Reset HUD Position", null, (s, e) => ResetHudPosition_Click(this, new RoutedEventArgs()));
+                System.Windows.Forms.ToolStripMenuItem resetHudItem = new("Reset HUD Position", null, (s, e) => ResetHudPosition_Click(this, new RoutedEventArgs()));
                 contextMenu.Items.Add(resetHudItem);
 
                 contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
-                var exitItem = new System.Windows.Forms.ToolStripMenuItem("Exit", null, (s, e) => ExitApplication());
+                System.Windows.Forms.ToolStripMenuItem exitItem = new("Exit", null, (s, e) => ExitApplication());
                 contextMenu.Items.Add(exitItem);
 
                 _notifyIcon.ContextMenuStrip = contextMenu;
@@ -971,57 +978,77 @@ namespace LootPulse
                     bool isRunning = IsPoE2Running();
                     if (isRunning && !_wasGameRunning)
                     {
-                        Dispatcher.Invoke(() =>
-                        {
-                            StatusText.Text = "Path of Exile 2 launch detected! Activating HUD overlay...";
-                            if (!_isClickThroughEnabled)
-                            {
-                                ToggleOverlayMode();
-                            }
-                            else
-                            {
-                                _appSettings.IsHudVisible = true;
-                                SaveSettings();
-                                if (_hudWindow != null)
-                                {
-                                    _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
-                                    _hudWindow.Show();
-                                }
-                            }
-                        });
+                        await Dispatcher.InvokeAsync(OnGameLaunchDetected);
                     }
                     _wasGameRunning = isRunning;
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error in process detection: {ex.Message}");
                 }
 
-                await Task.Delay(2000, token);
+                try
+                {
+                    await Task.Delay(2000, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
 
-        private bool IsPoE2Running()
+        private void OnGameLaunchDetected()
+        {
+            StatusText.Text = "Path of Exile 2 launch detected! Activating HUD overlay...";
+            if (!_isClickThroughEnabled)
+            {
+                ToggleOverlayMode();
+            }
+            else
+            {
+                _appSettings.IsHudVisible = true;
+                SaveSettings();
+                if (_hudWindow != null)
+                {
+                    _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
+                    _hudWindow.Show();
+                }
+            }
+        }
+
+        private static bool IsPoE2Running()
         {
             var processes = Process.GetProcesses();
-            foreach (var p in processes)
+            try
             {
-                try
+                return processes.Any(p =>
                 {
-                    string name = p.ProcessName;
-                    if (name.Contains("PathOfExile2", StringComparison.OrdinalIgnoreCase) || 
-                        name.Contains("PathOfExile_x64", StringComparison.OrdinalIgnoreCase))
+                    try
                     {
-                        return true;
+                        string name = p.ProcessName;
+                        return name.Contains("PathOfExile2", StringComparison.OrdinalIgnoreCase) ||
+                               name.Contains("PathOfExile_x64", StringComparison.OrdinalIgnoreCase);
                     }
-                }
-                catch { }
-                finally
+                    catch (Exception ex)
+                    {
+                        // Ignore process property access errors for processes that might be protected or have exited
+                        System.Diagnostics.Debug.WriteLine($"Failed to access process name: {ex.Message}");
+                        return false;
+                    }
+                });
+            }
+            finally
+            {
+                foreach (var p in processes)
                 {
                     p.Dispose();
                 }
             }
-            return false;
         }
     }
 

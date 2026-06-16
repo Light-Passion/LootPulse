@@ -1,0 +1,53 @@
+[*.cs]
+
+# ==========================================
+# 1. Global C# Naming Conventions
+# ==========================================
+
+# PascalCase for Public/Internal/Protected fields and properties
+dotnet_naming_rule.public_members_must_be_pascal_case.symbols = public_symbols
+dotnet_naming_rule.public_members_must_be_pascal_case.style = pascal_case_style
+dotnet_naming_rule.public_members_must_be_pascal_case.severity = warning
+
+dotnet_naming_symbols.public_symbols.applicable_kinds = property, method, event
+dotnet_naming_symbols.public_symbols.applicable_accessibilities = public, internal, protected
+
+# _camelCase for Private fields
+dotnet_naming_rule.private_fields_must_be_camel_case.symbols = private_fields_symbols
+dotnet_naming_rule.private_fields_must_be_camel_case.style = camel_case_with_underscore_style
+dotnet_naming_rule.private_fields_must_be_camel_case.severity = warning
+
+dotnet_naming_symbols.private_fields_symbols.applicable_kinds = field
+dotnet_naming_symbols.private_fields_symbols.applicable_accessibilities = private
+dotnet_naming_style.camel_case_with_underscore_style.required_prefix = _
+dotnet_naming_style.camel_case_with_underscore_style.capitalization = camel_case
+
+# ==========================================
+# 2. WPF / WinForms Specific Rules
+# ==========================================
+
+# Force camelCase for UI Controls (e.g., submitButton, userNameTextBox)
+# This keeps backend private variables clean and separate from business logic fields
+dotnet_naming_rule.ui_controls_must_be_camel_case.symbols = ui_control_symbols
+dotnet_naming_rule.ui_controls_must_be_camel_case.style = camel_case_style
+dotnet_naming_rule.ui_controls_must_be_camel_case.severity = warning
+
+dotnet_naming_symbols.ui_control_symbols.applicable_kinds = field
+dotnet_naming_symbols.ui_control_symbols.applicable_accessibilities = private
+# Targets common WPF/WinForms base classes
+dotnet_naming_symbols.ui_control_symbols.required_modifiers = 
+
+# Allow snake_case / PascalCase mix for XAML Event Handlers (e.g., Button_Click)
+# This prevents the compiler from throwing warnings on auto-generated WPF event hooks
+dotnet_naming_rule.allow_xaml_event_handlers.symbols = event_handler_symbols
+dotnet_naming_rule.allow_xaml_event_handlers.style = pascal_case_style
+dotnet_naming_rule.allow_xaml_event_handlers.severity = silent
+
+dotnet_naming_symbols.event_handler_symbols.applicable_kinds = method
+dotnet_naming_symbols.event_handler_symbols.applicable_accessibilities = private, protected
+
+# ==========================================
+# Shared Styles
+# ==========================================
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+dotnet_naming_style.camel_case_style.capitalization = camel_case

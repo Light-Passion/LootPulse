@@ -8,8 +8,17 @@ using LootPulse.Models;
 
 namespace LootPulse.Services
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325:Methods and properties that don't access instance data should be static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching generic Exception in zlib and XML parsing prevents crashes when user inputs malformed share codes.")]
     public class BuildProfileParser
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            PropertyNameCaseInsensitive = true
+        };
+
         /// <summary>
         /// Parses a native Path of Exile 2 in-game build planner JSON file (.build).
         /// </summary>
@@ -21,11 +30,7 @@ namespace LootPulse.Services
                     return null;
 
                 var json = File.ReadAllText(filePath);
-                var build = JsonSerializer.Deserialize<PoeBuild>(json, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                    PropertyNameCaseInsensitive = true
-                });
+                var build = JsonSerializer.Deserialize<PoeBuild>(json, _jsonOptions);
 
                 return build;
             }
@@ -81,12 +86,12 @@ namespace LootPulse.Services
         {
             try
             {
-                var doc = new XmlDocument();
+                XmlDocument doc = new() { XmlResolver = null };
                 doc.LoadXml(xmlContent);
 
                 var buildNode = doc.SelectSingleNode("/PathOfBuilding/Build");
                 var nameAttribute = buildNode?.Attributes?.GetNamedItem("className");
-                
+
                 var build = new PoeBuild
                 {
                     Name = $"PoB Import - {nameAttribute?.Value ?? "Build"}",
@@ -94,56 +99,8 @@ namespace LootPulse.Services
                     Description = "Converted from Path of Building 2 XML"
                 };
 
-                // Parse Items
-                var itemNodes = doc.SelectNodes("/PathOfBuilding/Items/Item");
-                if (itemNodes != null)
-                {
-                    foreach (XmlNode itemNode in itemNodes)
-                    {
-                        var rawText = itemNode.InnerText;
-                        var lines = rawText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                        if (lines.Length > 0)
-                        {
-                            var nameLine = lines[0].Trim();
-                            // In PoB, uniques/rares usually have name on line 2 if line 1 has rarity
-                            if (lines.Length > 1 && (nameLine.StartsWith("Rarity:") || nameLine.Contains("Rarity")))
-                            {
-                                nameLine = lines[1].Trim();
-                            }
-                            
-                             build.InventorySlots.Add(new BuildInventorySlot
-                             {
-                                 UniqueName = nameLine,
-                                 InventoryId = "Imported"
-                             });
-                         }
-                     }
-                 }
- 
-                 // Parse Skills
-                 var skillNodes = doc.SelectNodes("/PathOfBuilding/Skills/Skill");
-                 if (skillNodes != null)
-                 {
-                     foreach (XmlNode skillNode in skillNodes)
-                     {
-                         var gemNodes = skillNode.SelectNodes("Gem");
-                         if (gemNodes != null)
-                         {
-                             foreach (XmlNode gemNode in gemNodes)
-                             {
-                                 var nameAttr = gemNode.Attributes?.GetNamedItem("nameSpec");
-                                 if (nameAttr != null)
-                                 {
-                                     build.Skills.Add(new BuildSkill
-                                     {
-                                         Id = nameAttr.Value ?? string.Empty,
-                                         Name = nameAttr.Value ?? string.Empty
-                                     });
-                                 }
-                            }
-                        }
-                    }
-                }
+                ParsePobItems(doc, build);
+                ParsePobSkills(doc, build);
 
                 return build;
             }
@@ -151,6 +108,56 @@ namespace LootPulse.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Error converting PoB XML: {ex.Message}");
                 return null;
+            }
+        }
+
+        private void ParsePobItems(XmlDocument doc, PoeBuild build)
+        {
+            var itemNodes = doc.SelectNodes("/PathOfBuilding/Items/Item");
+            if (itemNodes == null) return;
+
+            foreach (XmlNode itemNode in itemNodes)
+            {
+                var rawText = itemNode.InnerText;
+                var lines = rawText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length == 0) continue;
+
+                var nameLine = lines[0].Trim();
+                if (lines.Length > 1 && (nameLine.StartsWith("Rarity:", StringComparison.Ordinal) || nameLine.Contains("Rarity", StringComparison.Ordinal)))
+                {
+                    nameLine = lines[1].Trim();
+                }
+
+                build.InventorySlots.Add(new BuildInventorySlot
+                {
+                    UniqueName = nameLine,
+                    InventoryId = "Imported"
+                });
+            }
+        }
+
+        private void ParsePobSkills(XmlDocument doc, PoeBuild build)
+        {
+            var skillNodes = doc.SelectNodes("/PathOfBuilding/Skills/Skill");
+            if (skillNodes == null) return;
+
+            foreach (XmlNode skillNode in skillNodes)
+            {
+                var gemNodes = skillNode.SelectNodes("Gem");
+                if (gemNodes == null) continue;
+
+                foreach (XmlNode gemNode in gemNodes)
+                {
+                    var nameAttr = gemNode.Attributes?.GetNamedItem("nameSpec");
+                    if (nameAttr?.Value != null)
+                    {
+                        build.Skills.Add(new BuildSkill
+                        {
+                            Id = nameAttr.Value,
+                            Name = nameAttr.Value
+                        });
+                    }
+                }
             }
         }
     }

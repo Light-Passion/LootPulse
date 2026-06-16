@@ -38,7 +38,7 @@ namespace LootPulse.Models
         public string? UniqueName { get; set; }
         public string? AdditionalText { get; set; }
         public List<int>? LevelInterval { get; set; }
-        
+
         // Helper property to resolve the display name for the loot filter
         public string ItemName
         {

@@ -8,16 +8,26 @@ using LootPulse.Models;
 
 namespace LootPulse.Services
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Prevent external API and network failures from crashing the WPF overlay.")]
     public class PoeNinjaClient
     {
-        private readonly HttpClient _httpClient;
+        private static readonly HttpClient _httpClient = CreateHttpClient();
         private const string BaseUrl = "https://poe.ninja/api/data";
+        private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(15)
+            };
+            client.DefaultRequestHeaders.Add("User-Agent", "LootPulseOverlay/1.0 (Windows Native App)");
+            return client;
+        }
 
         public PoeNinjaClient()
         {
-            // Set up client with a standard user-agent to prevent blocks
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "LootPulseOverlay/1.0 (Windows Native App)");
         }
 
         public async Task<List<MarketItem>> FetchCurrencyPricesAsync(string league)
@@ -25,11 +35,8 @@ namespace LootPulse.Services
             var url = $"{BaseUrl}/currencyoverview?league={Uri.EscapeDataString(league)}&type=Currency";
             try
             {
-                var response = await _httpClient.GetStringAsync(url);
-                var root = JsonSerializer.Deserialize<NinjaCurrencyRoot>(response, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
+                var root = JsonSerializer.Deserialize<NinjaCurrencyRoot>(response, _jsonOptions);
 
                 var list = new List<MarketItem>();
                 if (root?.Lines != null)
@@ -59,11 +66,8 @@ namespace LootPulse.Services
             var url = $"{BaseUrl}/itemoverview?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
             try
             {
-                var response = await _httpClient.GetStringAsync(url);
-                var root = JsonSerializer.Deserialize<NinjaItemRoot>(response, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
+                var root = JsonSerializer.Deserialize<NinjaItemRoot>(response, _jsonOptions);
 
                 var list = new List<MarketItem>();
                 if (root?.Lines != null)
@@ -91,13 +95,15 @@ namespace LootPulse.Services
         }
 
         // Helper classes for parsing poe.ninja Currency JSON
-        private class NinjaCurrencyRoot
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Deserialized by JsonSerializer")]
+        private sealed class NinjaCurrencyRoot
         {
             [JsonPropertyName("lines")]
             public List<NinjaCurrencyLine>? Lines { get; set; }
         }
 
-        private class NinjaCurrencyLine
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Deserialized by JsonSerializer")]
+        private sealed class NinjaCurrencyLine
         {
             [JsonPropertyName("currencyTypeName")]
             public string CurrencyTypeName { get; set; } = string.Empty;
@@ -107,13 +113,15 @@ namespace LootPulse.Services
         }
 
         // Helper classes for parsing poe.ninja Item JSON
-        private class NinjaItemRoot
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Deserialized by JsonSerializer")]
+        private sealed class NinjaItemRoot
         {
             [JsonPropertyName("lines")]
             public List<NinjaItemLine>? Lines { get; set; }
         }
 
-        private class NinjaItemLine
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Deserialized by JsonSerializer")]
+        private sealed class NinjaItemLine
         {
             [JsonPropertyName("name")]
             public string Name { get; set; } = string.Empty;

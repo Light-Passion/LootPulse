@@ -12,18 +12,21 @@ using LootPulse.Models;
 
 namespace LootPulse
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching generic Exception in UI controllers and event handlers is necessary to prevent app crashes and display error alerts to the user.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "This desktop overlay utility does not support localized resource tables.")]
     public partial class StyleEditorWindow : Window
     {
         public FilterTheme WorkingTheme { get; private set; }
         private Dictionary<string, FilterTheme> _presets = new();
         private string _presetsFilePath = "";
         private string _currentCategory = "Uniques";
-        private bool _isSynchronizing = false;
+        private bool _isSynchronizing;
+        private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         public StyleEditorWindow(FilterTheme currentTheme)
         {
             InitializeComponent();
-            
+
             // Deep clone theme to work on
             string json = JsonSerializer.Serialize(currentTheme);
             WorkingTheme = JsonSerializer.Deserialize<FilterTheme>(json) ?? new FilterTheme();
@@ -102,7 +105,7 @@ namespace LootPulse
             PopulateGrid(BackgroundColorGrid, swatches, BackgroundColorTextBox, BackgroundColorPopup);
         }
 
-        private void PopulateGrid(UniformGrid grid, string[] swatches, TextBox targetTextBox, Popup targetPopup)
+        private static void PopulateGrid(UniformGrid grid, string[] swatches, TextBox targetTextBox, Popup targetPopup)
         {
             grid.Children.Clear();
             foreach (var swatch in swatches)
@@ -172,7 +175,7 @@ namespace LootPulse
             string hex = textBox.Text.Trim();
             if (string.IsNullOrEmpty(hex)) return;
 
-            if (!hex.StartsWith("#"))
+            if (!hex.StartsWith('#'))
             {
                 hex = "#" + hex;
             }
@@ -180,7 +183,7 @@ namespace LootPulse
             try
             {
                 var color = (Color)ColorConverter.ConvertFromString(hex);
-                
+
                 if (textBox == TextColorTextBox)
                 {
                     TextColorBtn.Background = new SolidColorBrush(color);
@@ -225,13 +228,13 @@ namespace LootPulse
             string hex = targetTextBox.Text.Trim();
             if (string.IsNullOrEmpty(hex)) return;
 
-            if (!hex.StartsWith("#")) hex = "#" + hex;
+            if (!hex.StartsWith('#')) hex = "#" + hex;
 
             try
             {
                 var color = (Color)ColorConverter.ConvertFromString(hex);
                 var newColor = Color.FromArgb((byte)slider.Value, color.R, color.G, color.B);
-                
+
                 _isSynchronizing = true;
                 targetTextBox.Text = $"#{newColor.A:X2}{newColor.R:X2}{newColor.G:X2}{newColor.B:X2}";
                 _isSynchronizing = false;
@@ -376,7 +379,7 @@ namespace LootPulse
 
             // Sound UI Loading
             SetComboBoxSelectedTag(SoundTypeComboBox, style.SoundType);
-            SetComboBoxSelectedTag(SoundIdComboBox, style.AlertSoundId.ToString());
+            SetComboBoxSelectedTag(SoundIdComboBox, style.AlertSoundId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             CustomSoundTextBox.Text = style.CustomSoundPath;
             MuteDefaultDropSoundCheckBox.IsChecked = style.MuteDefaultDropSound;
 
@@ -460,7 +463,7 @@ namespace LootPulse
                     PreviewLabelBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(50, 80, 80, 80));
                     PreviewLabelText.Foreground = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100));
                     PreviewLabelText.Text = "Disabled Category";
-                    
+
                     PreviewIconIndicator.Fill = Brushes.Transparent;
                     PreviewIconChar.Text = "";
                     PreviewBeamIndicator.Background = Brushes.Transparent;
@@ -485,9 +488,9 @@ namespace LootPulse
                 PreviewLabelText.FontSize = 10 + ((rawSize - 18) / (45 - 18)) * 10;
 
                 // Color mappings
-                var textCol = (Color)ColorConverter.ConvertFromString(TextColorTextBox.Text.Trim().StartsWith("#") ? TextColorTextBox.Text.Trim() : "#" + TextColorTextBox.Text.Trim());
-                var borderCol = (Color)ColorConverter.ConvertFromString(BorderColorTextBox.Text.Trim().StartsWith("#") ? BorderColorTextBox.Text.Trim() : "#" + BorderColorTextBox.Text.Trim());
-                var bgCol = (Color)ColorConverter.ConvertFromString(BackgroundColorTextBox.Text.Trim().StartsWith("#") ? BackgroundColorTextBox.Text.Trim() : "#" + BackgroundColorTextBox.Text.Trim());
+                var textCol = (Color)ColorConverter.ConvertFromString(TextColorTextBox.Text.Trim().StartsWith('#') ? TextColorTextBox.Text.Trim() : "#" + TextColorTextBox.Text.Trim());
+                var borderCol = (Color)ColorConverter.ConvertFromString(BorderColorTextBox.Text.Trim().StartsWith('#') ? BorderColorTextBox.Text.Trim() : "#" + BorderColorTextBox.Text.Trim());
+                var bgCol = (Color)ColorConverter.ConvertFromString(BackgroundColorTextBox.Text.Trim().StartsWith('#') ? BackgroundColorTextBox.Text.Trim() : "#" + BackgroundColorTextBox.Text.Trim());
 
                 PreviewLabelText.Foreground = new SolidColorBrush(textCol);
                 PreviewLabelBorder.BorderBrush = new SolidColorBrush(borderCol);
@@ -532,7 +535,7 @@ namespace LootPulse
             }
         }
 
-        private string GetShapeChar(string shape)
+        private static string GetShapeChar(string shape)
         {
             return shape switch
             {
@@ -552,22 +555,22 @@ namespace LootPulse
             };
         }
 
-        private Brush GetColorBrush(string colorName)
+        private static SolidColorBrush GetColorBrush(string colorName)
         {
             return colorName switch
             {
-                "Red" => Brushes.Red,
+                "Red" => (SolidColorBrush)Brushes.Red,
                 "Orange" => new SolidColorBrush(Color.FromRgb(255, 97, 36)),
-                "Yellow" => Brushes.Yellow,
-                "Green" => Brushes.Green,
-                "Blue" => Brushes.DeepSkyBlue,
-                "Cyan" => Brushes.Cyan,
-                "Purple" => Brushes.Purple,
-                "Pink" => Brushes.Pink,
-                "White" => Brushes.White,
-                "Brown" => Brushes.SaddleBrown,
-                "Grey" => Brushes.Gray,
-                _ => Brushes.Transparent
+                "Yellow" => (SolidColorBrush)Brushes.Yellow,
+                "Green" => (SolidColorBrush)Brushes.Green,
+                "Blue" => (SolidColorBrush)Brushes.DeepSkyBlue,
+                "Cyan" => (SolidColorBrush)Brushes.Cyan,
+                "Purple" => (SolidColorBrush)Brushes.Purple,
+                "Pink" => (SolidColorBrush)Brushes.Pink,
+                "White" => (SolidColorBrush)Brushes.White,
+                "Brown" => (SolidColorBrush)Brushes.SaddleBrown,
+                "Grey" => (SolidColorBrush)Brushes.Gray,
+                _ => (SolidColorBrush)Brushes.Transparent
             };
         }
 
@@ -617,7 +620,7 @@ namespace LootPulse
                 // Deep clone selected theme to WorkingTheme
                 string json = JsonSerializer.Serialize(theme);
                 WorkingTheme = JsonSerializer.Deserialize<FilterTheme>(json) ?? new FilterTheme();
-                
+
                 PresetNameTextBox.Text = presetName;
 
                 // Load active category
@@ -657,13 +660,13 @@ namespace LootPulse
 
             try
             {
-                string json = JsonSerializer.Serialize(userPresets, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(userPresets, _jsonOptions);
                 File.WriteAllText(_presetsFilePath, json);
-                
+
                 // Refresh list
                 LoadPresetsList();
                 PresetComboBox.SelectedItem = name;
-                
+
                 MessageBox.Show($"Preset '{name}' saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -699,9 +702,9 @@ namespace LootPulse
 
                 try
                 {
-                    string json = JsonSerializer.Serialize(userPresets, new JsonSerializerOptions { WriteIndented = true });
+                    string json = JsonSerializer.Serialize(userPresets, _jsonOptions);
                     File.WriteAllText(_presetsFilePath, json);
-                    
+
                     LoadPresetsList();
                     PresetComboBox.SelectedItem = "Default LootPulse";
                 }
@@ -728,7 +731,7 @@ namespace LootPulse
 
         #region ComboBox Helpers
 
-        private void SetComboBoxSelectedTag(ComboBox comboBox, string tag)
+        private static void SetComboBoxSelectedTag(ComboBox comboBox, string tag)
         {
             foreach (ComboBoxItem item in comboBox.Items)
             {
@@ -740,77 +743,77 @@ namespace LootPulse
             }
         }
 
-        private void SetComboBoxSelectedTag(ComboBox comboBox, int tag)
+        private static void SetComboBoxSelectedTag(ComboBox comboBox, int tag)
         {
-            SetComboBoxSelectedTag(comboBox, tag.ToString());
+            SetComboBoxSelectedTag(comboBox, tag.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         #endregion
 
         #region Pre-built Theme Presets
 
-        private FilterTheme GetTealEclipsePreset()
+        private static FilterTheme GetTealEclipsePreset()
         {
             return new FilterTheme
             {
                 ThemeName = "Teal Eclipse",
-                Uniques = new() 
-                { 
-                    TextColor = "#FF00FFFF", BorderColor = "#FF00FFFF", BackgroundColor = "#FF002233", FontSize = 45, 
-                    SoundType = "BuiltIn", AlertSoundId = 3, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan Temp" 
+                Uniques = new()
+                {
+                    TextColor = "#FF00FFFF", BorderColor = "#FF00FFFF", BackgroundColor = "#FF002233", FontSize = 45,
+                    SoundType = "BuiltIn", AlertSoundId = 3, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan Temp"
                 },
-                Gems = new() 
-                { 
-                    TextColor = "#FF00C8FF", BorderColor = "#FF0088AA", FontSize = 40, 
-                    SoundType = "None" 
+                Gems = new()
+                {
+                    TextColor = "#FF00C8FF", BorderColor = "#FF0088AA", FontSize = 40,
+                    SoundType = "None"
                 },
-                ProgressionBases = new() 
-                { 
-                    TextColor = "#FFE0FFFF", BorderColor = "#FF00C8FF", FontSize = 35, 
-                    SoundType = "None", PlayEffect = "Cyan Temp" 
+                ProgressionBases = new()
+                {
+                    TextColor = "#FFE0FFFF", BorderColor = "#FF00C8FF", FontSize = 35,
+                    SoundType = "None", PlayEffect = "Cyan Temp"
                 },
-                EconomyTier1 = new() 
-                { 
-                    TextColor = "#FF00C8FF", BorderColor = "#FF00C8FF", BackgroundColor = "#FF002233", FontSize = 45, 
-                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan" 
+                EconomyTier1 = new()
+                {
+                    TextColor = "#FF00C8FF", BorderColor = "#FF00C8FF", BackgroundColor = "#FF002233", FontSize = 45,
+                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan"
                 },
-                EconomyTier2 = new() 
-                { 
-                    TextColor = "#FF0088AA", BorderColor = "#FF0088AA", FontSize = 40, 
-                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Blue Star", PlayEffect = "Blue Temp" 
+                EconomyTier2 = new()
+                {
+                    TextColor = "#FF0088AA", BorderColor = "#FF0088AA", FontSize = 40,
+                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Blue Star", PlayEffect = "Blue Temp"
                 }
             };
         }
 
-        private FilterTheme GetCrimsonHazePreset()
+        private static FilterTheme GetCrimsonHazePreset()
         {
             return new FilterTheme
             {
                 ThemeName = "Crimson Haze",
-                Uniques = new() 
-                { 
-                    TextColor = "#FFFF0055", BorderColor = "#FFFF0055", BackgroundColor = "#FF330011", FontSize = 45, 
-                    SoundType = "BuiltIn", AlertSoundId = 1, MinimapIcon = "0 Red Star", PlayEffect = "Red Temp" 
+                Uniques = new()
+                {
+                    TextColor = "#FFFF0055", BorderColor = "#FFFF0055", BackgroundColor = "#FF330011", FontSize = 45,
+                    SoundType = "BuiltIn", AlertSoundId = 1, MinimapIcon = "0 Red Star", PlayEffect = "Red Temp"
                 },
-                Gems = new() 
-                { 
-                    TextColor = "#FFFF3366", BorderColor = "#FF880022", FontSize = 40, 
-                    SoundType = "None" 
+                Gems = new()
+                {
+                    TextColor = "#FFFF3366", BorderColor = "#FF880022", FontSize = 40,
+                    SoundType = "None"
                 },
-                ProgressionBases = new() 
-                { 
-                    TextColor = "#FFFFE0E5", BorderColor = "#FFFF0055", FontSize = 35, 
-                    SoundType = "None", PlayEffect = "Red Temp" 
+                ProgressionBases = new()
+                {
+                    TextColor = "#FFFFE0E5", BorderColor = "#FFFF0055", FontSize = 35,
+                    SoundType = "None", PlayEffect = "Red Temp"
                 },
-                EconomyTier1 = new() 
-                { 
-                    TextColor = "#FFFF0000", BorderColor = "#FFFF0000", BackgroundColor = "#FF330011", FontSize = 45, 
-                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Red Star", PlayEffect = "Red" 
+                EconomyTier1 = new()
+                {
+                    TextColor = "#FFFF0000", BorderColor = "#FFFF0000", BackgroundColor = "#FF330011", FontSize = 45,
+                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Red Star", PlayEffect = "Red"
                 },
-                EconomyTier2 = new() 
-                { 
-                    TextColor = "#FFBB0022", BorderColor = "#FFBB0022", FontSize = 40, 
-                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Red Circle", PlayEffect = "Red Temp" 
+                EconomyTier2 = new()
+                {
+                    TextColor = "#FFBB0022", BorderColor = "#FFBB0022", FontSize = 40,
+                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Red Circle", PlayEffect = "Red Temp"
                 }
             };
         }

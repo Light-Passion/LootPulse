@@ -10,23 +10,28 @@ namespace LootPulse
 {
     public partial class HudWindow : Window
     {
-        private bool _isClickThroughActive = false;
-        private bool _isInitialized = false;
+        private bool _isClickThroughActive;
+        private bool _isInitialized;
         private readonly Action<AppSettings> _onPositionChanged;
         private readonly AppSettings _settings;
 
         // Win32 Interop
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_TRANSPARENT = 0x20;
+        private const int _GWL_EXSTYLE = -20;
+        private const int _WS_EX_TRANSPARENT = 0x20;
 
-        [DllImport("user32.dll")]
-        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static partial int GetWindowLong(IntPtr hWnd, int nIndex);
 
-        [DllImport("user32.dll")]
-        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+        [LibraryImport("user32.dll", EntryPoint = "SetWindowLongW")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static partial int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
         public HudWindow(AppSettings settings, Action<AppSettings> onPositionChanged)
         {
+            ArgumentNullException.ThrowIfNull(settings);
+            ArgumentNullException.ThrowIfNull(onPositionChanged);
+
             InitializeComponent();
             _settings = settings;
             _onPositionChanged = onPositionChanged;
@@ -104,11 +109,11 @@ namespace LootPulse
 
             if (hwnd == IntPtr.Zero) return;
 
-            int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            int extendedStyle = GetWindowLong(hwnd, _GWL_EXSTYLE);
             if (enabled)
             {
                 // Make mouse penetrable (click-through)
-                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
+                _ = SetWindowLong(hwnd, _GWL_EXSTYLE, extendedStyle | _WS_EX_TRANSPARENT);
 
                 // HUD opacity & look
                 byte alpha = (byte)(opacity * 255);
@@ -119,7 +124,7 @@ namespace LootPulse
             else
             {
                 // Make mouse interactive (solid)
-                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle & ~WS_EX_TRANSPARENT);
+                _ = SetWindowLong(hwnd, _GWL_EXSTYLE, extendedStyle & ~_WS_EX_TRANSPARENT);
 
                 // Edit Mode opacity & orange outline
                 byte alpha = (byte)(opacity * 255);
@@ -132,7 +137,7 @@ namespace LootPulse
         public void UpdateDisplay(string charName, int level, string zoneName, int zoneLevel, string statusText)
         {
             HudCharNameText.Text = $" ({charName})";
-            HudLevelText.Text = level.ToString();
+            HudLevelText.Text = level.ToString(System.Globalization.CultureInfo.InvariantCulture);
             HudZoneText.Text = zoneName;
             HudStatusText.Text = $"{statusText} (Zone Lvl: {zoneLevel})";
         }

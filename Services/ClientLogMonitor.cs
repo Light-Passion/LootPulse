@@ -19,7 +19,9 @@ namespace LootPulse.Services
         }
     }
 
-    public class ClientLogMonitor
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The background log monitor loop must catch all exceptions to continue reading gameplay logs gracefully without crashing.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2007:Consider calling ConfigureAwait on the awaited task", Justification = "Running inside task worker threads where synchronization context is not explicitly coupled to UI updates but safe to proceed.")]
+    public sealed class ClientLogMonitor : IDisposable
     {
         private string _logFilePath = string.Empty;
         private CancellationTokenSource? _cts;
@@ -124,6 +126,10 @@ namespace LootPulse.Services
                         }
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error in log monitor loop: {ex.Message}");
@@ -140,28 +146,26 @@ namespace LootPulse.Services
         {
             if (string.IsNullOrWhiteSpace(zoneName)) return 1;
 
-            var clean = zoneName.Trim().ToLowerInvariant();
-
             // Act 1
-            if (clean.Contains("oakhaven")) return 1;
-            if (clean.Contains("lioneye's watch")) return 1;
-            if (clean.Contains("the coast")) return 2;
-            if (clean.Contains("mud flats")) return 3;
-            if (clean.Contains("the grotto")) return 4;
-            if (clean.Contains("the ridge")) return 5;
-            if (clean.Contains("great forest")) return 6;
-            if (clean.Contains("hooded copse")) return 7;
-            if (clean.Contains("riverways") || clean.Contains("the riverways")) return 8;
-            if (clean.Contains("oasis") || clean.Contains("the oasis")) return 10;
-            
+            if (zoneName.Contains("oakhaven", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (zoneName.Contains("lioneye's watch", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (zoneName.Contains("the coast", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (zoneName.Contains("mud flats", StringComparison.OrdinalIgnoreCase)) return 3;
+            if (zoneName.Contains("the grotto", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (zoneName.Contains("the ridge", StringComparison.OrdinalIgnoreCase)) return 5;
+            if (zoneName.Contains("great forest", StringComparison.OrdinalIgnoreCase)) return 6;
+            if (zoneName.Contains("hooded copse", StringComparison.OrdinalIgnoreCase)) return 7;
+            if (zoneName.Contains("riverways", StringComparison.OrdinalIgnoreCase)) return 8;
+            if (zoneName.Contains("oasis", StringComparison.OrdinalIgnoreCase)) return 10;
+
             // Act 2
-            if (clean.Contains("forest encampment")) return 16;
-            if (clean.Contains("fields") || clean.Contains("the fields")) return 16;
-            if (clean.Contains("ruins") || clean.Contains("the ruins")) return 18;
-            
+            if (zoneName.Contains("forest encampment", StringComparison.OrdinalIgnoreCase)) return 16;
+            if (zoneName.Contains("fields", StringComparison.OrdinalIgnoreCase)) return 16;
+            if (zoneName.Contains("ruins", StringComparison.OrdinalIgnoreCase)) return 18;
+
             // Act 3
-            if (clean.Contains("sarn encampment")) return 33;
-            if (clean.Contains("slums") || clean.Contains("the slums")) return 33;
+            if (zoneName.Contains("sarn encampment", StringComparison.OrdinalIgnoreCase)) return 33;
+            if (zoneName.Contains("slums", StringComparison.OrdinalIgnoreCase)) return 33;
 
             // Endgame / Waystone parsing or maps
             var levelInNameMatch = Regex.Match(zoneName, @"\bLevel\s+(\d+)");
@@ -171,6 +175,12 @@ namespace LootPulse.Services
             }
 
             return 1;
+        }
+
+        public void Dispose()
+        {
+            StopMonitoring();
+            GC.SuppressFinalize(this);
         }
     }
 }
