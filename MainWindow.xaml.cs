@@ -43,6 +43,7 @@ namespace LootPulse
         // Win32 Interop Constants
         private const int _hotkeyId = 9000;
         private const int _hotkeyHudId = 9001;
+        private const string _currencyCategory = "Currency";
 
         private readonly HudWindow? _hudWindow;
         private readonly AppSettings _appSettings = new();
@@ -413,10 +414,10 @@ namespace LootPulse
         {
             _marketItems =
             [
-                new() { Name = "Divine Orb", Category = "Currency", ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Exalted Orb", Category = "Currency", ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Chaos Orb", Category = "Currency", ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Mirror of Kalandra", Category = "Currency", ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Divine Orb", Category = _currencyCategory, ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Exalted Orb", Category = _currencyCategory, ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Chaos Orb", Category = _currencyCategory, ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = "Mirror of Kalandra", Category = _currencyCategory, ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             ];
             NormalizeMarketValues(_marketItems);
@@ -1072,14 +1073,14 @@ namespace LootPulse
             double divinePriceInChaos = 120.0;
             double exaltedPriceInChaos = 15.0;
 
-            var divOrb = items.Find(i => i.Name == "Divine Orb" && i.Category == "Currency");
-            if (divOrb != null && divOrb.ChaosValue > 0)
+            var divOrb = items.Find(i => i.Name == "Divine Orb" && i.Category == _currencyCategory);
+            if (divOrb?.ChaosValue > 0)
             {
                 divinePriceInChaos = divOrb.ChaosValue;
             }
 
-            var exOrb = items.Find(i => i.Name == "Exalted Orb" && i.Category == "Currency");
-            if (exOrb != null && exOrb.ChaosValue > 0)
+            var exOrb = items.Find(i => i.Name == "Exalted Orb" && i.Category == _currencyCategory);
+            if (exOrb?.ChaosValue > 0)
             {
                 exaltedPriceInChaos = exOrb.ChaosValue;
             }
