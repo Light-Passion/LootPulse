@@ -5,6 +5,7 @@ namespace LootPulse.Models
     public class MarketItem
     {
         public string Name { get; set; } = string.Empty;
+        public string BaseType { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty; // Currency, Map, Waystone, Unique, Rune, etc.
         public double ChaosValue { get; set; }
         public double ExaltedValue { get; set; }
@@ -15,6 +16,10 @@ namespace LootPulse.Models
         {
             get
             {
+                if (Category == "Exchange Rate" || Name.Contains("in Exalted Orbs", StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"{ExaltedValue:F2} ex";
+                }
                 if (Name == "Mirror of Kalandra" || DivineValue >= 100.0)
                 {
                     if (Name == "Mirror of Kalandra")

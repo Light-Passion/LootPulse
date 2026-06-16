@@ -36,6 +36,7 @@ namespace LootPulse.Models
     {
         public string InventoryId { get; set; } = string.Empty; // e.g. Weapon1, Ring1
         public string? UniqueName { get; set; }
+        public string? BaseType { get; set; }
         public string? AdditionalText { get; set; }
         public List<int>? LevelInterval { get; set; }
 
@@ -44,6 +45,9 @@ namespace LootPulse.Models
         {
             get
             {
+                if (!string.IsNullOrEmpty(BaseType))
+                    return BaseType;
+
                 if (!string.IsNullOrEmpty(UniqueName))
                     return UniqueName;
 

@@ -10,10 +10,11 @@ namespace LootPulse.Services
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Prevent external API and network failures from crashing the WPF overlay.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075:URIs should not be hardcoded", Justification = "poe.ninja endpoint URL is fixed by the service provider.")]
     public class PoeNinjaClient
     {
         private static readonly HttpClient _httpClient = CreateHttpClient();
-        private const string BaseUrl = "https://poe.ninja/api/data";
+        private const string _baseUrl = "https://poe.ninja/api/data";
         private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         private static HttpClient CreateHttpClient()
@@ -32,7 +33,7 @@ namespace LootPulse.Services
 
         public async Task<List<MarketItem>> FetchCurrencyPricesAsync(string league)
         {
-            var url = $"{BaseUrl}/currencyoverview?league={Uri.EscapeDataString(league)}&type=Currency";
+            var url = $"{_baseUrl}/currencyoverview?league={Uri.EscapeDataString(league)}&type=Currency";
             try
             {
                 var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
@@ -57,13 +58,13 @@ namespace LootPulse.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error fetching currency prices: {ex.Message}");
-                return new List<MarketItem>();
+                return [];
             }
         }
 
         public async Task<List<MarketItem>> FetchItemPricesAsync(string league, string type, string categoryName)
         {
-            var url = $"{BaseUrl}/itemoverview?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
+            var url = $"{_baseUrl}/itemoverview?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
             try
             {
                 var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
@@ -77,6 +78,7 @@ namespace LootPulse.Services
                         list.Add(new MarketItem
                         {
                             Name = line.Name,
+                            BaseType = line.BaseType,
                             Category = categoryName,
                             ChaosValue = line.ChaosValue,
                             ExaltedValue = line.ExaltedValue,
@@ -90,7 +92,7 @@ namespace LootPulse.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error fetching item prices for {type}: {ex.Message}");
-                return new List<MarketItem>();
+                return [];
             }
         }
 
@@ -125,6 +127,9 @@ namespace LootPulse.Services
         {
             [JsonPropertyName("name")]
             public string Name { get; set; } = string.Empty;
+
+            [JsonPropertyName("baseType")]
+            public string BaseType { get; set; } = string.Empty;
 
             [JsonPropertyName("chaosValue")]
             public double ChaosValue { get; set; }

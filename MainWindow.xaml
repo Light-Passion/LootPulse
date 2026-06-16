@@ -315,7 +315,7 @@
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListViewItem">
                                                     <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="8">
-                                                        <ContentPresenter/>
+                                                        <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
                                                     </Border>
                                                 </ControlTemplate>
                                             </Setter.Value>

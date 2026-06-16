@@ -10,8 +10,14 @@ namespace LootPulse.Services
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Exposing List<T> is standard for WPF databinding and local collection models.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Hex parsing and exception handling catch general errors to return fallback colors.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S107:Methods should not have too many parameters", Justification = "Parameters represent the essential config context (path, items, build, levels, thresholds, themes) needed for the single-pass filter generation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325:Methods and properties that don't access instance data should be static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
     public class FilterBuilder
     {
+        private const string _sectionSeparator = "# --------------------------------------------------";
+        private const string _baseTypePrefix = "    BaseType";
+
         /// <summary>
         /// Generates a complete .filter file by prepending dynamic market and build rule blocks.
         /// </summary>
@@ -34,245 +40,21 @@ namespace LootPulse.Services
                 activeTheme ??= new FilterTheme();
                 marketItems ??= [];
 
-                // Normalize prices to ensure ExaltedValue and DivineValue are populated
-                if (marketItems.Count > 0)
-                {
-                    double divinePriceInChaos = 120.0;
-                    double exaltedPriceInChaos = 15.0;
+                EnsureMarketValuesNormalized(marketItems);
 
-                    var divOrb = marketItems.FirstOrDefault(i => i.Name == "Divine Orb" && i.Category == "Currency");
-                    if (divOrb != null && divOrb.ChaosValue > 0)
-                    {
-                        divinePriceInChaos = divOrb.ChaosValue;
-                    }
-
-                    var exOrb = marketItems.FirstOrDefault(i => i.Name == "Exalted Orb" && i.Category == "Currency");
-                    if (exOrb != null && exOrb.ChaosValue > 0)
-                    {
-                        exaltedPriceInChaos = exOrb.ChaosValue;
-                    }
-
-                    foreach (var item in marketItems)
-                    {
-                        if (item.DivineValue <= 0 && item.ChaosValue > 0)
-                        {
-                            item.DivineValue = item.ChaosValue / divinePriceInChaos;
-                        }
-                        if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
-                        {
-                            item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
-                        }
-                    }
-                }
                 var sb = new StringBuilder();
 
-                // Add header info
-                sb.AppendLine("# ==========================================================================");
-                sb.AppendLine("# PATH OF EXILE 2 DYNAMIC ECONOMY & BUILD FILTER");
-                sb.AppendLine(CultureInfo.InvariantCulture, $"# Generated on: {DateTime.Now}");
-                sb.AppendLine(CultureInfo.InvariantCulture, $"# Current Player Level: {playerLevel}");
-                sb.AppendLine(CultureInfo.InvariantCulture, $"# Current Zone Level: {zoneLevel}");
-                if (!string.IsNullOrEmpty(baseFilterPath))
-                {
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"# Merged with Base Filter: {Path.GetFileName(baseFilterPath)}");
-                }
-                sb.AppendLine("# ==========================================================================\n");
+                AppendHeader(sb, playerLevel, zoneLevel, baseFilterPath);
 
-                // 1. Build Item Highlight Section (highest priority - Top of the file)
-                if (activeBuild != null)
-                {
-                    sb.AppendLine("# --------------------------------------------------");
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"# BUILD HIGHLIGHTS: {activeBuild.Name} (Level {playerLevel}, Zone {zoneLevel})");
-                    sb.AppendLine("# --------------------------------------------------");
+                AppendUniqueHighlights(sb, activeBuild, playerLevel, marketItems, activeTheme);
 
-                    // Highlight specific unique items active at this level
-                    var buildUniqueItems = activeBuild.InventorySlots
-                        .Where(slot => {
-                            if (string.IsNullOrWhiteSpace(slot.ItemName)) return false;
-                            if (!string.IsNullOrEmpty(slot.UniqueName)) return true;
-                            return false;
-                        })
-                        .Where(slot => {
-                            if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
-                            return playerLevel >= slot.LevelInterval[0] && playerLevel <= slot.LevelInterval[1];
-                        })
-                        .Select(slot => slot.ItemName)
-                        .Distinct()
-                        .ToList();
+                AppendProgressionBaseHighlights(sb, activeBuild, playerLevel, zoneLevel, activeTheme);
 
-                    if (buildUniqueItems.Count > 0)
-                    {
-                        sb.AppendLine("# Active Build Unique Items");
-                        sb.AppendLine("Show");
-                        sb.AppendLine("    Rarity Unique");
-                        sb.Append("    BaseType");
-                        foreach (var item in buildUniqueItems)
-                        {
-                            sb.Append(CultureInfo.InvariantCulture, $" \"{item}\"");
-                        }
-                        sb.AppendLine();
-                        AppendStyleBlock(sb, activeTheme.Uniques);
-                        sb.AppendLine();
-                    }
+                AppendSkillGemHighlights(sb, activeBuild, playerLevel, activeTheme);
 
-                    // Highlight progression base items (non-uniques) recommended by the build
-                    var buildBases = activeBuild.InventorySlots
-                        .Where(slot => string.IsNullOrEmpty(slot.UniqueName) && !string.IsNullOrEmpty(slot.ItemName))
-                        .Where(slot => {
-                            if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
-                            return playerLevel >= slot.LevelInterval[0] && playerLevel <= slot.LevelInterval[1];
-                        })
-                        .ToList();
+                AppendDynamicEconomyHighlights(sb, marketItems, tier1Threshold, tier2Threshold, activeTheme);
 
-                    var progressionBases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                    foreach (var slot in buildBases)
-                    {
-                        var matchedBase = FindMatchedBase(slot.ItemName);
-                        if (matchedBase != null)
-                        {
-                            progressionBases.Add(matchedBase.Name);
-                            var list = FindArchetypeList(matchedBase.Name);
-                            if (list != null)
-                            {
-                                // 1. Highest required level base item <= playerLevel
-                                var playerBase = list.Where(b => b.RequiredLevel <= playerLevel)
-                                                     .OrderByDescending(b => b.RequiredLevel)
-                                                     .FirstOrDefault();
-                                if (playerBase != null)
-                                {
-                                    progressionBases.Add(playerBase.Name);
-                                }
-
-                                // 2. Highest required level base item <= zoneLevel
-                                var zoneBase = list.Where(b => b.RequiredLevel <= zoneLevel)
-                                                   .OrderByDescending(b => b.RequiredLevel)
-                                                   .FirstOrDefault();
-                                if (zoneBase != null)
-                                {
-                                    progressionBases.Add(zoneBase.Name);
-                                }
-                            }
-                            else
-                            {
-                                progressionBases.Add(matchedBase.Name);
-                            }
-                        }
-                        else
-                        {
-                            var cleaned = CleanItemBaseName(slot.ItemName);
-                            if (!string.IsNullOrEmpty(cleaned))
-                            {
-                                progressionBases.Add(cleaned);
-                            }
-                        }
-                    }
-
-                    if (progressionBases.Count > 0)
-                    {
-                        sb.AppendLine("# Active Build Progression Base Items (Leveling & Zone)");
-                        sb.AppendLine("Show");
-                        sb.AppendLine("    Rarity <= Rare");
-                        sb.Append("    BaseType");
-                        foreach (var baseName in progressionBases)
-                        {
-                            sb.Append(CultureInfo.InvariantCulture, $" \"{baseName}\"");
-                        }
-                        sb.AppendLine();
-                        AppendStyleBlock(sb, activeTheme.ProgressionBases);
-                        sb.AppendLine();
-                    }
-
-                    // Highlight active skill gems at this level
-                    var buildGems = activeBuild.Skills
-                        .Where(skill => {
-                            var name = !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id);
-                            if (string.IsNullOrWhiteSpace(name)) return false;
-                            if (skill.LevelInterval == null || skill.LevelInterval.Count < 2) return true;
-                            return playerLevel >= skill.LevelInterval[0] && playerLevel <= skill.LevelInterval[1];
-                        })
-                        .Select(skill => !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id))
-                        .Distinct()
-                        .ToList();
-
-                    if (buildGems.Count > 0)
-                    {
-                        sb.AppendLine("# Active Build Skill Gems");
-                        sb.AppendLine("Show");
-                        sb.AppendLine("    Class \"Skill Gems\"");
-                        sb.Append("    BaseType");
-                        foreach (var gem in buildGems)
-                        {
-                            sb.Append(CultureInfo.InvariantCulture, $" \"{gem}\"");
-                        }
-                        sb.AppendLine();
-                        AppendStyleBlock(sb, activeTheme.Gems);
-                        sb.AppendLine();
-                    }
-                }
-
-                // 2. Dynamic Economy Highlight Section
-                sb.AppendLine("# --------------------------------------------------");
-                sb.AppendLine("# DYNAMIC ECONOMY HIGHLIGHTS (poe.ninja)");
-                sb.AppendLine("# --------------------------------------------------");
-
-                // Tier 1 Items (Very Valuable: e.g. Divine Orb, Mirror, high-tier uniques)
-                var tier1Items = marketItems.Where(i => i.DivineValue >= tier1Threshold).ToList();
-                if (tier1Items.Count > 0)
-                {
-                    sb.AppendLine("# Tier 1 Economy Items");
-                    sb.AppendLine("Show");
-                    sb.Append("    BaseType");
-                    foreach (var item in tier1Items)
-                    {
-                        sb.Append(CultureInfo.InvariantCulture, $" \"{item.Name}\"");
-                    }
-                    sb.AppendLine();
-                    AppendStyleBlock(sb, activeTheme.EconomyTier1);
-                    sb.AppendLine();
-                }
-
-                // Tier 2 Items (Valuable: e.g. Exalted Orb, medium items)
-                var tier2Items = marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold).ToList();
-                if (tier2Items.Count > 0)
-                {
-                    sb.AppendLine("# Tier 2 Economy Items");
-                    sb.AppendLine("Show");
-                    sb.Append("    BaseType");
-                    foreach (var item in tier2Items)
-                    {
-                        sb.Append(CultureInfo.InvariantCulture, $" \"{item.Name}\"");
-                    }
-                    sb.AppendLine();
-                    AppendStyleBlock(sb, activeTheme.EconomyTier2);
-                    sb.AppendLine();
-                }
-
-                // 3. Append the user's existing filter rules if they provided a base file
-                if (!string.IsNullOrEmpty(baseFilterPath) && File.Exists(baseFilterPath))
-                {
-                    sb.AppendLine("# --------------------------------------------------");
-                    sb.AppendLine("# APPENDED BASE FILTER RULES");
-                    sb.AppendLine("# --------------------------------------------------");
-                    var baseFilterContent = File.ReadAllText(baseFilterPath);
-                    sb.AppendLine(baseFilterContent);
-                }
-                else
-                {
-                    // Fallback to a basic template if no base filter is provided
-                    sb.AppendLine("# Fallback basic catch-all rules");
-                    sb.AppendLine("Show");
-                    sb.AppendLine("    Class \"Currency\"");
-                    sb.AppendLine("    SetFontSize 35");
-                    sb.AppendLine("Show");
-                    sb.AppendLine("    Class \"Waystones\"");
-                    sb.AppendLine("    SetFontSize 35");
-                    sb.AppendLine("Show");
-                    sb.AppendLine("    Rarity >= Rare");
-                    sb.AppendLine("    SetFontSize 35");
-                    sb.AppendLine("Show");
-                    sb.AppendLine("    SetFontSize 30");
-                }
+                AppendFallbackOrBaseRules(sb, baseFilterPath);
 
                 // Write out the filter file
                 var directory = Path.GetDirectoryName(outputPath);
@@ -290,6 +72,260 @@ namespace LootPulse.Services
                 return false;
             }
         }
+
+        private static void EnsureMarketValuesNormalized(List<MarketItem> marketItems)
+        {
+            if (marketItems == null || marketItems.Count == 0) return;
+
+            double divinePriceInChaos = 120.0;
+            double exaltedPriceInChaos = 15.0;
+
+            var divOrb = marketItems.FirstOrDefault(i => i.Name == "Divine Orb" && i.Category == "Currency");
+            if (divOrb?.ChaosValue > 0)
+            {
+                divinePriceInChaos = divOrb.ChaosValue;
+            }
+
+            var exOrb = marketItems.FirstOrDefault(i => i.Name == "Exalted Orb" && i.Category == "Currency");
+            if (exOrb?.ChaosValue > 0)
+            {
+                exaltedPriceInChaos = exOrb.ChaosValue;
+            }
+
+            foreach (var item in marketItems)
+            {
+                if (item.DivineValue <= 0 && item.ChaosValue > 0)
+                {
+                    item.DivineValue = item.ChaosValue / divinePriceInChaos;
+                }
+                if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
+                {
+                    item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
+                }
+            }
+        }
+
+        private static void AppendHeader(StringBuilder sb, int playerLevel, int zoneLevel, string? baseFilterPath)
+        {
+            sb.AppendLine("# ==========================================================================");
+            sb.AppendLine("# PATH OF EXILE 2 DYNAMIC ECONOMY & BUILD FILTER");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# Generated on: {DateTime.Now}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# Current Player Level: {playerLevel}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# Current Zone Level: {zoneLevel}");
+            if (!string.IsNullOrEmpty(baseFilterPath))
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"# Merged with Base Filter: {Path.GetFileName(baseFilterPath)}");
+            }
+            sb.AppendLine("# ==========================================================================\n");
+        }
+
+        private static void AppendUniqueHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, List<MarketItem> marketItems, FilterTheme activeTheme)
+        {
+            if (activeBuild == null) return;
+
+            var buildUniqueItems = activeBuild.InventorySlots
+                .Where(slot => !string.IsNullOrWhiteSpace(slot.ItemName) && !string.IsNullOrEmpty(slot.UniqueName))
+                .Where(slot => {
+                    if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
+                    return playerLevel >= slot.LevelInterval[0] && playerLevel <= slot.LevelInterval[1];
+                })
+                .Select(slot => GetUniqueBaseType(slot.ItemName, marketItems))
+                .Where(baseType => !string.IsNullOrEmpty(baseType))
+                .Distinct()
+                .ToList();
+
+            if (buildUniqueItems.Count > 0)
+            {
+                sb.AppendLine(_sectionSeparator);
+                sb.AppendLine(CultureInfo.InvariantCulture, $"# BUILD HIGHLIGHTS: {activeBuild.Name} (Level {playerLevel})");
+                sb.AppendLine(_sectionSeparator);
+                sb.AppendLine("# Active Build Unique Items");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Rarity Unique");
+                sb.Append(_baseTypePrefix);
+                foreach (var baseType in buildUniqueItems)
+                {
+                    sb.Append(CultureInfo.InvariantCulture, $" \"{baseType}\"");
+                }
+                sb.AppendLine();
+                AppendStyleBlock(sb, activeTheme.Uniques);
+                sb.AppendLine();
+            }
+        }
+
+        private static void GetProgressionBasesForSlot(
+            string itemName,
+            int playerLevel,
+            int zoneLevel,
+            HashSet<string> progressionBases)
+        {
+            var matchedBase = FindMatchedBase(itemName);
+            if (matchedBase == null)
+            {
+                var cleaned = CleanItemBaseName(itemName);
+                if (!string.IsNullOrEmpty(cleaned))
+                {
+                    progressionBases.Add(cleaned);
+                }
+                return;
+            }
+
+            progressionBases.Add(matchedBase.Name);
+            var list = FindArchetypeList(matchedBase.Name);
+            if (list == null)
+            {
+                progressionBases.Add(matchedBase.Name);
+                return;
+            }
+
+            var playerBase = list.Where(b => b.RequiredLevel <= playerLevel)
+                                 .OrderByDescending(b => b.RequiredLevel)
+                                 .FirstOrDefault();
+            if (playerBase != null)
+            {
+                progressionBases.Add(playerBase.Name);
+            }
+
+            var zoneBase = list.Where(b => b.RequiredLevel <= zoneLevel)
+                               .OrderByDescending(b => b.RequiredLevel)
+                               .FirstOrDefault();
+            if (zoneBase != null)
+            {
+                progressionBases.Add(zoneBase.Name);
+            }
+        }
+
+        private static void AppendProgressionBaseHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, int zoneLevel, FilterTheme activeTheme)
+        {
+            if (activeBuild == null) return;
+
+            var buildBases = activeBuild.InventorySlots
+                .Where(slot => string.IsNullOrEmpty(slot.UniqueName) && !string.IsNullOrEmpty(slot.ItemName))
+                .Where(slot => {
+                    if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
+                    return playerLevel >= slot.LevelInterval[0] && playerLevel <= slot.LevelInterval[1];
+                })
+                .Select(slot => slot.ItemName)
+                .ToList();
+
+            var progressionBases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var itemName in buildBases)
+            {
+                GetProgressionBasesForSlot(itemName, playerLevel, zoneLevel, progressionBases);
+            }
+
+            if (progressionBases.Count > 0)
+            {
+                sb.AppendLine("# Active Build Progression Base Items (Leveling & Zone)");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Rarity <= Rare");
+                sb.Append(_baseTypePrefix);
+                foreach (var baseName in progressionBases)
+                {
+                    sb.Append(CultureInfo.InvariantCulture, $" \"{baseName}\"");
+                }
+                sb.AppendLine();
+                AppendStyleBlock(sb, activeTheme.ProgressionBases);
+                sb.AppendLine();
+            }
+        }
+
+        private static void AppendSkillGemHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, FilterTheme activeTheme)
+        {
+            if (activeBuild == null) return;
+
+            var buildGems = activeBuild.Skills
+                .Where(skill => {
+                    var name = !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id);
+                    if (string.IsNullOrWhiteSpace(name)) return false;
+                    if (skill.LevelInterval == null || skill.LevelInterval.Count < 2) return true;
+                    return playerLevel >= skill.LevelInterval[0] && playerLevel <= skill.LevelInterval[1];
+                })
+                .Select(skill => !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id))
+                .Distinct()
+                .ToList();
+
+            if (buildGems.Count > 0)
+            {
+                sb.AppendLine("# Active Build Skill Gems");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Class \"Skill Gems\"");
+                sb.Append(_baseTypePrefix);
+                foreach (var gem in buildGems)
+                {
+                    sb.Append(CultureInfo.InvariantCulture, $" \"{gem}\"");
+                }
+                sb.AppendLine();
+                AppendStyleBlock(sb, activeTheme.Gems);
+                sb.AppendLine();
+            }
+        }
+
+        private static void AppendDynamicEconomyHighlights(StringBuilder sb, List<MarketItem> marketItems, double tier1Threshold, double tier2Threshold, FilterTheme activeTheme)
+        {
+            sb.AppendLine(_sectionSeparator);
+            sb.AppendLine("# DYNAMIC ECONOMY HIGHLIGHTS (poe.ninja)");
+            sb.AppendLine(_sectionSeparator);
+
+            var tier1Items = marketItems.Where(i => i.DivineValue >= tier1Threshold && i.Category != "Exchange Rate").ToList();
+            if (tier1Items.Count > 0)
+            {
+                sb.AppendLine("# Tier 1 Economy Items");
+                sb.AppendLine("Show");
+                sb.Append(_baseTypePrefix);
+                foreach (var item in tier1Items)
+                {
+                    sb.Append(CultureInfo.InvariantCulture, $" \"{item.Name}\"");
+                }
+                sb.AppendLine();
+                AppendStyleBlock(sb, activeTheme.EconomyTier1);
+                sb.AppendLine();
+            }
+
+            var tier2Items = marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold && i.Category != "Exchange Rate").ToList();
+            if (tier2Items.Count > 0)
+            {
+                sb.AppendLine("# Tier 2 Economy Items");
+                sb.AppendLine("Show");
+                sb.Append(_baseTypePrefix);
+                foreach (var item in tier2Items)
+                {
+                    sb.Append(CultureInfo.InvariantCulture, $" \"{item.Name}\"");
+                }
+                sb.AppendLine();
+                AppendStyleBlock(sb, activeTheme.EconomyTier2);
+                sb.AppendLine();
+            }
+        }
+
+        private static void AppendFallbackOrBaseRules(StringBuilder sb, string? baseFilterPath)
+        {
+            if (!string.IsNullOrEmpty(baseFilterPath) && File.Exists(baseFilterPath))
+            {
+                sb.AppendLine(_sectionSeparator);
+                sb.AppendLine("# APPENDED BASE FILTER RULES");
+                sb.AppendLine(_sectionSeparator);
+                var baseFilterContent = File.ReadAllText(baseFilterPath);
+                sb.AppendLine(baseFilterContent);
+            }
+            else
+            {
+                sb.AppendLine("# Fallback basic catch-all rules");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Class \"Currency\"");
+                sb.AppendLine("    SetFontSize 35");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Class \"Waystones\"");
+                sb.AppendLine("    SetFontSize 35");
+                sb.AppendLine("Show");
+                sb.AppendLine("    Rarity >= Rare");
+                sb.AppendLine("    SetFontSize 35");
+                sb.AppendLine("Show");
+                sb.AppendLine("    SetFontSize 30");
+            }
+        }
+
 
         private static string GetGemNameFromId(string id)
         {
@@ -313,28 +349,10 @@ namespace LootPulse.Services
                     char curr = clean[i];
                     char? next = (i + 1 < clean.Length) ? clean[i + 1] : (char?)null;
 
-                    bool insertSpace = false;
-
-                    // Transition from lower case to upper case: e.g. 'r' to 'D'
-                    if (char.IsLower(prev) && char.IsUpper(curr))
-                    {
-                        insertSpace = true;
-                    }
-                    // Transition from upper case to upper case followed by lower: e.g. 'H' to 'M' in "1HMace" where next is 'a'
-                    else if (char.IsUpper(prev) && char.IsUpper(curr) && next.HasValue && char.IsLower(next.Value))
-                    {
-                        insertSpace = true;
-                    }
-                    // Transition from letter to digit: e.g. 't' to '1'
-                    else if (char.IsLetter(prev) && char.IsDigit(curr))
-                    {
-                        insertSpace = true;
-                    }
-                    // Transition from digit to letter: e.g. '1' to 'H'
-                    else if (char.IsDigit(prev) && char.IsLetter(curr))
-                    {
-                        insertSpace = true;
-                    }
+                    bool insertSpace = (char.IsLower(prev) && char.IsUpper(curr))
+                        || (char.IsUpper(prev) && char.IsUpper(curr) && next.HasValue && char.IsLower(next.Value))
+                        || (char.IsLetter(prev) && char.IsDigit(curr))
+                        || (char.IsDigit(prev) && char.IsLetter(curr));
 
                     if (insertSpace)
                     {
@@ -346,19 +364,13 @@ namespace LootPulse.Services
             return sb.ToString().Trim();
         }
 
-        private sealed class BaseItemInfo
+        private sealed class BaseItemInfo(string name, int requiredLevel)
         {
-            public string Name { get; }
-            public int RequiredLevel { get; }
-
-            public BaseItemInfo(string name, int level)
-            {
-                Name = name;
-                RequiredLevel = level;
-            }
+            public string Name { get; } = name;
+            public int RequiredLevel { get; } = requiredLevel;
         }
 
-        private static readonly Dictionary<string, List<BaseItemInfo>> Archetypes = new()
+        private static readonly Dictionary<string, List<BaseItemInfo>> _archetypes = new()
         {
             { "Mace", new() {
                 new("Iron Mace", 1),
@@ -557,80 +569,94 @@ namespace LootPulse.Services
             }}
         };
 
+        private static readonly (string[] Keywords, string Archetype)[] _keywordArchetypeMappings =
+        [
+            (["maul", "mace"], "Mace"),
+            (["quarterstaff", "staff"], "Staff"),
+            (["crossbow"], "Crossbow"),
+            (["bow"], "Bow"),
+            (["sword", "sabre", "falchion", "cutlass", "greatsword"], "Sword"),
+            (["wand"], "Wand"),
+            (["jacket", "jerkin"], "Body Armour Evasion"),
+            (["plate", "chainmail", "ringmail", "scale vest"], "Body Armour Armour"),
+            (["robe", "vestment", "regalia", "wrap"], "Body Armour ES"),
+            (["belt", "sash"], "Belt"),
+            (["ring"], "Ring"),
+            (["charm"], "Charm")
+        ];
+
         private static BaseItemInfo? FindMatchedBase(string itemName)
         {
             if (string.IsNullOrWhiteSpace(itemName)) return null;
 
-            foreach (var kvp in Archetypes)
-            {
-                foreach (var baseItem in kvp.Value)
-                {
-                    if (itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return baseItem;
-                    }
-                }
-            }
-            return null;
+            return _archetypes.Values
+                .SelectMany(list => list)
+                .FirstOrDefault(baseItem => itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase));
         }
+
+        private static List<BaseItemInfo> FindBootsArchetype(string cleanName)
+        {
+            if (cleanName.Contains("greaves", StringComparison.Ordinal)) return _archetypes["Boots Armour"];
+            if (cleanName.Contains("slippers", StringComparison.Ordinal) || cleanName.Contains("shoes", StringComparison.Ordinal)) return _archetypes["Boots ES"];
+            return _archetypes["Boots Evasion"];
+        }
+
+        private static List<BaseItemInfo> FindGlovesArchetype(string cleanName)
+        {
+            if (cleanName.Contains("gauntlets", StringComparison.Ordinal)) return _archetypes["Gloves Armour"];
+            if (cleanName.Contains("gloves", StringComparison.Ordinal) && (cleanName.Contains("wool", StringComparison.Ordinal) || cleanName.Contains("silk", StringComparison.Ordinal) || cleanName.Contains("sage", StringComparison.Ordinal) || cleanName.Contains("cabalist", StringComparison.Ordinal))) return _archetypes["Gloves ES"];
+            return _archetypes["Gloves Evasion"];
+        }
+
+        private static List<BaseItemInfo> FindHelmArchetype(string cleanName)
+        {
+            if (cleanName.Contains("hat", StringComparison.Ordinal) || cleanName.Contains("helm", StringComparison.Ordinal) || cleanName.Contains("coif", StringComparison.Ordinal)) return _archetypes["Helm Armour"];
+            if (cleanName.Contains("hood", StringComparison.Ordinal) || cleanName.Contains("circlet", StringComparison.Ordinal)) return _archetypes["Helm ES"];
+            return _archetypes["Helm Evasion"];
+        }
+
+        private static bool IsBoots(string name) =>
+            name.Contains("boots", StringComparison.Ordinal) ||
+            name.Contains("greaves", StringComparison.Ordinal) ||
+            name.Contains("slippers", StringComparison.Ordinal) ||
+            name.Contains("shoes", StringComparison.Ordinal);
+
+        private static bool IsGloves(string name) =>
+            name.Contains("gauntlets", StringComparison.Ordinal) ||
+            name.Contains("gloves", StringComparison.Ordinal) ||
+            name.Contains("mitts", StringComparison.Ordinal);
+
+        private static bool IsHelm(string name) =>
+            name.Contains("helm", StringComparison.Ordinal) ||
+            name.Contains("helmet", StringComparison.Ordinal) ||
+            name.Contains("cap", StringComparison.Ordinal) ||
+            name.Contains("mask", StringComparison.Ordinal) ||
+            name.Contains("hood", StringComparison.Ordinal) ||
+            name.Contains("coif", StringComparison.Ordinal) ||
+            name.Contains("circlet", StringComparison.Ordinal);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Comparing with lowercase string literals is more readable and matches the established casing pattern for game items.")]
         private static List<BaseItemInfo>? FindArchetypeList(string baseItemName)
         {
             if (string.IsNullOrWhiteSpace(baseItemName)) return null;
 
-            foreach (var kvp in Archetypes)
+            var matchedList = _archetypes.Values.FirstOrDefault(list => list.Any(b => b.Name.Equals(baseItemName, StringComparison.OrdinalIgnoreCase)));
+            if (matchedList != null)
             {
-                if (kvp.Value.Any(b => b.Name.Equals(baseItemName, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return kvp.Value;
-                }
+                return matchedList;
             }
 
             var cleanName = baseItemName.ToLowerInvariant();
 
-            if (cleanName.Contains("maul", StringComparison.Ordinal) || cleanName.Contains("mace", StringComparison.Ordinal))
-                return Archetypes["Mace"];
-            if (cleanName.Contains("quarterstaff", StringComparison.Ordinal) || cleanName.Contains("staff", StringComparison.Ordinal))
-                return Archetypes["Staff"];
-            if (cleanName.Contains("crossbow", StringComparison.Ordinal))
-                return Archetypes["Crossbow"];
-            if (cleanName.Contains("bow", StringComparison.Ordinal))
-                return Archetypes["Bow"];
-            if (cleanName.Contains("sword", StringComparison.Ordinal) || cleanName.Contains("sabre", StringComparison.Ordinal) || cleanName.Contains("falchion", StringComparison.Ordinal) || cleanName.Contains("cutlass", StringComparison.Ordinal) || cleanName.Contains("greatsword", StringComparison.Ordinal))
-                return Archetypes["Sword"];
-            if (cleanName.Contains("wand", StringComparison.Ordinal))
-                return Archetypes["Wand"];
-            if (cleanName.Contains("jacket", StringComparison.Ordinal) || cleanName.Contains("jerkin", StringComparison.Ordinal))
-                return Archetypes["Body Armour Evasion"];
-            if (cleanName.Contains("plate", StringComparison.Ordinal) || cleanName.Contains("chainmail", StringComparison.Ordinal) || cleanName.Contains("ringmail", StringComparison.Ordinal) || cleanName.Contains("scale vest", StringComparison.Ordinal))
-                return Archetypes["Body Armour Armour"];
-            if (cleanName.Contains("robe", StringComparison.Ordinal) || cleanName.Contains("vestment", StringComparison.Ordinal) || cleanName.Contains("regalia", StringComparison.Ordinal) || cleanName.Contains("wrap", StringComparison.Ordinal))
-                return Archetypes["Body Armour ES"];
-            if (cleanName.Contains("boots", StringComparison.Ordinal) || cleanName.Contains("greaves", StringComparison.Ordinal) || cleanName.Contains("slippers", StringComparison.Ordinal) || cleanName.Contains("shoes", StringComparison.Ordinal))
+            if (IsBoots(cleanName)) return FindBootsArchetype(cleanName);
+            if (IsGloves(cleanName)) return FindGlovesArchetype(cleanName);
+            if (IsHelm(cleanName)) return FindHelmArchetype(cleanName);
+
+            var (_, archetype) = _keywordArchetypeMappings.FirstOrDefault(m => m.Keywords.Any(k => cleanName.Contains(k, StringComparison.Ordinal)));
+            if (archetype != null)
             {
-                if (cleanName.Contains("greaves", StringComparison.Ordinal)) return Archetypes["Boots Armour"];
-                if (cleanName.Contains("slippers", StringComparison.Ordinal) || cleanName.Contains("shoes", StringComparison.Ordinal)) return Archetypes["Boots ES"];
-                return Archetypes["Boots Evasion"];
+                return _archetypes[archetype];
             }
-            if (cleanName.Contains("gauntlets", StringComparison.Ordinal) || cleanName.Contains("gloves", StringComparison.Ordinal) || cleanName.Contains("mitts", StringComparison.Ordinal))
-            {
-                if (cleanName.Contains("gauntlets", StringComparison.Ordinal)) return Archetypes["Gloves Armour"];
-                if (cleanName.Contains("gloves", StringComparison.Ordinal) && (cleanName.Contains("wool", StringComparison.Ordinal) || cleanName.Contains("silk", StringComparison.Ordinal) || cleanName.Contains("sage", StringComparison.Ordinal) || cleanName.Contains("cabalist", StringComparison.Ordinal))) return Archetypes["Gloves ES"];
-                return Archetypes["Gloves Evasion"];
-            }
-            if (cleanName.Contains("helm", StringComparison.Ordinal) || cleanName.Contains("helmet", StringComparison.Ordinal) || cleanName.Contains("cap", StringComparison.Ordinal) || cleanName.Contains("mask", StringComparison.Ordinal) || cleanName.Contains("hood", StringComparison.Ordinal) || cleanName.Contains("coif", StringComparison.Ordinal) || cleanName.Contains("circlet", StringComparison.Ordinal))
-            {
-                if (cleanName.Contains("hat", StringComparison.Ordinal) || cleanName.Contains("helm", StringComparison.Ordinal) || cleanName.Contains("coif", StringComparison.Ordinal)) return Archetypes["Helm Armour"];
-                if (cleanName.Contains("hood", StringComparison.Ordinal) || cleanName.Contains("circlet", StringComparison.Ordinal)) return Archetypes["Helm ES"];
-                return Archetypes["Helm Evasion"];
-            }
-            if (cleanName.Contains("belt", StringComparison.Ordinal) || cleanName.Contains("sash", StringComparison.Ordinal))
-                return Archetypes["Belt"];
-            if (cleanName.Contains("ring", StringComparison.Ordinal))
-                return Archetypes["Ring"];
-            if (cleanName.Contains("charm", StringComparison.Ordinal))
-                return Archetypes["Charm"];
 
             return null;
         }
@@ -723,25 +749,25 @@ namespace LootPulse.Services
                 hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
             }
 
-            byte r = 255, g = 255, b = 255, a = 255;
+            byte r, g, b, a;
 
             try
             {
                 if (hex.Length == 6)
                 {
                     // RRGGBB
-                    r = Convert.ToByte(hex.Substring(0, 2), 16);
-                    g = Convert.ToByte(hex.Substring(2, 2), 16);
-                    b = Convert.ToByte(hex.Substring(4, 2), 16);
+                    r = Convert.ToByte(hex[0..2], 16);
+                    g = Convert.ToByte(hex[2..4], 16);
+                    b = Convert.ToByte(hex[4..6], 16);
                     a = 255;
                 }
                 else if (hex.Length == 8)
                 {
                     // WPF standard uses AARRGGBB.
-                    a = Convert.ToByte(hex.Substring(0, 2), 16);
-                    r = Convert.ToByte(hex.Substring(2, 2), 16);
-                    g = Convert.ToByte(hex.Substring(4, 2), 16);
-                    b = Convert.ToByte(hex.Substring(6, 2), 16);
+                    a = Convert.ToByte(hex[0..2], 16);
+                    r = Convert.ToByte(hex[2..4], 16);
+                    g = Convert.ToByte(hex[4..6], 16);
+                    b = Convert.ToByte(hex[6..8], 16);
                 }
                 else
                 {
@@ -754,6 +780,50 @@ namespace LootPulse.Services
             {
                 return "";
             }
+        }
+
+        private static readonly Dictionary<string, string> _knownUniqueBaseTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Myris Uxor", "Covert Hood" },
+            { "Morior Invictus", "Grand Regalia" },
+            { "Horror's Flight", "Engraved Bracers" },
+            { "Lavianga's Spirits", "Gargantuan Mana Flask" },
+            { "The Fall of the Axe", "Silver Charm" },
+            { "Nascent Hope", "Thawing Charm" },
+            { "Astramentis", "Stellar Amulet" },
+            { "Polcirkeln", "Sapphire Ring" },
+            { "Chernobog's Pillar", "Blacksteel Tower Shield" },
+            { "Constricting Command", "Viper Cap" },
+            { "Time-Lost Diamond", "Time-Lost Diamond" }
+        };
+
+        private static string GetUniqueBaseType(string uniqueName, List<MarketItem> marketItems)
+        {
+            if (string.IsNullOrWhiteSpace(uniqueName)) return uniqueName;
+
+            // 1. Check if the name itself is already a known base type
+            if (_archetypes.Values.Any(list => list.Any(b => b.Name.Equals(uniqueName, StringComparison.OrdinalIgnoreCase))))
+            {
+                return uniqueName;
+            }
+
+            // 2. Try static dictionary lookup
+            if (_knownUniqueBaseTypes.TryGetValue(uniqueName, out var staticBase))
+            {
+                return staticBase;
+            }
+
+            // 3. Try dynamic lookup from synced marketItems
+            if (marketItems != null)
+            {
+                var matched = marketItems.Find(i => i.Name.Equals(uniqueName, StringComparison.OrdinalIgnoreCase));
+                if (matched != null && !string.IsNullOrEmpty(matched.BaseType))
+                {
+                    return matched.BaseType;
+                }
+            }
+
+            return string.Empty;
         }
     }
 }

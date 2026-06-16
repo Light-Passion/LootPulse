@@ -118,23 +118,70 @@ namespace LootPulse.Services
 
             foreach (XmlNode itemNode in itemNodes)
             {
-                var rawText = itemNode.InnerText;
-                var lines = rawText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                if (lines.Length == 0) continue;
-
-                var nameLine = lines[0].Trim();
-                if (lines.Length > 1 && (nameLine.StartsWith("Rarity:", StringComparison.Ordinal) || nameLine.Contains("Rarity", StringComparison.Ordinal)))
+                var slot = CreateSlotFromPobText(itemNode.InnerText);
+                if (slot != null)
                 {
-                    nameLine = lines[1].Trim();
+                    build.InventorySlots.Add(slot);
                 }
-
-                build.InventorySlots.Add(new BuildInventorySlot
-                {
-                    UniqueName = nameLine,
-                    InventoryId = "Imported"
-                });
             }
         }
+
+        private static BuildInventorySlot? CreateSlotFromPobText(string rawText)
+        {
+            var lines = rawText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (lines.Length == 0) return null;
+
+            var firstLine = lines[0].Trim();
+            bool isUnique = firstLine.Contains("Unique", StringComparison.OrdinalIgnoreCase);
+
+            string? uniqueName = null;
+            string? baseType;
+            string? additionalText = null;
+
+            if (firstLine.StartsWith("Rarity:", StringComparison.Ordinal) || firstLine.Contains("Rarity", StringComparison.Ordinal))
+            {
+                ParseRarityItem(lines, isUnique, out uniqueName, out baseType, out additionalText);
+            }
+            else
+            {
+                baseType = lines[0].Trim();
+            }
+
+            return new BuildInventorySlot
+            {
+                UniqueName = uniqueName,
+                BaseType = baseType,
+                AdditionalText = additionalText,
+                InventoryId = "Imported"
+            };
+        }
+
+        private static void ParseRarityItem(
+            string[] lines,
+            bool isUnique,
+            out string? uniqueName,
+            out string? baseType,
+            out string? additionalText)
+        {
+            uniqueName = null;
+            baseType = null;
+            additionalText = null;
+
+            if (lines.Length <= 1) return;
+
+            var nameLine = lines[1].Trim();
+            if (isUnique)
+            {
+                uniqueName = nameLine;
+                baseType = lines.Length > 2 ? lines[2].Trim() : null;
+            }
+            else
+            {
+                baseType = lines.Length > 2 ? lines[2].Trim() : nameLine;
+                additionalText = string.Join("\n", lines.Skip(1));
+            }
+        }
+
 
         private void ParsePobSkills(XmlDocument doc, PoeBuild build)
         {

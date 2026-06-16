@@ -16,10 +16,17 @@ namespace LootPulse
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "This desktop overlay utility does not support localized resource tables.")]
     public partial class StyleEditorWindow : Window
     {
+        private const string _uniquesCategory = "Uniques";
+        private const string _defaultThemeName = "Default LootPulse";
+        private const string _tealThemeName = "Teal Eclipse";
+        private const string _crimsonThemeName = "Crimson Haze";
+        private const string _tealColorCode = "#FF00C8FF";
+        private const string _builtInSoundType = "BuiltIn";
+
         public FilterTheme WorkingTheme { get; private set; }
-        private Dictionary<string, FilterTheme> _presets = new();
-        private string _presetsFilePath = "";
-        private string _currentCategory = "Uniques";
+        private readonly Dictionary<string, FilterTheme> _presets = [];
+        private readonly string _presetsFilePath;
+        private string _currentCategory = _uniquesCategory;
         private bool _isSynchronizing;
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
@@ -67,8 +74,7 @@ namespace LootPulse
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
-            this.DialogResult = false;
-            this.Close();
+            Close_Click(sender, e);
         }
 
         private void SaveApply_Click(object sender, RoutedEventArgs e)
@@ -91,7 +97,7 @@ namespace LootPulse
                 "#FFFF0000", // Red
                 "#FFFF00FF", // Pink
                 "#FF00FF00", // Green
-                "#FF00C8FF", // Teal
+                _tealColorCode, // Teal
                 "#FFA832A4", // Purple
                 "#FFFFFFFF", // White
                 "#FF888888", // Grey
@@ -314,13 +320,22 @@ namespace LootPulse
             // Load new state
             if (CategorySelector.SelectedItem is ComboBoxItem item)
             {
-                _currentCategory = item.Tag?.ToString() ?? "Uniques";
+                _currentCategory = item.Tag?.ToString() ?? _uniquesCategory;
                 LoadCategoryState(_currentCategory);
             }
         }
 
         private void SaveCategoryState(string categoryName)
         {
+            if (CategoryEnabledCheckBox == null || TextColorTextBox == null || BorderColorTextBox == null ||
+                BackgroundColorTextBox == null || FontSizeSlider == null || SoundTypeComboBox == null ||
+                SoundIdComboBox == null || CustomSoundTextBox == null || MuteDefaultDropSoundCheckBox == null ||
+                MapSizeComboBox == null || MapColorComboBox == null || MapShapeComboBox == null ||
+                BeamColorComboBox == null || BeamTempCheckBox == null)
+            {
+                return;
+            }
+
             var style = GetCategoryStyle(categoryName);
             if (style == null) return;
 
@@ -330,8 +345,8 @@ namespace LootPulse
             style.BackgroundColor = BackgroundColorTextBox.Text.Trim();
             style.FontSize = (int)FontSizeSlider.Value;
 
-            style.SoundType = ((ComboBoxItem)SoundTypeComboBox.SelectedItem)?.Tag?.ToString() ?? "None";
-            if (int.TryParse(((ComboBoxItem)SoundIdComboBox.SelectedItem)?.Tag?.ToString(), out int soundId))
+            style.SoundType = (SoundTypeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "None";
+            if (int.TryParse((SoundIdComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString(), out int soundId))
             {
                 style.AlertSoundId = soundId;
             }
@@ -339,9 +354,9 @@ namespace LootPulse
             style.MuteDefaultDropSound = MuteDefaultDropSoundCheckBox.IsChecked == true;
 
             // Minimap Icon: Size Color Shape
-            string size = ((ComboBoxItem)MapSizeComboBox.SelectedItem)?.Tag?.ToString() ?? "0";
-            string color = ((ComboBoxItem)MapColorComboBox.SelectedItem)?.Tag?.ToString() ?? "";
-            string shape = ((ComboBoxItem)MapShapeComboBox.SelectedItem)?.Tag?.ToString() ?? "";
+            string size = (MapSizeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "0";
+            string color = (MapColorComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            string shape = (MapShapeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             if (string.IsNullOrEmpty(shape))
             {
                 style.MinimapIcon = "";
@@ -352,7 +367,7 @@ namespace LootPulse
             }
 
             // PlayEffect: Color Temp
-            string beamColor = ((ComboBoxItem)BeamColorComboBox.SelectedItem)?.Tag?.ToString() ?? "";
+            string beamColor = (BeamColorComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             bool isTemp = BeamTempCheckBox.IsChecked == true;
             if (string.IsNullOrEmpty(beamColor))
             {
@@ -366,6 +381,15 @@ namespace LootPulse
 
         private void LoadCategoryState(string categoryName)
         {
+            if (CategoryEnabledCheckBox == null || TextColorTextBox == null || BorderColorTextBox == null ||
+                BackgroundColorTextBox == null || FontSizeSlider == null || SoundTypeComboBox == null ||
+                SoundIdComboBox == null || CustomSoundTextBox == null || MuteDefaultDropSoundCheckBox == null ||
+                MapSizeComboBox == null || MapColorComboBox == null || MapShapeComboBox == null ||
+                BeamColorComboBox == null || BeamTempCheckBox == null)
+            {
+                return;
+            }
+
             var style = GetCategoryStyle(categoryName);
             if (style == null) return;
 
@@ -379,7 +403,7 @@ namespace LootPulse
 
             // Sound UI Loading
             SetComboBoxSelectedTag(SoundTypeComboBox, style.SoundType);
-            SetComboBoxSelectedTag(SoundIdComboBox, style.AlertSoundId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            SetComboBoxSelectedTag(SoundIdComboBox, style.AlertSoundId);
             CustomSoundTextBox.Text = style.CustomSoundPath;
             MuteDefaultDropSoundCheckBox.IsChecked = style.MuteDefaultDropSound;
 
@@ -452,7 +476,16 @@ namespace LootPulse
 
         private void UpdateLivePreview()
         {
-            if (PreviewLabelBorder == null || PreviewLabelText == null || PreviewIconIndicator == null || PreviewIconChar == null || PreviewBeamIndicator == null || PreviewBeamText == null) return;
+            if (CategoryEnabledCheckBox == null || TextColorTextBox == null || BorderColorTextBox == null ||
+                BackgroundColorTextBox == null || FontSizeSlider == null || SoundTypeComboBox == null ||
+                SoundIdComboBox == null || CustomSoundTextBox == null || MuteDefaultDropSoundCheckBox == null ||
+                MapSizeComboBox == null || MapColorComboBox == null || MapShapeComboBox == null ||
+                BeamColorComboBox == null || BeamTempCheckBox == null || PreviewLabelBorder == null ||
+                PreviewLabelText == null || PreviewIconIndicator == null || PreviewIconChar == null ||
+                PreviewBeamIndicator == null || PreviewBeamText == null)
+            {
+                return;
+            }
 
             try
             {
@@ -474,7 +507,7 @@ namespace LootPulse
 
                 PreviewLabelText.Text = _currentCategory switch
                 {
-                    "Uniques" => "Exotic Hammer of Flame",
+                    _uniquesCategory => "Exotic Hammer of Flame",
                     "Gems" => "Uncut Skill Gem",
                     "ProgressionBases" => "Steel Greaves (Build Base)",
                     "EconomyTier1" => "Divine Orb",
@@ -485,7 +518,7 @@ namespace LootPulse
                 // Font Size scaling (Visual conversion)
                 double rawSize = FontSizeSlider.Value;
                 // Scale 18-45 to 11-20 for WPF visual layout size
-                PreviewLabelText.FontSize = 10 + ((rawSize - 18) / (45 - 18)) * 10;
+                PreviewLabelText.FontSize = 10 + (((rawSize - 18) / (45 - 18)) * 10);
 
                 // Color mappings
                 var textCol = (Color)ColorConverter.ConvertFromString(TextColorTextBox.Text.Trim().StartsWith('#') ? TextColorTextBox.Text.Trim() : "#" + TextColorTextBox.Text.Trim());
@@ -497,8 +530,8 @@ namespace LootPulse
                 PreviewLabelBorder.Background = bgCol.A == 0 ? Brushes.Black : new SolidColorBrush(bgCol); // default black ground shadow if transparent
 
                 // Minimap Icon preview
-                string iconColor = ((ComboBoxItem)MapColorComboBox.SelectedItem)?.Tag?.ToString() ?? "";
-                string iconShape = ((ComboBoxItem)MapShapeComboBox.SelectedItem)?.Tag?.ToString() ?? "";
+                string iconColor = (MapColorComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+                string iconShape = (MapShapeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
                 if (!string.IsNullOrEmpty(iconShape))
                 {
                     var mapBrush = GetColorBrush(iconColor);
@@ -513,7 +546,7 @@ namespace LootPulse
                 }
 
                 // Light Beam Effect preview
-                string beamColor = ((ComboBoxItem)BeamColorComboBox.SelectedItem)?.Tag?.ToString() ?? "";
+                string beamColor = (BeamColorComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
                 bool isTemp = BeamTempCheckBox.IsChecked == true;
                 if (!string.IsNullOrEmpty(beamColor))
                 {
@@ -559,18 +592,18 @@ namespace LootPulse
         {
             return colorName switch
             {
-                "Red" => (SolidColorBrush)Brushes.Red,
+                "Red" => Brushes.Red,
                 "Orange" => new SolidColorBrush(Color.FromRgb(255, 97, 36)),
-                "Yellow" => (SolidColorBrush)Brushes.Yellow,
-                "Green" => (SolidColorBrush)Brushes.Green,
-                "Blue" => (SolidColorBrush)Brushes.DeepSkyBlue,
-                "Cyan" => (SolidColorBrush)Brushes.Cyan,
-                "Purple" => (SolidColorBrush)Brushes.Purple,
-                "Pink" => (SolidColorBrush)Brushes.Pink,
-                "White" => (SolidColorBrush)Brushes.White,
-                "Brown" => (SolidColorBrush)Brushes.SaddleBrown,
-                "Grey" => (SolidColorBrush)Brushes.Gray,
-                _ => (SolidColorBrush)Brushes.Transparent
+                "Yellow" => Brushes.Yellow,
+                "Green" => Brushes.Green,
+                "Blue" => Brushes.DeepSkyBlue,
+                "Cyan" => Brushes.Cyan,
+                "Purple" => Brushes.Purple,
+                "Pink" => Brushes.Pink,
+                "White" => Brushes.White,
+                "Brown" => Brushes.SaddleBrown,
+                "Grey" => Brushes.Gray,
+                _ => Brushes.Transparent
             };
         }
 
@@ -583,9 +616,9 @@ namespace LootPulse
             _presets.Clear();
 
             // Insert core pre-built themes
-            _presets["Default LootPulse"] = new FilterTheme { ThemeName = "Default LootPulse" };
-            _presets["Teal Eclipse"] = GetTealEclipsePreset();
-            _presets["Crimson Haze"] = GetCrimsonHazePreset();
+            _presets[_defaultThemeName] = new FilterTheme { ThemeName = _defaultThemeName };
+            _presets[_tealThemeName] = GetTealEclipsePreset();
+            _presets[_crimsonThemeName] = GetCrimsonHazePreset();
 
             // Load saved user presets if file exists
             if (File.Exists(_presetsFilePath))
@@ -615,6 +648,8 @@ namespace LootPulse
 
         private void PresetComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (PresetNameTextBox == null) return;
+
             if (PresetComboBox.SelectedItem is string presetName && _presets.TryGetValue(presetName, out var theme))
             {
                 // Deep clone selected theme to WorkingTheme
@@ -652,7 +687,7 @@ namespace LootPulse
             foreach (var kvp in _presets)
             {
                 // Only save custom presets (exclude defaults)
-                if (kvp.Key != "Default LootPulse" && kvp.Key != "Teal Eclipse" && kvp.Key != "Crimson Haze")
+                if (kvp.Key != _defaultThemeName && kvp.Key != _tealThemeName && kvp.Key != _crimsonThemeName)
                 {
                     userPresets[kvp.Key] = kvp.Value;
                 }
@@ -679,7 +714,7 @@ namespace LootPulse
         {
             if (PresetComboBox.SelectedItem is not string name) return;
 
-            if (name == "Default LootPulse" || name == "Teal Eclipse" || name == "Crimson Haze")
+            if (name == _defaultThemeName || name == _tealThemeName || name == _crimsonThemeName)
             {
                 MessageBox.Show("Default themes cannot be deleted.", "Protected Preset", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -694,7 +729,7 @@ namespace LootPulse
                 var userPresets = new Dictionary<string, FilterTheme>();
                 foreach (var kvp in _presets)
                 {
-                    if (kvp.Key != "Default LootPulse" && kvp.Key != "Teal Eclipse" && kvp.Key != "Crimson Haze")
+                    if (kvp.Key != _defaultThemeName && kvp.Key != _tealThemeName && kvp.Key != _crimsonThemeName)
                     {
                         userPresets[kvp.Key] = kvp.Value;
                     }
@@ -706,7 +741,7 @@ namespace LootPulse
                     File.WriteAllText(_presetsFilePath, json);
 
                     LoadPresetsList();
-                    PresetComboBox.SelectedItem = "Default LootPulse";
+                    PresetComboBox.SelectedItem = _defaultThemeName;
                 }
                 catch (Exception ex)
                 {
@@ -722,8 +757,8 @@ namespace LootPulse
             {
                 WorkingTheme = new FilterTheme();
                 LoadCategoryState(_currentCategory);
-                PresetNameTextBox.Text = "Default LootPulse";
-                PresetComboBox.SelectedItem = "Default LootPulse";
+                PresetNameTextBox.Text = _defaultThemeName;
+                PresetComboBox.SelectedItem = _defaultThemeName;
             }
         }
 
@@ -756,31 +791,31 @@ namespace LootPulse
         {
             return new FilterTheme
             {
-                ThemeName = "Teal Eclipse",
+                ThemeName = _tealThemeName,
                 Uniques = new()
                 {
                     TextColor = "#FF00FFFF", BorderColor = "#FF00FFFF", BackgroundColor = "#FF002233", FontSize = 45,
-                    SoundType = "BuiltIn", AlertSoundId = 3, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan Temp"
+                    SoundType = _builtInSoundType, AlertSoundId = 3, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan Temp"
                 },
                 Gems = new()
                 {
-                    TextColor = "#FF00C8FF", BorderColor = "#FF0088AA", FontSize = 40,
+                    TextColor = _tealColorCode, BorderColor = "#FF0088AA", FontSize = 40,
                     SoundType = "None"
                 },
                 ProgressionBases = new()
                 {
-                    TextColor = "#FFE0FFFF", BorderColor = "#FF00C8FF", FontSize = 35,
+                    TextColor = "#FFE0FFFF", BorderColor = _tealColorCode, FontSize = 35,
                     SoundType = "None", PlayEffect = "Cyan Temp"
                 },
                 EconomyTier1 = new()
                 {
-                    TextColor = "#FF00C8FF", BorderColor = "#FF00C8FF", BackgroundColor = "#FF002233", FontSize = 45,
-                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan"
+                    TextColor = _tealColorCode, BorderColor = _tealColorCode, BackgroundColor = "#FF002233", FontSize = 45,
+                    SoundType = _builtInSoundType, AlertSoundId = 6, MinimapIcon = "0 Cyan Star", PlayEffect = "Cyan"
                 },
                 EconomyTier2 = new()
                 {
                     TextColor = "#FF0088AA", BorderColor = "#FF0088AA", FontSize = 40,
-                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Blue Star", PlayEffect = "Blue Temp"
+                    SoundType = _builtInSoundType, AlertSoundId = 2, MinimapIcon = "1 Blue Star", PlayEffect = "Blue Temp"
                 }
             };
         }
@@ -789,11 +824,11 @@ namespace LootPulse
         {
             return new FilterTheme
             {
-                ThemeName = "Crimson Haze",
+                ThemeName = _crimsonThemeName,
                 Uniques = new()
                 {
                     TextColor = "#FFFF0055", BorderColor = "#FFFF0055", BackgroundColor = "#FF330011", FontSize = 45,
-                    SoundType = "BuiltIn", AlertSoundId = 1, MinimapIcon = "0 Red Star", PlayEffect = "Red Temp"
+                    SoundType = _builtInSoundType, AlertSoundId = 1, MinimapIcon = "0 Red Star", PlayEffect = "Red Temp"
                 },
                 Gems = new()
                 {
@@ -808,12 +843,12 @@ namespace LootPulse
                 EconomyTier1 = new()
                 {
                     TextColor = "#FFFF0000", BorderColor = "#FFFF0000", BackgroundColor = "#FF330011", FontSize = 45,
-                    SoundType = "BuiltIn", AlertSoundId = 6, MinimapIcon = "0 Red Star", PlayEffect = "Red"
+                    SoundType = _builtInSoundType, AlertSoundId = 6, MinimapIcon = "0 Red Star", PlayEffect = "Red"
                 },
                 EconomyTier2 = new()
                 {
                     TextColor = "#FFBB0022", BorderColor = "#FFBB0022", FontSize = 40,
-                    SoundType = "BuiltIn", AlertSoundId = 2, MinimapIcon = "1 Red Circle", PlayEffect = "Red Temp"
+                    SoundType = _builtInSoundType, AlertSoundId = 2, MinimapIcon = "1 Red Circle", PlayEffect = "Red Temp"
                 }
             };
         }
@@ -822,7 +857,7 @@ namespace LootPulse
         {
             return categoryName switch
             {
-                "Uniques" => WorkingTheme.Uniques,
+                _uniquesCategory => WorkingTheme.Uniques,
                 "Gems" => WorkingTheme.Gems,
                 "ProgressionBases" => WorkingTheme.ProgressionBases,
                 "EconomyTier1" => WorkingTheme.EconomyTier1,

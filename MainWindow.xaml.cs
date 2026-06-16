@@ -44,6 +44,16 @@ namespace LootPulse
         private const int _hotkeyId = 9000;
         private const int _hotkeyHudId = 9001;
         private const string _currencyCategory = "Currency";
+        private const string _divineOrbName = "Divine Orb";
+        private const string _exaltedOrbName = "Exalted Orb";
+        private const string _chaosOrbName = "Chaos Orb";
+        private const string _mirrorName = "Mirror of Kalandra";
+
+        private const string _myGamesFolder = "My Games";
+        private const string _poe2Folder = "Path of Exile 2";
+        private const string _clientLogFile = "Client.txt";
+        private const string _steamappsFolder = "steamapps";
+        private const string _commonFolder = "common";
 
         private readonly HudWindow? _hudWindow;
         private readonly AppSettings _appSettings = new();
@@ -319,6 +329,7 @@ namespace LootPulse
             _marketItems.AddRange(fetchedGems);
             _marketItems.AddRange(fetchedUniques);
             NormalizeMarketValues(_marketItems);
+            AddPinnedExchangeRateItem();
 
             ItemListView.ItemsSource = null;
             ItemListView.ItemsSource = _marketItems;
@@ -356,10 +367,12 @@ namespace LootPulse
 
         private async void SelectBuildFile_Click(object sender, RoutedEventArgs e)
         {
+            string defaultDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), _myGamesFolder, _poe2Folder);
             var ofd = new OpenFileDialog
             {
                 Filter = "PoE2 Build Planner Files (*.build)|*.build|All Files (*.*)|*.*",
-                Title = "Select Path of Exile 2 .build File"
+                Title = "Select Path of Exile 2 .build File",
+                InitialDirectory = Directory.Exists(defaultDir) ? defaultDir : string.Empty
             };
 
             if (ofd.ShowDialog() == true)
@@ -382,10 +395,28 @@ namespace LootPulse
 
         private void BrowseLog_Click(object sender, RoutedEventArgs e)
         {
+            string logFolder = string.Empty;
+            try
+            {
+                if (!string.IsNullOrEmpty(LogPathBox.Text))
+                {
+                    string? dir = Path.GetDirectoryName(LogPathBox.Text);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    {
+                        logFolder = dir;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
+            }
+
             var ofd = new OpenFileDialog
             {
                 Filter = "Log Files (Client.txt)|Client.txt|All Files (*.*)|*.*",
-                Title = "Select Path of Exile 2 Client.txt Log"
+                Title = "Select Path of Exile 2 Client.txt Log",
+                InitialDirectory = logFolder
             };
 
             if (ofd.ShowDialog() == true)
@@ -399,10 +430,37 @@ namespace LootPulse
 
         private void BrowseFilter_Click(object sender, RoutedEventArgs e)
         {
+            string filterFolder = string.Empty;
+            try
+            {
+                if (!string.IsNullOrEmpty(FilterPathBox.Text))
+                {
+                    string? dir = Path.GetDirectoryName(FilterPathBox.Text);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    {
+                        filterFolder = dir;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
+            }
+
+            if (string.IsNullOrEmpty(filterFolder))
+            {
+                string defaultDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), _myGamesFolder, _poe2Folder);
+                if (Directory.Exists(defaultDir))
+                {
+                    filterFolder = defaultDir;
+                }
+            }
+
             var sfd = new SaveFileDialog
             {
                 Filter = "Filter Files (*.filter)|*.filter|All Files (*.*)|*.*",
-                Title = "Select PoE2 Output Filter Path"
+                Title = "Select PoE2 Output Filter Path",
+                InitialDirectory = filterFolder
             };
 
             if (sfd.ShowDialog() == true)
@@ -416,13 +474,14 @@ namespace LootPulse
         {
             _marketItems =
             [
-                new() { Name = "Divine Orb", Category = _currencyCategory, ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Exalted Orb", Category = _currencyCategory, ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Chaos Orb", Category = _currencyCategory, ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
-                new() { Name = "Mirror of Kalandra", Category = _currencyCategory, ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = _divineOrbName, Category = _currencyCategory, ChaosValue = 125.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = _exaltedOrbName, Category = _currencyCategory, ChaosValue = 15.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = _chaosOrbName, Category = _currencyCategory, ChaosValue = 1.0, LastUpdated = DateTime.UtcNow },
+                new() { Name = _mirrorName, Category = _currencyCategory, ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             ];
             NormalizeMarketValues(_marketItems);
+            AddPinnedExchangeRateItem();
             ItemListView.ItemsSource = _marketItems;
         }
 
@@ -483,20 +542,30 @@ namespace LootPulse
         private void LoadSettings()
         {
             string settingsFile = GetSettingsFilePath();
+            string loadedLogPath = string.Empty;
+            string loadedFilterPath = string.Empty;
+            string loadedBaseFilterPath = string.Empty;
+            AppSettings? settings = null;
+
             if (File.Exists(settingsFile))
             {
                 try
                 {
                     string json = File.ReadAllText(settingsFile);
-                    var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                    settings = JsonSerializer.Deserialize<AppSettings>(json);
                     if (settings != null)
                     {
-                        LogPathBox.Text = settings.LogPath;
-                        FilterPathBox.Text = settings.FilterOutputPath;
-                        _selectedBaseFilterPath = settings.SelectedBaseFilterPath;
-                        Tier1Box.Text = settings.Tier1Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        Tier2Box.Text = settings.Tier2Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        return;
+                        loadedLogPath = settings.LogPath;
+                        loadedFilterPath = settings.FilterOutputPath;
+                        loadedBaseFilterPath = settings.SelectedBaseFilterPath;
+
+                        _appSettings.HudWidth = settings.HudWidth;
+                        _appSettings.HudHeight = settings.HudHeight;
+                        _appSettings.HudXPercent = settings.HudXPercent;
+                        _appSettings.HudYPercent = settings.HudYPercent;
+                        _appSettings.EditModeOpacity = settings.EditModeOpacity;
+                        _appSettings.HudModeOpacity = settings.HudModeOpacity;
+                        _appSettings.IsHudVisible = settings.IsHudVisible;
                     }
                 }
                 catch (Exception ex)
@@ -505,11 +574,218 @@ namespace LootPulse
                 }
             }
 
-            // Default Fallbacks
+            // Verify paths and resolve from system environment / common folders if invalid
+            string resolvedLogPath = ResolveClientLogPath(loadedLogPath);
+            string resolvedFilterPath = ResolveFilterOutputPath(loadedFilterPath);
+
+            _appSettings.LogPath = resolvedLogPath;
+            _appSettings.FilterOutputPath = resolvedFilterPath;
+            _selectedBaseFilterPath = loadedBaseFilterPath;
+            _appSettings.SelectedBaseFilterPath = loadedBaseFilterPath;
+
+            if (settings != null)
+            {
+                _appSettings.Tier1Threshold = settings.Tier1Threshold;
+                _appSettings.Tier2Threshold = settings.Tier2Threshold;
+            }
+            else
+            {
+                _appSettings.Tier1Threshold = 1.0;
+                _appSettings.Tier2Threshold = 1.0;
+            }
+
+            LogPathBox.Text = resolvedLogPath;
+            FilterPathBox.Text = resolvedFilterPath;
+            Tier1Box.Text = _appSettings.Tier1Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Tier2Box.Text = _appSettings.Tier2Threshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            SyncSettingsToUi(_appSettings);
+
+            if (resolvedLogPath != loadedLogPath || resolvedFilterPath != loadedFilterPath)
+            {
+                SaveSettings();
+            }
+        }
+
+        private void SyncSettingsToUi(AppSettings settings)
+        {
+            if (EditOpacitySlider != null)
+            {
+                EditOpacitySlider.Value = settings.EditModeOpacity;
+            }
+            if (HudOpacitySlider != null)
+            {
+                HudOpacitySlider.Value = settings.HudModeOpacity;
+            }
+
+            if (HudVisibleCheckBox != null)
+            {
+                HudVisibleCheckBox.Checked -= HudVisibleCheckBox_Changed;
+                HudVisibleCheckBox.Unchecked -= HudVisibleCheckBox_Changed;
+                HudVisibleCheckBox.IsChecked = settings.IsHudVisible;
+                HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
+                HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
+            }
+        }
+
+        private static string ResolveClientLogPath(string? currentPath)
+        {
+            if (!string.IsNullOrEmpty(currentPath) && File.Exists(currentPath))
+            {
+                return currentPath;
+            }
+
+            string? standalonePath = TryGetStandaloneInstallPath();
+            if (!string.IsNullOrEmpty(standalonePath))
+            {
+                return standalonePath;
+            }
+
+            string? steamPath = TryGetSteamInstallPath();
+            if (!string.IsNullOrEmpty(steamPath))
+            {
+                return steamPath;
+            }
+
+            string? commonPath = TryGetCommonInstallPath();
+            if (!string.IsNullOrEmpty(commonPath))
+            {
+                return commonPath;
+            }
+
             string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            LogPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\logs\Client.txt");
-            FilterPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\LootPulse_Only.filter");
-            _selectedBaseFilterPath = string.Empty;
+            return Path.Combine(myDocuments, _myGamesFolder, _poe2Folder, "logs", _clientLogFile);
+        }
+
+        private static string? TryGetStandaloneInstallPath()
+        {
+            string? path = TryReadRegistryPath(@"Software\Grinding Gear Games\Path of Exile 2");
+            if (string.IsNullOrEmpty(path))
+            {
+                path = TryReadRegistryPath(@"Software\Grinding Gear Games\Path of Exile");
+            }
+            return path;
+        }
+
+        private static string? TryReadRegistryPath(string subKeyPath)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(subKeyPath);
+                if (key != null)
+                {
+                    string? installLoc = key.GetValue("InstallLocation") as string ?? key.GetValue("Path") as string;
+                    if (!string.IsNullOrEmpty(installLoc))
+                    {
+                        string path = Path.Combine(installLoc, "logs", _clientLogFile);
+                        if (File.Exists(path)) return path;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading registry {subKeyPath}: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static string? TryGetSteamInstallPath()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+                if (key != null)
+                {
+                    string? steamPath = key.GetValue("SteamPath") as string;
+                    if (!string.IsNullOrEmpty(steamPath))
+                    {
+                        string path = Path.Combine(steamPath, _steamappsFolder, _commonFolder, _poe2Folder, "logs", _clientLogFile);
+                        if (File.Exists(path)) return path;
+
+                        string libraryConfig = Path.Combine(steamPath, _steamappsFolder, "libraryfolders.vdf");
+                        if (File.Exists(libraryConfig))
+                        {
+                            string? altPath = ParseSteamLibraryFolders(libraryConfig);
+                            if (!string.IsNullOrEmpty(altPath)) return altPath;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading Steam registry: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static string? ParseSteamLibraryFolders(string libraryConfigPath)
+        {
+            try
+            {
+                var lines = File.ReadAllLines(libraryConfigPath);
+                var pathLines = lines.Where(line => line.Contains("\"path\"", StringComparison.Ordinal));
+                foreach (var line in pathLines)
+                {
+                    var parts = line.Split('\"', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 4)
+                    {
+                        string libPath = parts[3].Replace(@"\\", @"\", StringComparison.Ordinal);
+                        string altPath = Path.Combine(libPath, _steamappsFolder, _commonFolder, _poe2Folder, "logs", _clientLogFile);
+                        if (File.Exists(altPath)) return altPath;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing Steam library folders: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static string? TryGetCommonInstallPath()
+        {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string[] commonPaths = [
+                Path.Combine(programFiles, "Grinding Gear Games", _poe2Folder, "logs", _clientLogFile),
+                Path.Combine(programFiles, "Steam", _steamappsFolder, _commonFolder, _poe2Folder, "logs", _clientLogFile),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Steam", _steamappsFolder, _commonFolder, _poe2Folder, "logs", _clientLogFile)
+            ];
+
+            return commonPaths.FirstOrDefault(File.Exists);
+        }
+
+        private static string ResolveFilterOutputPath(string? currentPath)
+        {
+            if (!string.IsNullOrEmpty(currentPath))
+            {
+                try
+                {
+                    string? dir = Path.GetDirectoryName(currentPath);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    {
+                        return currentPath;
+                    }
+                }
+                catch
+                {
+                    // Ignore invalid format
+                }
+            }
+
+            string defaultDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), _myGamesFolder, _poe2Folder);
+            try
+            {
+                if (!Directory.Exists(defaultDir))
+                {
+                    Directory.CreateDirectory(defaultDir);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to create PoE2 My Games directory: {ex.Message}");
+            }
+
+            return Path.Combine(defaultDir, "LootPulse_Only.filter");
         }
 
         private void SaveSettings()
@@ -526,16 +802,13 @@ namespace LootPulse
                 _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
                 _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
-                var settings = new AppSettings
-                {
-                    LogPath = LogPathBox.Text,
-                    FilterOutputPath = FilterPathBox.Text,
-                    SelectedBaseFilterPath = _selectedBaseFilterPath ?? string.Empty,
-                    Tier1Threshold = t1 > 0 ? t1 : 1.0,
-                    Tier2Threshold = t2 > 0 ? t2 : 1.0
-                };
+                _appSettings.LogPath = LogPathBox.Text;
+                _appSettings.FilterOutputPath = FilterPathBox.Text;
+                _appSettings.SelectedBaseFilterPath = _selectedBaseFilterPath ?? string.Empty;
+                _appSettings.Tier1Threshold = t1 > 0 ? t1 : 1.0;
+                _appSettings.Tier2Threshold = t2 > 0 ? t2 : 1.0;
 
-                string json = JsonSerializer.Serialize(settings, _jsonOptions);
+                string json = JsonSerializer.Serialize(_appSettings, _jsonOptions);
                 File.WriteAllText(settingsFile, json);
             }
             catch (Exception ex)
@@ -1075,13 +1348,13 @@ namespace LootPulse
             double divinePriceInChaos = 120.0;
             double exaltedPriceInChaos = 15.0;
 
-            var divOrb = items.Find(i => i.Name == "Divine Orb" && i.Category == _currencyCategory);
+            var divOrb = items.Find(i => i.Name == _divineOrbName && i.Category == _currencyCategory);
             if (divOrb?.ChaosValue > 0)
             {
                 divinePriceInChaos = divOrb.ChaosValue;
             }
 
-            var exOrb = items.Find(i => i.Name == "Exalted Orb" && i.Category == _currencyCategory);
+            var exOrb = items.Find(i => i.Name == _exaltedOrbName && i.Category == _currencyCategory);
             if (exOrb?.ChaosValue > 0)
             {
                 exaltedPriceInChaos = exOrb.ChaosValue;
@@ -1098,6 +1371,36 @@ namespace LootPulse
                     item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
                 }
             }
+        }
+
+        private void AddPinnedExchangeRateItem()
+        {
+            _marketItems.RemoveAll(i => i.Category == "Exchange Rate");
+
+            double divinePriceInChaos = 120.0;
+            double exaltedPriceInChaos = 15.0;
+
+            var divOrb = _marketItems.Find(i => i.Name == _divineOrbName && i.Category == _currencyCategory);
+            if (divOrb?.ChaosValue > 0)
+            {
+                divinePriceInChaos = divOrb.ChaosValue;
+            }
+
+            var exOrb = _marketItems.Find(i => i.Name == _exaltedOrbName && i.Category == _currencyCategory);
+            if (exOrb?.ChaosValue > 0)
+            {
+                exaltedPriceInChaos = exOrb.ChaosValue;
+            }
+
+            double rate = divinePriceInChaos / exaltedPriceInChaos;
+            var exchangeRateItem = new MarketItem
+            {
+                Name = _divineOrbName,
+                Category = "Exchange Rate",
+                ExaltedValue = rate,
+                LastUpdated = DateTime.UtcNow
+            };
+            _marketItems.Insert(0, exchangeRateItem);
         }
 
         private async Task LoadBuildUniquePricesAsync(PoeBuild build)
@@ -1145,6 +1448,7 @@ namespace LootPulse
             if (addedAny)
             {
                 NormalizeMarketValues(_marketItems);
+                AddPinnedExchangeRateItem();
                 ItemListView.ItemsSource = null;
                 ItemListView.ItemsSource = _marketItems;
                 StatusText.Text = $"Loaded build: {build.Name} (fetched missing unique prices)";
