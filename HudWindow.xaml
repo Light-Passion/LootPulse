@@ -11,8 +11,12 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
+    
+    <WindowChrome.WindowChrome>
+        <WindowChrome ResizeBorderThickness="8" CaptionHeight="0" CornerRadius="12" GlassFrameThickness="0"/>
+    </WindowChrome.WindowChrome>
     
     <Grid>
         <!-- HUD Outer Border with Rounded Corners -->

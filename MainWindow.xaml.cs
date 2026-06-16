@@ -896,25 +896,31 @@ namespace LootPulse
             StatusText.Text = "HUD size and position reset to defaults.";
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075:URIs should not be hardcoded", Justification = "WPF Pack URIs are internal application resource addresses, not external endpoints.")]
         private void InitializeTrayIcon()
         {
             try
             {
-                _notifyIcon = new() { Text = "LootPulse Overlay" };
+                _notifyIcon = new System.Windows.Forms.NotifyIcon
+                {
+                    Text = "LootPulse Overlay",
+                    Visible = true
+                };
 
-                // Load icon from pack URI resource
-                var iconUri = new Uri("pack://application:,,,/lootpulse.ico", UriKind.Absolute);
-                var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
-                if (streamInfo != null)
+                // Extract icon from the running executable binary to guarantee display
+                try
                 {
-                    using var stream = streamInfo.Stream;
-                    _notifyIcon.Icon = new System.Drawing.Icon(stream);
+                    string? exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                    {
+                        _notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+                    System.Diagnostics.Debug.WriteLine($"Failed to extract process icon: {ex.Message}");
                 }
+
+                _notifyIcon.Icon ??= System.Drawing.SystemIcons.Application;
 
                 // Create Context Menu
                 System.Windows.Forms.ContextMenuStrip contextMenu = new();
@@ -967,6 +973,11 @@ namespace LootPulse
         {
             _isExitingFromTray = true;
             Close();
+        }
+
+        private void ExitButton_Click(object sender, RoutedEventArgs e)
+        {
+            ExitApplication();
         }
 
         private async Task StartProcessDetectionAsync(CancellationToken token)

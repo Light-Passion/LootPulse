@@ -13,6 +13,10 @@
         Topmost="True"
         WindowStartupLocation="CenterScreen">
     
+    <WindowChrome.WindowChrome>
+        <WindowChrome ResizeBorderThickness="8" CaptionHeight="0" CornerRadius="12" GlassFrameThickness="0"/>
+    </WindowChrome.WindowChrome>
+    
     <Window.Resources>
         <!-- Fluent Design Styles -->
         <Color x:Key="PoeOrange">#FF6124</Color>
@@ -251,6 +255,7 @@
                                 </Grid>
 
                                 <Button Style="{StaticResource DarkButton}" Content="Reset HUD Size &amp; Position" Margin="0,5,0,0" Click="ResetHudPosition_Click"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Exit Application" Margin="0,15,0,0" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
