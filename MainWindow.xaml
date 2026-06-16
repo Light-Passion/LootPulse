@@ -74,6 +74,23 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="DarkComboBox" TargetType="ComboBox">
+            <Setter Property="Background" Value="#282828"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#282828" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF6124" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White" />
+            </Style.Resources>
+        </Style>
     </Window.Resources>
 
     <!-- Main Window Border -->
@@ -97,11 +114,11 @@
 
                 <StackPanel Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Center">
                     <Ellipse Width="10" Height="10" Fill="#FF6124" Margin="0,0,10,0"/>
-                    <TextBlock Text="LOOTPULSE OVERLAY" Foreground="White" FontSize="14" FontWeight="Bold"/>
+                    <TextBlock Text="LOOTPULSE DASHBOARD" Foreground="White" FontSize="14" FontWeight="Bold"/>
                     <Border CornerRadius="4" Background="#323232" Margin="15,0,0,0" Padding="6,2">
                         <TextBlock x:Name="OverlayModeText" Text="EDIT MODE" Foreground="#FF6124" FontSize="10" FontWeight="Bold"/>
                     </Border>
-                    <TextBlock Text="[ Press Ctrl+Shift+O to Toggle Overlay Click-Through ]" Foreground="#888888" FontSize="11" Margin="15,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="[ Ctrl+Shift+O: HUD Mode | Ctrl+Shift+H: Show/Hide HUD ]" Foreground="#888888" FontSize="11" Margin="15,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Window Actions -->
@@ -188,6 +205,16 @@
                                     <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
                                 </Grid>
 
+                                <TextBlock Text="Base Filter (to merge)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="BaseFilterComboBox" Style="{StaticResource DarkComboBox}" SelectionChanged="BaseFilterComboBox_SelectionChanged" DisplayMemberPath="DisplayName"/>
+                                    <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseBaseFilter_Click"/>
+                                </Grid>
+
                                 <TextBlock Text="PoE2 Filter File Output Path" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
@@ -199,7 +226,31 @@
                                 </Grid>
 
                                 <TextBlock Text="Interactive Toggle Hotkey" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <TextBox x:Name="HotkeyBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11" Text="Ctrl+Shift+O" IsReadOnly="True"/>
+                                <TextBox x:Name="HotkeyBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11" Text="Ctrl+Shift+O" IsReadOnly="True" Margin="0,0,0,10"/>
+
+                                <CheckBox x:Name="HudVisibleCheckBox" Content="Enable HUD Overlay" Checked="HudVisibleCheckBox_Changed" Unchecked="HudVisibleCheckBox_Changed" Foreground="White" Margin="0,5,0,10"/>
+
+                                <TextBlock Text="Edit Mode Dashboard Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="45"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="EditOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.85" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=EditOpacitySlider, Path=Value, StringFormat={}{0:F2}}" Foreground="White" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <TextBlock Text="HUD Overlay Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="45"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="HudOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.30" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=HudOpacitySlider, Path=Value, StringFormat={}{0:F2}}" Foreground="White" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Button Style="{StaticResource DarkButton}" Content="Reset HUD Size &amp; Position" Margin="0,5,0,0" Click="ResetHudPosition_Click"/>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using LootPulse.Models;
 using LootPulse.Services;
@@ -28,11 +29,18 @@ namespace LootPulse
         private List<MarketItem> _marketItems = new();
         private PlayerState _playerState = new();
         private bool _isClickThroughEnabled = false;
+        private string? _selectedBaseFilterPath;
+        private FileSystemWatcher? _baseFilterWatcher;
+        private bool _isBaseFilterMissingOnStartup = false;
 
         // Win32 Interop Constants
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x20;
         private const int HOTKEY_ID = 9000;
+        private const int HOTKEY_HUD_ID = 9001;
+
+        private HudWindow? _hudWindow;
+        private AppSettings _appSettings = new();
 
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -62,10 +70,18 @@ namespace LootPulse
             // Bind log monitor event
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
 
-            // Load default paths
-            string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            LogPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\logs\Client.txt");
-            FilterPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\MyMarketFilter.filter");
+            // Load saved settings (or defaults)
+            LoadSettings();
+
+            // Create HUD Window
+            _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
+            _hudWindow.Show();
+
+            // Populate base filter options
+            LoadBaseFilterOptions();
+
+            // Initialize FileSystemWatcher for the loaded base filter
+            SetupBaseFilterWatcher(_selectedBaseFilterPath);
 
             // Load Saved Theme
             LoadActiveTheme();
@@ -84,16 +100,24 @@ namespace LootPulse
             _hwndSource = HwndSource.FromHwnd(_hwnd);
             _hwndSource.AddHook(HwndHook);
 
-            // Register Hotkey: Ctrl + Shift + O
-            // Modifiers: Ctrl (0x0002) | Shift (0x0004) = 0x0006
-            // Key: 'O' = 0x4F (79)
-            RegisterHotKey(_hwnd, HOTKEY_ID, 0x0006, 0x4F);
+            // Register Hotkeys
+            RegisterHotKey(_hwnd, HOTKEY_ID, 0x0006, 0x4F); // Ctrl + Shift + O
+            RegisterHotKey(_hwnd, HOTKEY_HUD_ID, 0x0006, 0x48); // Ctrl + Shift + H
 
             // Initialize monitoring if log file exists
             if (File.Exists(LogPathBox.Text))
             {
                 _logMonitor.StartMonitoring(LogPathBox.Text);
             }
+
+            // Apply opacity immediately to MainWindow
+            if (MainWindowBorder != null && _appSettings != null)
+            {
+                MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb((byte)(_appSettings.EditModeOpacity * 255), 18, 18, 18));
+            }
+
+            // Check if base filter was missing on load
+            CheckMissingBaseFilter();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -101,16 +125,35 @@ namespace LootPulse
             _logMonitor.StopMonitoring();
             _hwndSource?.RemoveHook(HwndHook);
             UnregisterHotKey(_hwnd, HOTKEY_ID);
+            UnregisterHotKey(_hwnd, HOTKEY_HUD_ID);
+
+            if (_baseFilterWatcher != null)
+            {
+                _baseFilterWatcher.EnableRaisingEvents = false;
+                _baseFilterWatcher.Dispose();
+            }
+
+            _hudWindow?.Close();
+
             base.OnClosed(e);
         }
 
         private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             const int WM_HOTKEY = 0x0312;
-            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+            if (msg == WM_HOTKEY)
             {
-                ToggleOverlayMode();
-                handled = true;
+                int id = wParam.ToInt32();
+                if (id == HOTKEY_ID)
+                {
+                    ToggleOverlayMode();
+                    handled = true;
+                }
+                else if (id == HOTKEY_HUD_ID)
+                {
+                    ToggleHudVisibility();
+                    handled = true;
+                }
             }
             return IntPtr.Zero;
         }
@@ -121,33 +164,27 @@ namespace LootPulse
 
             if (_isClickThroughEnabled)
             {
-                // Enter Overlay Mode (Transparent, click-through, HUD mode)
-                OverlayModeText.Text = "HUD MODE";
-                OverlayModeText.Foreground = new SolidColorBrush(Color.FromRgb(229, 181, 96)); // Gold
-                MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb(50, 24, 24, 24)); // Extremely transparent
-                MainWindowBorder.BorderBrush = Brushes.Transparent;
-                MainContentGrid.Visibility = Visibility.Collapsed; // Hide control panel
-                
-                // P/Invoke click-through
-                int extendedStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-                SetWindowLong(_hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
-                
-                StatusText.Text = "HUD Click-Through Active. Press Ctrl+Shift+O to edit.";
+                // Enter HUD Mode: Hide dashboard, lock HUD and make click-through
+                this.Hide();
+
+                _hudWindow?.SetClickThrough(true, _appSettings.HudModeOpacity);
+                if (_appSettings.IsHudVisible)
+                {
+                    _hudWindow?.Show();
+                }
+                else
+                {
+                    _hudWindow?.Hide();
+                }
             }
             else
             {
-                // Enter Interactive Edit Mode (opaque, handles inputs)
-                OverlayModeText.Text = "EDIT MODE";
-                OverlayModeText.Foreground = new SolidColorBrush(Color.FromRgb(255, 97, 36)); // Orange
-                MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb(242, 18, 18, 18)); // Solid Slate
-                MainWindowBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(61, 61, 61));
-                MainContentGrid.Visibility = Visibility.Visible;
-                
-                // Remove click-through style
-                int extendedStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
-                SetWindowLong(_hwnd, GWL_EXSTYLE, extendedStyle & ~WS_EX_TRANSPARENT);
-                
-                StatusText.Text = "Interactive Edit Mode active.";
+                // Enter Edit Mode: Show dashboard, unlock HUD
+                this.Show();
+                this.Activate();
+
+                _hudWindow?.SetClickThrough(false, _appSettings.EditModeOpacity);
+                _hudWindow?.Show();
             }
         }
 
@@ -161,6 +198,9 @@ namespace LootPulse
                 CharZoneText.Text = $"{e.ZoneName} (Level {e.ZoneLevel})";
                 StatusText.Text = $"Entered zone: {e.ZoneName} (Level {e.ZoneLevel}). Regenerating filter...";
                 
+                // Update HUD display
+                _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, e.ZoneName, e.ZoneLevel, "Zone Changed");
+
                 // Dynamic regeneration based on zone transition
                 TriggerFilterRegeneration();
             });
@@ -173,7 +213,7 @@ namespace LootPulse
 
             bool success = _filterBuilder.GenerateFilterFile(
                 FilterPathBox.Text,
-                null,
+                _selectedBaseFilterPath,
                 _marketItems,
                 _activeBuild,
                 _playerState.Level,
@@ -186,6 +226,8 @@ namespace LootPulse
             if (success)
             {
                 StatusText.Text = $"Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
+                _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Filter Merged");
+                SaveSettings();
             }
             else
             {
@@ -297,6 +339,7 @@ namespace LootPulse
                 LogPathBox.Text = ofd.FileName;
                 _logMonitor.StopMonitoring();
                 _logMonitor.StartMonitoring(ofd.FileName);
+                SaveSettings();
             }
         }
 
@@ -311,6 +354,7 @@ namespace LootPulse
             if (sfd.ShowDialog() == true)
             {
                 FilterPathBox.Text = sfd.FileName;
+                SaveSettings();
             }
         }
 
@@ -372,5 +416,443 @@ namespace LootPulse
                 TriggerFilterRegeneration();
             }
         }
+
+        // --- Settings & Base Filter Merging Methods ---
+
+        private string GetSettingsFilePath()
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(appData, "LootPulse", "settings.json");
+        }
+
+        private void LoadSettings()
+        {
+            string settingsFile = GetSettingsFilePath();
+            if (File.Exists(settingsFile))
+            {
+                try
+                {
+                    string json = File.ReadAllText(settingsFile);
+                    var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                    if (settings != null)
+                    {
+                        LogPathBox.Text = settings.LogPath;
+                        FilterPathBox.Text = settings.FilterOutputPath;
+                        _selectedBaseFilterPath = settings.SelectedBaseFilterPath;
+                        Tier1Box.Text = settings.Tier1Threshold.ToString();
+                        Tier2Box.Text = settings.Tier2Threshold.ToString();
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
+                }
+            }
+
+            // Default Fallbacks
+            string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            LogPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\logs\Client.txt");
+            FilterPathBox.Text = Path.Combine(myDocuments, @"My Games\Path of Exile 2\LootPulse_Only.filter");
+            _selectedBaseFilterPath = string.Empty;
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                string settingsFile = GetSettingsFilePath();
+                string? directory = Path.GetDirectoryName(settingsFile);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                double.TryParse(Tier1Box.Text, out double t1);
+                double.TryParse(Tier2Box.Text, out double t2);
+
+                var settings = new AppSettings
+                {
+                    LogPath = LogPathBox.Text,
+                    FilterOutputPath = FilterPathBox.Text,
+                    SelectedBaseFilterPath = _selectedBaseFilterPath ?? string.Empty,
+                    Tier1Threshold = t1 > 0 ? t1 : 100,
+                    Tier2Threshold = t2 > 0 ? t2 : 10
+                };
+
+                string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(settingsFile, json);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
+            }
+        }
+
+        public static string ParseFilterDisplayName(string filepath)
+        {
+            try
+            {
+                using (var reader = new StreamReader(filepath))
+                {
+                    for (int i = 0; i < 15; i++)
+                    {
+                        var line = reader.ReadLine();
+                        if (line == null) break;
+
+                        if (line.StartsWith("#name:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return line.Substring(6).Trim();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+            return Path.GetFileName(filepath);
+        }
+
+        private void LoadBaseFilterOptions()
+        {
+            BaseFilterComboBox.SelectionChanged -= BaseFilterComboBox_SelectionChanged;
+            BaseFilterComboBox.Items.Clear();
+
+            var noneOption = new FilterOption { DisplayName = "None (LootPulse Highlights Only)", FilePath = string.Empty, IsSubscribed = false };
+            BaseFilterComboBox.Items.Add(noneOption);
+
+            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string onlineFiltersDir = Path.Combine(myDocs, @"My Games\Path of Exile 2\OnlineFilters");
+
+            FilterOption? selectedOption = noneOption;
+
+            if (Directory.Exists(onlineFiltersDir))
+            {
+                try
+                {
+                    var files = Directory.GetFiles(onlineFiltersDir);
+                    foreach (var file in files)
+                    {
+                        string displayName = ParseFilterDisplayName(file);
+                        var option = new FilterOption
+                        {
+                            DisplayName = $"{displayName} (Subscribed)",
+                            FilePath = file,
+                            IsSubscribed = true
+                        };
+                        BaseFilterComboBox.Items.Add(option);
+
+                        if (string.Equals(file, _selectedBaseFilterPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedOption = option;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error scanning OnlineFilters: {ex.Message}");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_selectedBaseFilterPath) && selectedOption == noneOption)
+            {
+                if (File.Exists(_selectedBaseFilterPath))
+                {
+                    var customOption = new FilterOption
+                    {
+                        DisplayName = $"{Path.GetFileName(_selectedBaseFilterPath)} (Local)",
+                        FilePath = _selectedBaseFilterPath,
+                        IsSubscribed = false
+                    };
+                    BaseFilterComboBox.Items.Add(customOption);
+                    selectedOption = customOption;
+                }
+                else
+                {
+                    _isBaseFilterMissingOnStartup = true;
+                }
+            }
+
+            BaseFilterComboBox.SelectedItem = selectedOption;
+            BaseFilterComboBox.SelectionChanged += BaseFilterComboBox_SelectionChanged;
+        }
+
+        private void CheckMissingBaseFilter()
+        {
+            if (_isBaseFilterMissingOnStartup)
+            {
+                _isBaseFilterMissingOnStartup = false;
+                var result = MessageBox.Show(
+                    $"The previously selected base filter is no longer available at:\n{_selectedBaseFilterPath}\n\nWould you like to browse and select a new base filter? (Selecting 'No' will fall back to LootPulse highlights only)",
+                    "Base Filter Missing",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    BrowseBaseFilter_Click(this, new RoutedEventArgs());
+                }
+                else
+                {
+                    _selectedBaseFilterPath = string.Empty;
+                    BaseFilterComboBox.SelectedIndex = 0;
+                    SaveSettings();
+                    UpdateOutputFilterPath();
+                    TriggerFilterRegeneration();
+                }
+            }
+        }
+
+        private void SetupBaseFilterWatcher(string? path)
+        {
+            if (_baseFilterWatcher != null)
+            {
+                _baseFilterWatcher.EnableRaisingEvents = false;
+                _baseFilterWatcher.Dispose();
+                _baseFilterWatcher = null;
+            }
+
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return;
+
+            try
+            {
+                string? directory = Path.GetDirectoryName(path);
+                string filename = Path.GetFileName(path);
+
+                if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+                    return;
+
+                _baseFilterWatcher = new FileSystemWatcher(directory, filename)
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+                    EnableRaisingEvents = true
+                };
+
+                _baseFilterWatcher.Changed += BaseFilter_Changed;
+                _baseFilterWatcher.Created += BaseFilter_Changed;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set up base filter watcher: {ex.Message}");
+            }
+        }
+
+        private void BaseFilter_Changed(object sender, FileSystemEventArgs e)
+        {
+            Dispatcher.Invoke(async () =>
+            {
+                // Debounce briefly for GGG client to release file lock
+                await Task.Delay(500);
+                StatusText.Text = "Subscribed base filter update detected. Re-merging filter...";
+                TriggerFilterRegeneration();
+                FlashBorderAndPlaySound();
+            });
+        }
+
+        private void FlashBorderAndPlaySound()
+        {
+            if (!_isClickThroughEnabled)
+            {
+                try
+                {
+                    System.Media.SystemSounds.Asterisk.Play();
+                }
+                catch { }
+            }
+
+            Color targetColor = _isClickThroughEnabled ? Colors.Transparent : Color.FromRgb(61, 61, 61);
+            var flashBrush = new SolidColorBrush(Color.FromRgb(255, 97, 36));
+            MainWindowBorder.BorderBrush = flashBrush;
+
+            var animation = new ColorAnimation
+            {
+                From = Color.FromRgb(255, 255, 255),
+                To = targetColor,
+                Duration = new Duration(TimeSpan.FromSeconds(1.5)),
+                FillBehavior = FillBehavior.HoldEnd
+            };
+
+            flashBrush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+        }
+
+        private void UpdateOutputFilterPath()
+        {
+            if (BaseFilterComboBox.SelectedItem is FilterOption selectedOption)
+            {
+                string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string folder = Path.Combine(myDocs, @"My Games\Path of Exile 2");
+
+                string namePart = "LootPulse_Only";
+                if (!string.IsNullOrEmpty(selectedOption.FilePath))
+                {
+                    string cleanName = selectedOption.DisplayName
+                        .Replace(" (Subscribed)", "")
+                        .Replace(" (Local)", "");
+                    
+                    foreach (char c in Path.GetInvalidFileNameChars())
+                    {
+                        cleanName = cleanName.Replace(c, '_');
+                    }
+                    namePart = $"{cleanName}_LootPulse";
+                }
+
+                FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
+                SaveSettings();
+            }
+        }
+
+        private void BaseFilterComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (BaseFilterComboBox.SelectedItem is FilterOption selectedOption)
+            {
+                _selectedBaseFilterPath = selectedOption.FilePath;
+                SetupBaseFilterWatcher(_selectedBaseFilterPath);
+                UpdateOutputFilterPath();
+                TriggerFilterRegeneration();
+            }
+        }
+
+        private void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = "Filter Files (*.filter)|*.filter|All Files (*.*)|*.*",
+                Title = "Select Base Filter to Merge"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                string selectedPath = ofd.FileName;
+                
+                FilterOption? existing = null;
+                foreach (FilterOption item in BaseFilterComboBox.Items)
+                {
+                    if (string.Equals(item.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existing = item;
+                        break;
+                    }
+                }
+
+                if (existing == null)
+                {
+                    existing = new FilterOption
+                    {
+                        DisplayName = $"{Path.GetFileName(selectedPath)} (Local)",
+                        FilePath = selectedPath,
+                        IsSubscribed = false
+                    };
+                    BaseFilterComboBox.Items.Add(existing);
+                }
+
+                BaseFilterComboBox.SelectedItem = existing;
+            }
+        }
+
+        private void OnHudPositionChanged(AppSettings updatedSettings)
+        {
+            _appSettings.HudWidth = updatedSettings.HudWidth;
+            _appSettings.HudHeight = updatedSettings.HudHeight;
+            _appSettings.HudXPercent = updatedSettings.HudXPercent;
+            _appSettings.HudYPercent = updatedSettings.HudYPercent;
+            SaveSettings();
+        }
+
+        private void ToggleHudVisibility()
+        {
+            _appSettings.IsHudVisible = !_appSettings.IsHudVisible;
+            
+            // Sync Checkbox
+            HudVisibleCheckBox.Checked -= HudVisibleCheckBox_Changed;
+            HudVisibleCheckBox.Unchecked -= HudVisibleCheckBox_Changed;
+            HudVisibleCheckBox.IsChecked = _appSettings.IsHudVisible;
+            HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
+            HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
+
+            SaveSettings();
+
+            if (_appSettings.IsHudVisible)
+            {
+                if (_isClickThroughEnabled)
+                {
+                    _hudWindow?.Show();
+                }
+                StatusText.Text = "HUD overlay enabled.";
+            }
+            else
+            {
+                _hudWindow?.Hide();
+                StatusText.Text = "HUD overlay hidden.";
+            }
+        }
+
+        private void HudVisibleCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_appSettings == null) return;
+            
+            _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
+            SaveSettings();
+
+            if (_hudWindow != null)
+            {
+                if (_isClickThroughEnabled)
+                {
+                    if (_appSettings.IsHudVisible)
+                        _hudWindow.Show();
+                    else
+                        _hudWindow.Hide();
+                }
+            }
+        }
+
+        private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_appSettings == null) return;
+            
+            _appSettings.EditModeOpacity = EditOpacitySlider.Value;
+            _appSettings.HudModeOpacity = HudOpacitySlider.Value;
+            SaveSettings();
+
+            if (_isClickThroughEnabled)
+            {
+                _hudWindow?.SetClickThrough(true, _appSettings.HudModeOpacity);
+            }
+            else
+            {
+                _hudWindow?.SetClickThrough(false, _appSettings.EditModeOpacity);
+                
+                // Adjust MainWindow background opacity
+                if (MainWindowBorder != null)
+                {
+                    MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb((byte)(_appSettings.EditModeOpacity * 255), 18, 18, 18));
+                }
+            }
+        }
+
+        private void ResetHudPosition_Click(object sender, RoutedEventArgs e)
+        {
+            _appSettings.HudWidth = 250;
+            _appSettings.HudHeight = 120;
+            _appSettings.HudXPercent = 0.80;
+            _appSettings.HudYPercent = 0.05;
+            SaveSettings();
+
+            if (_hudWindow != null)
+            {
+                _hudWindow.Width = 250;
+                _hudWindow.Height = 120;
+                _hudWindow.RestorePosition();
+            }
+            StatusText.Text = "HUD size and position reset to defaults.";
+        }
+    }
+
+    public class FilterOption
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public bool IsSubscribed { get; set; }
     }
 }
