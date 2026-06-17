@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using LootPulse.Models;
 
 namespace LootPulse.Services
@@ -32,7 +33,8 @@ namespace LootPulse.Services
             int zoneLevel,
             double tier1Threshold, // In Divine Orbs, e.g. 1.0
             double tier2Threshold, // In Exalted Orbs, e.g. 1.0
-            FilterTheme? activeTheme = null
+            FilterTheme? activeTheme = null,
+            bool showEconomyHighlights = true
         )
         {
             try
@@ -46,15 +48,32 @@ namespace LootPulse.Services
 
                 AppendHeader(sb, playerLevel, zoneLevel, baseFilterPath);
 
-                AppendUniqueHighlights(sb, activeBuild, playerLevel, marketItems, activeTheme);
+                var buildUniqueItems = GetBuildUniqueItemNames(activeBuild, playerLevel, marketItems);
+                AppendUniqueHighlights(sb, activeBuild, playerLevel, buildUniqueItems, activeTheme);
 
-                AppendProgressionBaseHighlights(sb, activeBuild, playerLevel, zoneLevel, activeTheme);
+                var progressionBases = GetBuildProgressionBaseNames(activeBuild, playerLevel, zoneLevel);
+                AppendProgressionBaseHighlights(sb, progressionBases, activeTheme);
 
-                AppendSkillGemHighlights(sb, activeBuild, playerLevel, activeTheme);
+                var buildGems = GetBuildSkillGemNames(activeBuild, playerLevel);
+                AppendSkillGemHighlights(sb, buildGems, activeTheme);
 
-                AppendDynamicEconomyHighlights(sb, marketItems, tier1Threshold, tier2Threshold, activeTheme);
+                List<MarketItem> tier1Items = [];
+                List<MarketItem> tier2Items = [];
+                if (showEconomyHighlights)
+                {
+                    tier1Items = GetTier1EconomyItems(marketItems, tier1Threshold);
+                    tier2Items = GetTier2EconomyItems(marketItems, tier1Threshold, tier2Threshold);
+                    AppendDynamicEconomyHighlights(sb, tier1Items, tier2Items, activeTheme);
+                }
 
-                AppendFallbackOrBaseRules(sb, baseFilterPath);
+                var highlightedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                highlightedNames.UnionWith(buildUniqueItems);
+                highlightedNames.UnionWith(progressionBases);
+                highlightedNames.UnionWith(buildGems);
+                highlightedNames.UnionWith(tier1Items.Select(i => i.Name));
+                highlightedNames.UnionWith(tier2Items.Select(i => i.Name));
+
+                AppendFallbackOrBaseRules(sb, baseFilterPath, highlightedNames);
 
                 // Write out the filter file
                 var directory = Path.GetDirectoryName(outputPath);
@@ -133,11 +152,11 @@ namespace LootPulse.Services
             sb.AppendLine("# ==========================================================================\n");
         }
 
-        private static void AppendUniqueHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, List<MarketItem> marketItems, FilterTheme activeTheme)
+        private static List<string> GetBuildUniqueItemNames(PoeBuild? activeBuild, int playerLevel, List<MarketItem> marketItems)
         {
-            if (activeBuild == null) return;
+            if (activeBuild == null) return [];
 
-            var buildUniqueItems = activeBuild.InventorySlots
+            return activeBuild.InventorySlots
                 .Where(slot => !string.IsNullOrWhiteSpace(slot.ItemName) && !string.IsNullOrEmpty(slot.UniqueName))
                 .Where(slot => {
                     if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
@@ -147,24 +166,26 @@ namespace LootPulse.Services
                 .Where(baseType => !string.IsNullOrEmpty(baseType))
                 .Distinct()
                 .ToList();
+        }
 
-            if (buildUniqueItems.Count > 0)
+        private static void AppendUniqueHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, List<string> buildUniqueItems, FilterTheme activeTheme)
+        {
+            if (activeBuild == null || buildUniqueItems.Count == 0) return;
+
+            sb.AppendLine(_sectionSeparator);
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# BUILD HIGHLIGHTS: {activeBuild.Name} (Level {playerLevel})");
+            sb.AppendLine(_sectionSeparator);
+            sb.AppendLine("# Active Build Unique Items");
+            sb.AppendLine("Show");
+            sb.AppendLine("    Rarity Unique");
+            sb.Append(_baseTypePrefix);
+            foreach (var baseType in buildUniqueItems)
             {
-                sb.AppendLine(_sectionSeparator);
-                sb.AppendLine(CultureInfo.InvariantCulture, $"# BUILD HIGHLIGHTS: {activeBuild.Name} (Level {playerLevel})");
-                sb.AppendLine(_sectionSeparator);
-                sb.AppendLine("# Active Build Unique Items");
-                sb.AppendLine("Show");
-                sb.AppendLine("    Rarity Unique");
-                sb.Append(_baseTypePrefix);
-                foreach (var baseType in buildUniqueItems)
-                {
-                    sb.Append(CultureInfo.InvariantCulture, $" \"{baseType}\"");
-                }
-                sb.AppendLine();
-                AppendStyleBlock(sb, activeTheme.Uniques);
-                sb.AppendLine();
+                sb.Append(CultureInfo.InvariantCulture, $" \"{baseType}\"");
             }
+            sb.AppendLine();
+            AppendStyleBlock(sb, activeTheme.Uniques);
+            sb.AppendLine();
         }
 
         private static void GetProgressionBasesForSlot(
@@ -209,9 +230,10 @@ namespace LootPulse.Services
             }
         }
 
-        private static void AppendProgressionBaseHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, int zoneLevel, FilterTheme activeTheme)
+        private static HashSet<string> GetBuildProgressionBaseNames(PoeBuild? activeBuild, int playerLevel, int zoneLevel)
         {
-            if (activeBuild == null) return;
+            var progressionBases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (activeBuild == null) return progressionBases;
 
             var buildBases = activeBuild.InventorySlots
                 .Where(slot => string.IsNullOrEmpty(slot.UniqueName) && !string.IsNullOrEmpty(slot.ItemName))
@@ -222,34 +244,36 @@ namespace LootPulse.Services
                 .Select(slot => slot.ItemName)
                 .ToList();
 
-            var progressionBases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             foreach (var itemName in buildBases)
             {
                 GetProgressionBasesForSlot(itemName, playerLevel, zoneLevel, progressionBases);
             }
 
-            if (progressionBases.Count > 0)
-            {
-                sb.AppendLine("# Active Build Progression Base Items (Leveling & Zone)");
-                sb.AppendLine("Show");
-                sb.AppendLine("    Rarity <= Rare");
-                sb.Append(_baseTypePrefix);
-                foreach (var baseName in progressionBases)
-                {
-                    sb.Append(CultureInfo.InvariantCulture, $" \"{baseName}\"");
-                }
-                sb.AppendLine();
-                AppendStyleBlock(sb, activeTheme.ProgressionBases);
-                sb.AppendLine();
-            }
+            return progressionBases;
         }
 
-        private static void AppendSkillGemHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, FilterTheme activeTheme)
+        private static void AppendProgressionBaseHighlights(StringBuilder sb, HashSet<string> progressionBases, FilterTheme activeTheme)
         {
-            if (activeBuild == null) return;
+            if (progressionBases.Count == 0) return;
 
-            var buildGems = activeBuild.Skills
+            sb.AppendLine("# Active Build Progression Base Items (Leveling & Zone)");
+            sb.AppendLine("Show");
+            sb.AppendLine("    Rarity <= Rare");
+            sb.Append(_baseTypePrefix);
+            foreach (var baseName in progressionBases)
+            {
+                sb.Append(CultureInfo.InvariantCulture, $" \"{baseName}\"");
+            }
+            sb.AppendLine();
+            AppendStyleBlock(sb, activeTheme.ProgressionBases);
+            sb.AppendLine();
+        }
+
+        private static List<string> GetBuildSkillGemNames(PoeBuild? activeBuild, int playerLevel)
+        {
+            if (activeBuild == null) return [];
+
+            return activeBuild.Skills
                 .Where(skill => {
                     var name = !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id);
                     if (string.IsNullOrWhiteSpace(name)) return false;
@@ -259,30 +283,41 @@ namespace LootPulse.Services
                 .Select(skill => !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id))
                 .Distinct()
                 .ToList();
-
-            if (buildGems.Count > 0)
-            {
-                sb.AppendLine("# Active Build Skill Gems");
-                sb.AppendLine("Show");
-                sb.AppendLine("    Class \"Skill Gems\"");
-                sb.Append(_baseTypePrefix);
-                foreach (var gem in buildGems)
-                {
-                    sb.Append(CultureInfo.InvariantCulture, $" \"{gem}\"");
-                }
-                sb.AppendLine();
-                AppendStyleBlock(sb, activeTheme.Gems);
-                sb.AppendLine();
-            }
         }
 
-        private static void AppendDynamicEconomyHighlights(StringBuilder sb, List<MarketItem> marketItems, double tier1Threshold, double tier2Threshold, FilterTheme activeTheme)
+        private static void AppendSkillGemHighlights(StringBuilder sb, List<string> buildGems, FilterTheme activeTheme)
+        {
+            if (buildGems.Count == 0) return;
+
+            sb.AppendLine("# Active Build Skill Gems");
+            sb.AppendLine("Show");
+            sb.AppendLine("    Class \"Skill Gems\"");
+            sb.Append(_baseTypePrefix);
+            foreach (var gem in buildGems)
+            {
+                sb.Append(CultureInfo.InvariantCulture, $" \"{gem}\"");
+            }
+            sb.AppendLine();
+            AppendStyleBlock(sb, activeTheme.Gems);
+            sb.AppendLine();
+        }
+
+        private static List<MarketItem> GetTier1EconomyItems(List<MarketItem> marketItems, double tier1Threshold)
+        {
+            return marketItems.Where(i => i.DivineValue >= tier1Threshold && i.Category != "Exchange Rate").ToList();
+        }
+
+        private static List<MarketItem> GetTier2EconomyItems(List<MarketItem> marketItems, double tier1Threshold, double tier2Threshold)
+        {
+            return marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold && i.Category != "Exchange Rate").ToList();
+        }
+
+        private static void AppendDynamicEconomyHighlights(StringBuilder sb, List<MarketItem> tier1Items, List<MarketItem> tier2Items, FilterTheme activeTheme)
         {
             sb.AppendLine(_sectionSeparator);
             sb.AppendLine("# DYNAMIC ECONOMY HIGHLIGHTS (poe.ninja)");
             sb.AppendLine(_sectionSeparator);
 
-            var tier1Items = marketItems.Where(i => i.DivineValue >= tier1Threshold && i.Category != "Exchange Rate").ToList();
             if (tier1Items.Count > 0)
             {
                 sb.AppendLine("# Tier 1 Economy Items");
@@ -297,7 +332,6 @@ namespace LootPulse.Services
                 sb.AppendLine();
             }
 
-            var tier2Items = marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold && i.Category != "Exchange Rate").ToList();
             if (tier2Items.Count > 0)
             {
                 sb.AppendLine("# Tier 2 Economy Items");
@@ -313,7 +347,7 @@ namespace LootPulse.Services
             }
         }
 
-        private static void AppendFallbackOrBaseRules(StringBuilder sb, string? baseFilterPath)
+        private static void AppendFallbackOrBaseRules(StringBuilder sb, string? baseFilterPath, HashSet<string> highlightedNames)
         {
             if (!string.IsNullOrEmpty(baseFilterPath) && File.Exists(baseFilterPath))
             {
@@ -321,7 +355,8 @@ namespace LootPulse.Services
                 sb.AppendLine("# APPENDED BASE FILTER RULES");
                 sb.AppendLine(_sectionSeparator);
                 var baseFilterContent = File.ReadAllText(baseFilterPath);
-                sb.AppendLine(baseFilterContent);
+                var cleanedContent = StripDuplicateBaseTypeRules(baseFilterContent, highlightedNames);
+                sb.AppendLine(cleanedContent);
             }
             else
             {
@@ -340,6 +375,145 @@ namespace LootPulse.Services
             }
         }
 
+        private static readonly Regex _quotedTokenRegex = new("\"([^\"]*)\"", RegexOptions.Compiled);
+
+        private static readonly HashSet<string> _styleDirectiveKeywords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "SetTextColor", "SetBorderColor", "SetBackgroundColor", "SetFontSize",
+            "PlayAlertSound", "PlayEffect", "MinimapIcon", "DisableDropSound", "CustomAlertSound", "Continue"
+        };
+
+        /// <summary>
+        /// Removes BaseType references to items that are already covered by a dynamically
+        /// generated highlight block, so the appended base filter doesn't define a conflicting
+        /// duplicate rule for the same item further down the file.
+        /// </summary>
+        internal static string StripDuplicateBaseTypeRules(string filterContent, HashSet<string> highlightedNames)
+        {
+            if (string.IsNullOrEmpty(filterContent) || highlightedNames == null || highlightedNames.Count == 0)
+            {
+                return filterContent;
+            }
+
+            var lines = filterContent.Split('\n');
+            var blocks = new List<List<string>>();
+            List<string>? currentBlock = null;
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimStart();
+                bool isBlockStart = trimmed.StartsWith("Show", StringComparison.Ordinal) || trimmed.StartsWith("Hide", StringComparison.Ordinal);
+
+                if (isBlockStart)
+                {
+                    currentBlock = [];
+                    blocks.Add(currentBlock);
+                }
+
+                if (currentBlock == null)
+                {
+                    blocks.Add([line]);
+                    continue;
+                }
+
+                currentBlock.Add(line);
+            }
+
+            var resultLines = new List<string>();
+            foreach (var block in blocks)
+            {
+                var cleaned = StripBaseTypeTokensFromBlock(block, highlightedNames);
+                if (cleaned != null)
+                {
+                    resultLines.AddRange(cleaned);
+                }
+            }
+
+            return string.Join("\n", resultLines);
+        }
+
+        private static List<string>? StripBaseTypeTokensFromBlock(List<string> block, HashSet<string> highlightedNames)
+        {
+            bool isRuleBlock = block.Count > 0 &&
+                (block[0].TrimStart().StartsWith("Show", StringComparison.Ordinal) || block[0].TrimStart().StartsWith("Hide", StringComparison.Ordinal));
+            if (!isRuleBlock) return block;
+
+            bool strippedAnyToken = false;
+            bool hasRemainingCondition = false;
+            var resultLines = new List<string>();
+
+            foreach (var line in block)
+            {
+                var trimmed = line.TrimStart();
+                if (trimmed.StartsWith("BaseType", StringComparison.Ordinal))
+                {
+                    var (remainingLine, removedAny, hasTokens) = RemoveQuotedTokens(line, highlightedNames);
+                    strippedAnyToken |= removedAny;
+                    if (hasTokens)
+                    {
+                        resultLines.Add(remainingLine);
+                        hasRemainingCondition = true;
+                    }
+                    continue;
+                }
+
+                resultLines.Add(line);
+                if (!hasRemainingCondition && IsConditionLine(trimmed))
+                {
+                    hasRemainingCondition = true;
+                }
+            }
+
+            if (!strippedAnyToken) return block;
+
+            // Dropping all BaseType tokens with no other condition left would turn this
+            // into an unconditional catch-all rule, which is worse than the duplicate it
+            // was meant to fix - drop the whole block instead.
+            return hasRemainingCondition ? resultLines : null;
+        }
+
+        private static (string Line, bool RemovedAny, bool HasTokens) RemoveQuotedTokens(string line, HashSet<string> highlightedNames)
+        {
+            var matches = _quotedTokenRegex.Matches(line);
+            if (matches.Count == 0) return (line, false, false);
+
+            var keptTokens = new List<string>();
+            bool removedAny = false;
+
+            foreach (Match match in matches)
+            {
+                var token = match.Groups[1].Value;
+                if (highlightedNames.Contains(token))
+                {
+                    removedAny = true;
+                }
+                else
+                {
+                    keptTokens.Add(token);
+                }
+            }
+
+            if (!removedAny) return (line, false, keptTokens.Count > 0);
+
+            var firstQuoteIndex = line.IndexOf('"', StringComparison.Ordinal);
+            var prefix = firstQuoteIndex >= 0 ? line[..firstQuoteIndex].TrimEnd() : line.TrimEnd();
+            if (keptTokens.Count == 0)
+            {
+                return (prefix, true, false);
+            }
+
+            var rebuilt = prefix + " " + string.Join(' ', keptTokens.Select(t => $"\"{t}\""));
+            return (rebuilt, true, true);
+        }
+
+        private static bool IsConditionLine(string trimmedLine)
+        {
+            if (trimmedLine.Length == 0) return false;
+            if (trimmedLine.StartsWith("Show", StringComparison.Ordinal) || trimmedLine.StartsWith("Hide", StringComparison.Ordinal)) return false;
+
+            var keyword = trimmedLine.Split(' ', 2)[0];
+            return !_styleDirectiveKeywords.Contains(keyword);
+        }
 
         private static string GetGemNameFromId(string id)
         {
@@ -603,9 +777,14 @@ namespace LootPulse.Services
         {
             if (string.IsNullOrWhiteSpace(itemName)) return null;
 
+            // Prefer the longest (most specific) matching base name so a generic entry
+            // (e.g. "Robe") can't preempt a more specific one (e.g. "Velvet Robe") based
+            // on dictionary/list enumeration order alone.
             return _archetypes.Values
                 .SelectMany(list => list)
-                .FirstOrDefault(baseItem => itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase));
+                .Where(baseItem => itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(baseItem => baseItem.Name.Length)
+                .FirstOrDefault();
         }
 
         private static List<BaseItemInfo> FindBootsArchetype(string cleanName)

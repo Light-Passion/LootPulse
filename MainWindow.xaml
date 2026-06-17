@@ -380,6 +380,9 @@
                                     <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
                                     <TextBox x:Name="Tier2Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
                                 </StackPanel>
+                                <StackPanel VerticalAlignment="Bottom" Margin="20,0,0,0">
+                                    <CheckBox x:Name="EconomyHighlightsCheckBox" Content="Show Market Economy Highlights" Checked="EconomyHighlightsCheckBox_Changed" Unchecked="EconomyHighlightsCheckBox_Changed" Foreground="White"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">

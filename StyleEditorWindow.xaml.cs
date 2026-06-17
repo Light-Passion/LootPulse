@@ -25,6 +25,11 @@ namespace LootPulse
         private const string _textColorKey = "TextColor";
         private const string _borderColorKey = "BorderColor";
         private const string _backgroundColorKey = "BackgroundColor";
+        private const double _hsvCanvasWidth = 200.0;
+        private const double _hsvCanvasHeight = 140.0;
+        private const double _hueBarHeight = 140.0;
+        private const string _unknownTargetMessage = "Unknown target";
+        private const double _floatEpsilon = 1e-10;
 
         public FilterTheme WorkingTheme { get; private set; }
         private readonly Dictionary<string, FilterTheme> _presets = [];
@@ -96,17 +101,29 @@ namespace LootPulse
             var swatches = new string[]
             {
                 "#FFFF6124", // PoE2 Orange
-                "#FFE5B560", // Gold
-                "#FFFF0000", // Red
-                "#FFFF00FF", // Pink
-                "#FF00FF00", // Green
-                _tealColorCode, // Teal
+                "#FFE5B560", // Gold / Currency
+                "#FFFFFF77", // Rare Yellow
+                "#FF8888FF", // Magic Blue
+                "#FF1BFF1B", // Gem Green
+                "#FF00C8FF", // Teal Eclipse
                 "#FFA832A4", // Purple
                 "#FFFFFFFF", // White
                 "#FF888888", // Grey
-                "#FF0C7B93", // Cyan
-                "#FF1E1E1E", // Dark Slate
-                "#00000000"  // Transparent
+                "#00000000", // Transparent
+                "#FF000000", // Black
+                "#FF111111", // Dark Charcoal
+                "#FF101030", // Dark Blue
+                "#FF301010", // Dark Red
+                "#FF103010", // Dark Green
+                "#FF2B1A0A", // Dark Brown
+                "#FFFF0000", // Bright Red
+                "#FFFF00FF", // Bright Magenta
+                "#FF00FFFF", // Cyan
+                "#FFFFD700", // Bright Gold
+                "#FFFF69B4", // Hot Pink
+                "#FF8B0000", // Deep Red
+                "#FFB87333", // Copper / Bronze
+                "#FF4B0082"  // Indigo / Dark Purple
             };
 
             PopulateGrid(TextColorGrid, swatches, TextColorTextBox, TextColorPopup);
@@ -203,29 +220,39 @@ namespace LootPulse
 
         private void SyncColorControls(TextBox textBox, Color color)
         {
+            string target;
+            Button btn;
+            Slider opacitySlider;
+
             if (textBox == TextColorTextBox)
             {
-                SyncColorControlsHelper(TextColorBtn, TextOpacitySlider, TextColorR, TextColorG, TextColorB, color);
+                target = _textColorKey;
+                btn = TextColorBtn;
+                opacitySlider = TextOpacitySlider;
             }
             else if (textBox == BorderColorTextBox)
             {
-                SyncColorControlsHelper(BorderColorBtn, BorderOpacitySlider, BorderColorR, BorderColorG, BorderColorB, color);
+                target = _borderColorKey;
+                btn = BorderColorBtn;
+                opacitySlider = BorderOpacitySlider;
             }
             else if (textBox == BackgroundColorTextBox)
             {
-                SyncColorControlsHelper(BackgroundColorBtn, BackgroundOpacitySlider, BackgroundColorR, BackgroundColorG, BackgroundColorB, color);
+                target = _backgroundColorKey;
+                btn = BackgroundColorBtn;
+                opacitySlider = BackgroundOpacitySlider;
             }
-        }
+            else
+            {
+                return;
+            }
 
-        private void SyncColorControlsHelper(Button btn, Slider opacitySlider, Slider? rSlider, Slider? gSlider, Slider? bSlider, Color color)
-        {
             btn.Background = new SolidColorBrush(color);
             _isSynchronizing = true;
             opacitySlider.Value = color.A;
-            if (rSlider != null) rSlider.Value = color.R;
-            if (gSlider != null) gSlider.Value = color.G;
-            if (bSlider != null) bSlider.Value = color.B;
             _isSynchronizing = false;
+
+            UpdateHsvControlsFromColor(target, color);
         }
 
         private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -265,67 +292,339 @@ namespace LootPulse
             }
         }
 
-        private void RgbSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        #region HSV Color Area / Canvas Interaction
+
+        private bool _isMouseDownOnCanvas;
+        private bool _isMouseDownOnHueBar;
+
+        private void Canvas_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (_isSynchronizing) return;
-            if (sender is not Slider slider) return;
-            string target = slider.Tag?.ToString() ?? "";
-
-            TextBox? targetTextBox = target switch
+            if (sender is Border border)
             {
-                _textColorKey => TextColorTextBox,
-                _borderColorKey => BorderColorTextBox,
-                _backgroundColorKey => BackgroundColorTextBox,
-                _ => null
-            };
+                border.CaptureMouse();
+                _isMouseDownOnCanvas = true;
+                UpdateColorFromCanvasClick(border, e.GetPosition(border));
+            }
+        }
 
-            Slider? rSlider = target switch
+        private void Canvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isMouseDownOnCanvas && sender is Border border)
             {
-                _textColorKey => TextColorR,
-                _borderColorKey => BorderColorR,
-                _backgroundColorKey => BackgroundColorR,
-                _ => null
-            };
+                UpdateColorFromCanvasClick(border, e.GetPosition(border));
+            }
+        }
 
-            Slider? gSlider = target switch
+        private void Canvas_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is Border border)
             {
-                _textColorKey => TextColorG,
-                _borderColorKey => BorderColorG,
-                _backgroundColorKey => BackgroundColorG,
-                _ => null
-            };
+                border.ReleaseMouseCapture();
+                _isMouseDownOnCanvas = false;
+            }
+        }
 
-            Slider? bSlider = target switch
+        private void HueBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is Border border)
             {
-                _textColorKey => TextColorB,
-                _borderColorKey => BorderColorB,
-                _backgroundColorKey => BackgroundColorB,
-                _ => null
-            };
+                border.CaptureMouse();
+                _isMouseDownOnHueBar = true;
+                UpdateColorFromHueClick(border, e.GetPosition(border));
+            }
+        }
 
-            Slider? opacitySlider = target switch
+        private void HueBar_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isMouseDownOnHueBar && sender is Border border)
             {
-                _textColorKey => TextOpacitySlider,
-                _borderColorKey => BorderOpacitySlider,
-                _backgroundColorKey => BackgroundOpacitySlider,
-                _ => null
-            };
+                UpdateColorFromHueClick(border, e.GetPosition(border));
+            }
+        }
 
-            if (targetTextBox == null || rSlider == null || gSlider == null || bSlider == null || opacitySlider == null) return;
+        private void HueBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is Border border)
+            {
+                border.ReleaseMouseCapture();
+                _isMouseDownOnHueBar = false;
+            }
+        }
 
-            byte r = (byte)rSlider.Value;
-            byte g = (byte)gSlider.Value;
-            byte b = (byte)bSlider.Value;
-            byte a = (byte)opacitySlider.Value;
+        private void UpdateColorFromCanvasClick(Border border, Point p)
+        {
+            string target = border.Tag?.ToString() ?? "";
 
-            string hex = $"#{a:X2}{r:X2}{g:X2}{b:X2}";
+            // Clamp points to border bounds
+            double x = Math.Max(0, Math.Min(border.ActualWidth > 0 ? border.ActualWidth : _hsvCanvasWidth, p.X));
+            double y = Math.Max(0, Math.Min(border.ActualHeight > 0 ? border.ActualHeight : _hsvCanvasHeight, p.Y));
 
+            double width = border.ActualWidth > 0 ? border.ActualWidth : _hsvCanvasWidth;
+            double height = border.ActualHeight > 0 ? border.ActualHeight : _hsvCanvasHeight;
+
+            double s = x / width;
+            double v = 1.0 - (y / height);
+
+            double h = GetHueForTarget(target);
+            byte opacity = (byte)GetOpacitySliderForTarget(target).Value;
+
+            Color newColor = ColorFromHsv(h, s, v, opacity);
+            UpdateTargetColor(target, newColor);
+        }
+
+        private void UpdateColorFromHueClick(Border border, Point p)
+        {
+            string target = border.Tag?.ToString() ?? "";
+
+            double height = border.ActualHeight > 0 ? border.ActualHeight : _hueBarHeight;
+            double y = Math.Max(0, Math.Min(height, p.Y));
+            double h = (y / height) * 360.0;
+
+            // Update the S-V Canvas background of the target to the pure Hue
+            Color pureHueColor = ColorFromHsv(h, 1.0, 1.0);
+            GetCanvasGridForTarget(target).Background = new SolidColorBrush(pureHueColor);
+
+            // Update the cursor position in HueBar
+            var hueCursor = GetHueCursorForTarget(target);
+            Canvas.SetTop(hueCursor, y);
+
+            // Re-evaluate color with the new Hue but old Saturation and Value
+            GetSvForTarget(target, out double s, out double v);
+            byte opacity = (byte)GetOpacitySliderForTarget(target).Value;
+
+            Color newColor = ColorFromHsv(h, s, v, opacity);
+            UpdateTargetColor(target, newColor);
+        }
+
+        private void UpdateTargetColor(string target, Color color)
+        {
+            var textBox = GetTextBoxForTarget(target);
             _isSynchronizing = true;
-            targetTextBox.Text = hex;
+            textBox.Text = $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
             _isSynchronizing = false;
 
-            ColorTextBox_TextChanged(targetTextBox, null!);
+            var btn = target switch
+            {
+                _textColorKey => TextColorBtn,
+                _borderColorKey => BorderColorBtn,
+                _backgroundColorKey => BackgroundColorBtn,
+                _ => throw new ArgumentException(_unknownTargetMessage)
+            };
+            btn.Background = new SolidColorBrush(color);
+
+            UpdateCanvasCursorPosition(target, color);
+            UpdateLivePreview();
         }
+
+        private void UpdateHsvControlsFromColor(string target, Color color)
+        {
+            ColorToHsv(color, out double h, out _, out _);
+
+            // Update Canvas background to pure Hue
+            Color pureHue = ColorFromHsv(h, 1.0, 1.0);
+            var canvasGrid = GetCanvasGridForTarget(target);
+            if (canvasGrid != null)
+            {
+                canvasGrid.Background = new SolidColorBrush(pureHue);
+            }
+
+            // Update S-V cursor position
+            UpdateCanvasCursorPosition(target, color);
+
+            // Update Hue cursor position
+            var hueCursor = GetHueCursorForTarget(target);
+            var hueBar = target switch
+            {
+                _textColorKey => TextColorHueBar,
+                _borderColorKey => BorderColorHueBar,
+                _backgroundColorKey => BackgroundColorHueBar,
+                _ => null
+            };
+            if (hueCursor != null && hueBar != null)
+            {
+                double barHeight = hueBar.ActualHeight > 0 ? hueBar.ActualHeight : _hueBarHeight;
+                double y = (h / 360.0) * barHeight;
+                Canvas.SetTop(hueCursor, y);
+            }
+        }
+
+        private void UpdateCanvasCursorPosition(string target, Color color)
+        {
+            ColorToHsv(color, out _, out double s, out double v);
+            var cursor = GetCanvasCursorForTarget(target);
+            var canvas = GetCanvasForTarget(target);
+            if (cursor != null && canvas != null)
+            {
+                double width = canvas.ActualWidth > 0 ? canvas.ActualWidth : _hsvCanvasWidth;
+                double height = canvas.ActualHeight > 0 ? canvas.ActualHeight : _hsvCanvasHeight;
+                double x = s * width;
+                double y = (1.0 - v) * height;
+                Canvas.SetLeft(cursor, x);
+                Canvas.SetTop(cursor, y);
+            }
+        }
+
+        #region HSV / RGB Conversion Helpers
+
+        private static void ColorToHsv(Color color, out double h, out double s, out double v)
+        {
+            double r = color.R / 255.0;
+            double g = color.G / 255.0;
+            double b = color.B / 255.0;
+
+            double max = Math.Max(r, Math.Max(g, b));
+            double min = Math.Min(r, Math.Min(g, b));
+            double delta = max - min;
+
+            v = max;
+            s = max < _floatEpsilon ? 0.0 : delta / max;
+
+            if (delta < _floatEpsilon)
+            {
+                h = 0.0;
+            }
+            else
+            {
+                if (Math.Abs(r - max) < _floatEpsilon)
+                {
+                    h = (g - b) / delta;
+                }
+                else if (Math.Abs(g - max) < _floatEpsilon)
+                {
+                    h = 2.0 + ((b - r) / delta);
+                }
+                else
+                {
+                    h = 4.0 + ((r - g) / delta);
+                }
+
+                h *= 60.0;
+                if (h < 0.0)
+                {
+                    h += 360.0;
+                }
+            }
+        }
+
+        private static Color ColorFromHsv(double h, double s, double v, byte alpha = 255)
+        {
+            if (s < _floatEpsilon)
+            {
+                byte val = (byte)(v * 255.0);
+                return Color.FromArgb(alpha, val, val, val);
+            }
+
+            double sector = h / 60.0;
+            int i = (int)Math.Floor(sector);
+            double f = sector - i;
+
+            double p = v * (1.0 - s);
+            double q = v * (1.0 - (s * f));
+            double t = v * (1.0 - (s * (1.0 - f)));
+
+            double r = 0.0, g = 0.0, b = 0.0;
+            switch (i % 6)
+            {
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                case 5: r = v; g = p; b = q; break;
+            }
+
+            return Color.FromArgb(alpha, (byte)(r * 255.0), (byte)(g * 255.0), (byte)(b * 255.0));
+        }
+
+        #endregion
+
+        #region UI Mapping Helpers
+
+        private Grid GetCanvasGridForTarget(string target) => target switch
+        {
+            _textColorKey => TextColorCanvasGrid,
+            _borderColorKey => BorderColorCanvasGrid,
+            _backgroundColorKey => BackgroundColorCanvasGrid,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private System.Windows.Shapes.Rectangle GetHueCursorForTarget(string target) => target switch
+        {
+            _textColorKey => TextColorHueCursor,
+            _borderColorKey => BorderColorHueCursor,
+            _backgroundColorKey => BackgroundColorHueCursor,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private Slider GetOpacitySliderForTarget(string target) => target switch
+        {
+            _textColorKey => TextOpacitySlider,
+            _borderColorKey => BorderOpacitySlider,
+            _backgroundColorKey => BackgroundOpacitySlider,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private TextBox GetTextBoxForTarget(string target) => target switch
+        {
+            _textColorKey => TextColorTextBox,
+            _borderColorKey => BorderColorTextBox,
+            _backgroundColorKey => BackgroundColorTextBox,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private Border GetCanvasForTarget(string target) => target switch
+        {
+            _textColorKey => TextColorCanvas,
+            _borderColorKey => BorderColorCanvas,
+            _backgroundColorKey => BackgroundColorCanvas,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private System.Windows.Shapes.Ellipse GetCanvasCursorForTarget(string target) => target switch
+        {
+            _textColorKey => TextColorCursor,
+            _borderColorKey => BorderColorCursor,
+            _backgroundColorKey => BackgroundColorCursor,
+            _ => throw new ArgumentException(_unknownTargetMessage)
+        };
+
+        private double GetHueForTarget(string target)
+        {
+            var textBox = GetTextBoxForTarget(target);
+            try
+            {
+                string hex = textBox.Text.Trim();
+                if (!hex.StartsWith('#')) hex = "#" + hex;
+                Color color = (Color)ColorConverter.ConvertFromString(hex);
+                ColorToHsv(color, out double h, out _, out _);
+                return h;
+            }
+            catch
+            {
+                return 0.0;
+            }
+        }
+
+        private void GetSvForTarget(string target, out double s, out double v)
+        {
+            var textBox = GetTextBoxForTarget(target);
+            try
+            {
+                string hex = textBox.Text.Trim();
+                if (!hex.StartsWith('#')) hex = "#" + hex;
+                Color color = (Color)ColorConverter.ConvertFromString(hex);
+                ColorToHsv(color, out _, out s, out v);
+            }
+            catch
+            {
+                s = 0.0;
+                v = 1.0;
+            }
+        }
+
+        #endregion
+
+        #endregion
 
         private void ScreenPicker_Click(object sender, RoutedEventArgs e)
         {

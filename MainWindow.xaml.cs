@@ -281,7 +281,8 @@ namespace LootPulse
                 _playerState.ZoneLevel,
                 t1 > 0 ? t1 : 1.0,
                 t2 > 0 ? t2 : 1.0,
-                ActiveTheme
+                ActiveTheme,
+                _appSettings.ShowEconomyHighlights
             );
 
             if (success)
@@ -569,6 +570,7 @@ namespace LootPulse
                         _appSettings.EditModeOpacity = settings.EditModeOpacity;
                         _appSettings.HudModeOpacity = settings.HudModeOpacity;
                         _appSettings.IsHudVisible = settings.IsHudVisible;
+                        _appSettings.ShowEconomyHighlights = settings.ShowEconomyHighlights;
                         if (!string.IsNullOrEmpty(settings.League))
                         {
                             _appSettings.League = settings.League;
@@ -632,6 +634,15 @@ namespace LootPulse
                 HudVisibleCheckBox.IsChecked = settings.IsHudVisible;
                 HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
                 HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
+            }
+
+            if (EconomyHighlightsCheckBox != null)
+            {
+                EconomyHighlightsCheckBox.Checked -= EconomyHighlightsCheckBox_Changed;
+                EconomyHighlightsCheckBox.Unchecked -= EconomyHighlightsCheckBox_Changed;
+                EconomyHighlightsCheckBox.IsChecked = settings.ShowEconomyHighlights;
+                EconomyHighlightsCheckBox.Checked += EconomyHighlightsCheckBox_Changed;
+                EconomyHighlightsCheckBox.Unchecked += EconomyHighlightsCheckBox_Changed;
             }
         }
 
@@ -1139,6 +1150,14 @@ namespace LootPulse
                 else
                     _hudWindow.Hide();
             }
+        }
+
+        private void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_appSettings == null) return;
+
+            _appSettings.ShowEconomyHighlights = EconomyHighlightsCheckBox.IsChecked == true;
+            TriggerFilterRegeneration();
         }
 
         private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

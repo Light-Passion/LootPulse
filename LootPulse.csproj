@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Resource Include="lootpulse.ico" />
+    <Resource Include="Assets\ground_preview.png" />
   </ItemGroup>
 
   <ItemGroup>

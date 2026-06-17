@@ -374,51 +374,69 @@
                                         </Button.Background>
                                     </Button>
                                     <Popup x:Name="TextColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=TextColorBtn}" Placement="Bottom">
-                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8" Width="280">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <UniformGrid Rows="3" Columns="4" Width="108" Height="82" x:Name="TextColorGrid"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" BorderBrush="#333333" BorderThickness="1,0,0,0" Margin="10,0"/>
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                    <TextBlock Text="Custom Pick" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="TextColor" 
-                                                            Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="R" Foreground="Red" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="TextColorR" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="TextColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="G" Foreground="Green" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="TextColorG" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="TextColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="B" Foreground="Blue" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="TextColorB" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="TextColor" Height="16"/>
-                                                    </Grid>
-                                                </StackPanel>
-                                            </Grid>
+                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border x:Name="TextColorCanvas" Grid.Column="0" Width="200" Height="140" CornerRadius="4" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Cross"
+                                                            MouseLeftButtonDown="Canvas_MouseLeftButtonDown" MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseLeftButtonUp" Tag="TextColor">
+                                                        <Grid x:Name="TextColorCanvasGrid" Background="Red">
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#00000000" Offset="0"/>
+                                                                        <GradientStop Color="#FF000000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Ellipse x:Name="TextColorCursor" Width="8" Height="8" Margin="-4,-4,0,0" Stroke="White" StrokeThickness="1.5" Fill="Transparent">
+                                                                    <Ellipse.Effect>
+                                                                        <DropShadowEffect BlurRadius="2" ShadowDepth="0.5" Color="Black" Opacity="0.8"/>
+                                                                    </Ellipse.Effect>
+                                                                </Ellipse>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Border x:Name="TextColorHueBar" Grid.Column="1" Width="18" Height="140" Margin="10,0,0,0" CornerRadius="3" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Hand"
+                                                            MouseLeftButtonDown="HueBar_MouseLeftButtonDown" MouseMove="HueBar_MouseMove" MouseLeftButtonUp="HueBar_MouseLeftButtonUp" Tag="TextColor">
+                                                        <Grid>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#FFFF0000" Offset="0"/>
+                                                                        <GradientStop Color="#FFFFFF00" Offset="0.167"/>
+                                                                        <GradientStop Color="#FF00FF00" Offset="0.333"/>
+                                                                        <GradientStop Color="#FF00FFFF" Offset="0.5"/>
+                                                                        <GradientStop Color="#FF0000FF" Offset="0.667"/>
+                                                                        <GradientStop Color="#FFFF00FF" Offset="0.833"/>
+                                                                        <GradientStop Color="#FFFF0000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Rectangle x:Name="TextColorHueCursor" Width="22" Height="4" Margin="-2,-2,0,0" Fill="White" Stroke="Black" StrokeThickness="0.5"/>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                                <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="TextColor"
+                                                        Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
+                                                <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="TextColorGrid"/>
+                                            </StackPanel>
                                         </Border>
                                     </Popup>
                                     
@@ -440,51 +458,69 @@
                                     <TextBox Grid.Column="1" x:Name="BorderColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9"/>
                                     <Button Grid.Column="2" x:Name="BorderColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="#555555"/>
                                     <Popup x:Name="BorderColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=BorderColorBtn}" Placement="Bottom">
-                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8" Width="280">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <UniformGrid Rows="3" Columns="4" Width="108" Height="82" x:Name="BorderColorGrid"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" BorderBrush="#333333" BorderThickness="1,0,0,0" Margin="10,0"/>
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                    <TextBlock Text="Custom Pick" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BorderColor" 
-                                                            Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="R" Foreground="Red" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BorderColorR" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BorderColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="G" Foreground="Green" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BorderColorG" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BorderColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="B" Foreground="Blue" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BorderColorB" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BorderColor" Height="16"/>
-                                                    </Grid>
-                                                </StackPanel>
-                                            </Grid>
+                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border x:Name="BorderColorCanvas" Grid.Column="0" Width="200" Height="140" CornerRadius="4" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Cross"
+                                                            MouseLeftButtonDown="Canvas_MouseLeftButtonDown" MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseLeftButtonUp" Tag="BorderColor">
+                                                        <Grid x:Name="BorderColorCanvasGrid" Background="Red">
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#00000000" Offset="0"/>
+                                                                        <GradientStop Color="#FF000000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Ellipse x:Name="BorderColorCursor" Width="8" Height="8" Margin="-4,-4,0,0" Stroke="White" StrokeThickness="1.5" Fill="Transparent">
+                                                                    <Ellipse.Effect>
+                                                                        <DropShadowEffect BlurRadius="2" ShadowDepth="0.5" Color="Black" Opacity="0.8"/>
+                                                                    </Ellipse.Effect>
+                                                                </Ellipse>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Border x:Name="BorderColorHueBar" Grid.Column="1" Width="18" Height="140" Margin="10,0,0,0" CornerRadius="3" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Hand"
+                                                            MouseLeftButtonDown="HueBar_MouseLeftButtonDown" MouseMove="HueBar_MouseMove" MouseLeftButtonUp="HueBar_MouseLeftButtonUp" Tag="BorderColor">
+                                                        <Grid>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#FFFF0000" Offset="0"/>
+                                                                        <GradientStop Color="#FFFFFF00" Offset="0.167"/>
+                                                                        <GradientStop Color="#FF00FF00" Offset="0.333"/>
+                                                                        <GradientStop Color="#FF00FFFF" Offset="0.5"/>
+                                                                        <GradientStop Color="#FF0000FF" Offset="0.667"/>
+                                                                        <GradientStop Color="#FFFF00FF" Offset="0.833"/>
+                                                                        <GradientStop Color="#FFFF0000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Rectangle x:Name="BorderColorHueCursor" Width="22" Height="4" Margin="-2,-2,0,0" Fill="White" Stroke="Black" StrokeThickness="0.5"/>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                                <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BorderColor"
+                                                        Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
+                                                <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BorderColorGrid"/>
+                                            </StackPanel>
                                         </Border>
                                     </Popup>
                                     
@@ -506,51 +542,69 @@
                                     <TextBox Grid.Column="1" x:Name="BackgroundColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9"/>
                                     <Button Grid.Column="2" x:Name="BackgroundColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="#555555"/>
                                     <Popup x:Name="BackgroundColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=BackgroundColorBtn}" Placement="Bottom">
-                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8" Width="280">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <UniformGrid Rows="3" Columns="4" Width="108" Height="82" x:Name="BackgroundColorGrid"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" BorderBrush="#333333" BorderThickness="1,0,0,0" Margin="10,0"/>
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                    <TextBlock Text="Custom Pick" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
-                                                    <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BackgroundColor" 
-                                                            Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="R" Foreground="Red" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BackgroundColorR" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BackgroundColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid Margin="0,0,0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="G" Foreground="Green" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BackgroundColorG" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BackgroundColor" Height="16"/>
-                                                    </Grid>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="12"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="B" Foreground="Blue" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                        <Slider Grid.Column="1" x:Name="BackgroundColorB" Minimum="0" Maximum="255" Value="255" 
-                                                                SmallChange="1" LargeChange="10" ValueChanged="RgbSlider_ValueChanged" Tag="BackgroundColor" Height="16"/>
-                                                    </Grid>
-                                                </StackPanel>
-                                            </Grid>
+                                        <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border x:Name="BackgroundColorCanvas" Grid.Column="0" Width="200" Height="140" CornerRadius="4" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Cross"
+                                                            MouseLeftButtonDown="Canvas_MouseLeftButtonDown" MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseLeftButtonUp" Tag="BackgroundColor">
+                                                        <Grid x:Name="BackgroundColorCanvasGrid" Background="Red">
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#00000000" Offset="0"/>
+                                                                        <GradientStop Color="#FF000000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Ellipse x:Name="BackgroundColorCursor" Width="8" Height="8" Margin="-4,-4,0,0" Stroke="White" StrokeThickness="1.5" Fill="Transparent">
+                                                                    <Ellipse.Effect>
+                                                                        <DropShadowEffect BlurRadius="2" ShadowDepth="0.5" Color="Black" Opacity="0.8"/>
+                                                                    </Ellipse.Effect>
+                                                                </Ellipse>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Border x:Name="BackgroundColorHueBar" Grid.Column="1" Width="18" Height="140" Margin="10,0,0,0" CornerRadius="3" BorderBrush="#444444" BorderThickness="1" ClipToBounds="True" Cursor="Hand"
+                                                            MouseLeftButtonDown="HueBar_MouseLeftButtonDown" MouseMove="HueBar_MouseMove" MouseLeftButtonUp="HueBar_MouseLeftButtonUp" Tag="BackgroundColor">
+                                                        <Grid>
+                                                            <Rectangle>
+                                                                <Rectangle.Fill>
+                                                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                        <GradientStop Color="#FFFF0000" Offset="0"/>
+                                                                        <GradientStop Color="#FFFFFF00" Offset="0.167"/>
+                                                                        <GradientStop Color="#FF00FF00" Offset="0.333"/>
+                                                                        <GradientStop Color="#FF00FFFF" Offset="0.5"/>
+                                                                        <GradientStop Color="#FF0000FF" Offset="0.667"/>
+                                                                        <GradientStop Color="#FFFF00FF" Offset="0.833"/>
+                                                                        <GradientStop Color="#FFFF0000" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Rectangle.Fill>
+                                                            </Rectangle>
+                                                            <Canvas IsHitTestVisible="False">
+                                                                <Rectangle x:Name="BackgroundColorHueCursor" Width="22" Height="4" Margin="-2,-2,0,0" Fill="White" Stroke="Black" StrokeThickness="0.5"/>
+                                                            </Canvas>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                                <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BackgroundColor"
+                                                        Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
+                                                <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BackgroundColorGrid"/>
+                                            </StackPanel>
                                         </Border>
                                     </Popup>
                                     
@@ -727,7 +781,10 @@
             </Grid>
 
             <!-- Live Ground Label Preview -->
-            <Border Grid.Row="3" Background="#0C0C0C" CornerRadius="8" Padding="15,20" BorderBrush="#262626" BorderThickness="1" Margin="0,5,0,10">
+            <Border Grid.Row="3" CornerRadius="8" Padding="15,20" BorderBrush="#262626" BorderThickness="1" Margin="0,5,0,10">
+                <Border.Background>
+                    <ImageBrush ImageSource="pack://application:,,,/LootPulse;component/Assets/ground_preview.png" Stretch="UniformToFill" Opacity="0.85"/>
+                </Border.Background>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
