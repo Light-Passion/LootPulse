@@ -34,3 +34,5 @@ entities.json
 # Test project and test files
 LootPulse.Tests/
 testfiles/
+test_*.json
+test_*.txt
