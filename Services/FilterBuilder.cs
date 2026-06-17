@@ -94,14 +94,28 @@ namespace LootPulse.Services
 
             foreach (var item in marketItems)
             {
-                if (item.DivineValue <= 0 && item.ChaosValue > 0)
-                {
-                    item.DivineValue = item.ChaosValue / divinePriceInChaos;
-                }
-                if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
-                {
-                    item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
-                }
+                NormalizeItemValues(item, divinePriceInChaos, exaltedPriceInChaos);
+            }
+        }
+
+        private static void NormalizeItemValues(MarketItem item, double divinePriceInChaos, double exaltedPriceInChaos)
+        {
+            if (item.DivineValue <= 0 && item.ChaosValue > 0)
+            {
+                item.DivineValue = item.ChaosValue / divinePriceInChaos;
+            }
+            if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
+            {
+                item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
+            }
+
+            if (item.ChaosValue <= 0 && item.DivineValue > 0)
+            {
+                item.ChaosValue = item.DivineValue * divinePriceInChaos;
+            }
+            if (item.ExaltedValue <= 0 && item.DivineValue > 0)
+            {
+                item.ExaltedValue = item.DivineValue * (divinePriceInChaos / exaltedPriceInChaos);
             }
         }
 

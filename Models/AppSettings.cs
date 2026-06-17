@@ -14,5 +14,6 @@ namespace LootPulse.Models
         public double EditModeOpacity { get; set; } = 0.85;
         public double HudModeOpacity { get; set; } = 0.30;
         public bool IsHudVisible { get; set; } = true;
+        public string League { get; set; } = "Runes of Aldur";
     }
 }

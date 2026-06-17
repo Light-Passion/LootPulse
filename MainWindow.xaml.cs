@@ -317,8 +317,11 @@ namespace LootPulse
         private async void SyncAll_Click(object sender, RoutedEventArgs e)
         {
             StatusText.Text = "Syncing with poe.ninja...";
-            // We use Mirage/Standard or configurable league (Default to Mirage)
-            const string activeLeague = "Mirage";
+            string activeLeague = _appSettings.League;
+            if (string.IsNullOrEmpty(activeLeague))
+            {
+                activeLeague = "Runes of Aldur";
+            }
 
             var fetchedCurrencies = await _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
             var fetchedGems = await _ninjaClient.FetchItemPricesAsync(activeLeague, "SkillGem", "Gems");
@@ -566,6 +569,10 @@ namespace LootPulse
                         _appSettings.EditModeOpacity = settings.EditModeOpacity;
                         _appSettings.HudModeOpacity = settings.HudModeOpacity;
                         _appSettings.IsHudVisible = settings.IsHudVisible;
+                        if (!string.IsNullOrEmpty(settings.League))
+                        {
+                            _appSettings.League = settings.League;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1370,6 +1377,15 @@ namespace LootPulse
                 {
                     item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
                 }
+
+                if (item.ChaosValue <= 0 && item.DivineValue > 0)
+                {
+                    item.ChaosValue = item.DivineValue * divinePriceInChaos;
+                }
+                if (item.ExaltedValue <= 0 && item.DivineValue > 0)
+                {
+                    item.ExaltedValue = item.DivineValue * (divinePriceInChaos / exaltedPriceInChaos);
+                }
             }
         }
 
@@ -1407,7 +1423,11 @@ namespace LootPulse
         {
             if (build?.InventorySlots == null) return;
 
-            const string activeLeague = "Mirage";
+            string activeLeague = _appSettings.League;
+            if (string.IsNullOrEmpty(activeLeague))
+            {
+                activeLeague = "Runes of Aldur";
+            }
             var categoriesToFetch = new HashSet<(string type, string name)>();
 
             var missingUniques = build.InventorySlots

@@ -22,6 +22,9 @@ namespace LootPulse
         private const string _crimsonThemeName = "Crimson Haze";
         private const string _tealColorCode = "#FF00C8FF";
         private const string _builtInSoundType = "BuiltIn";
+        private const string _textColorKey = "TextColor";
+        private const string _borderColorKey = "BorderColor";
+        private const string _backgroundColorKey = "BackgroundColor";
 
         public FilterTheme WorkingTheme { get; private set; }
         private readonly Dictionary<string, FilterTheme> _presets = [];
@@ -189,35 +192,40 @@ namespace LootPulse
             try
             {
                 var color = (Color)ColorConverter.ConvertFromString(hex);
-
-                if (textBox == TextColorTextBox)
-                {
-                    TextColorBtn.Background = new SolidColorBrush(color);
-                    _isSynchronizing = true;
-                    TextOpacitySlider.Value = color.A;
-                    _isSynchronizing = false;
-                }
-                else if (textBox == BorderColorTextBox)
-                {
-                    BorderColorBtn.Background = new SolidColorBrush(color);
-                    _isSynchronizing = true;
-                    BorderOpacitySlider.Value = color.A;
-                    _isSynchronizing = false;
-                }
-                else if (textBox == BackgroundColorTextBox)
-                {
-                    BackgroundColorBtn.Background = new SolidColorBrush(color);
-                    _isSynchronizing = true;
-                    BackgroundOpacitySlider.Value = color.A;
-                    _isSynchronizing = false;
-                }
-
+                SyncColorControls(textBox, color);
                 UpdateLivePreview();
             }
             catch
             {
                 // Ignore parsing errors while user is actively typing
             }
+        }
+
+        private void SyncColorControls(TextBox textBox, Color color)
+        {
+            if (textBox == TextColorTextBox)
+            {
+                SyncColorControlsHelper(TextColorBtn, TextOpacitySlider, TextColorR, TextColorG, TextColorB, color);
+            }
+            else if (textBox == BorderColorTextBox)
+            {
+                SyncColorControlsHelper(BorderColorBtn, BorderOpacitySlider, BorderColorR, BorderColorG, BorderColorB, color);
+            }
+            else if (textBox == BackgroundColorTextBox)
+            {
+                SyncColorControlsHelper(BackgroundColorBtn, BackgroundOpacitySlider, BackgroundColorR, BackgroundColorG, BackgroundColorB, color);
+            }
+        }
+
+        private void SyncColorControlsHelper(Button btn, Slider opacitySlider, Slider? rSlider, Slider? gSlider, Slider? bSlider, Color color)
+        {
+            btn.Background = new SolidColorBrush(color);
+            _isSynchronizing = true;
+            opacitySlider.Value = color.A;
+            if (rSlider != null) rSlider.Value = color.R;
+            if (gSlider != null) gSlider.Value = color.G;
+            if (bSlider != null) bSlider.Value = color.B;
+            _isSynchronizing = false;
         }
 
         private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -254,6 +262,117 @@ namespace LootPulse
             catch
             {
                 // Ignore
+            }
+        }
+
+        private void RgbSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isSynchronizing) return;
+            if (sender is not Slider slider) return;
+            string target = slider.Tag?.ToString() ?? "";
+
+            TextBox? targetTextBox = target switch
+            {
+                _textColorKey => TextColorTextBox,
+                _borderColorKey => BorderColorTextBox,
+                _backgroundColorKey => BackgroundColorTextBox,
+                _ => null
+            };
+
+            Slider? rSlider = target switch
+            {
+                _textColorKey => TextColorR,
+                _borderColorKey => BorderColorR,
+                _backgroundColorKey => BackgroundColorR,
+                _ => null
+            };
+
+            Slider? gSlider = target switch
+            {
+                _textColorKey => TextColorG,
+                _borderColorKey => BorderColorG,
+                _backgroundColorKey => BackgroundColorG,
+                _ => null
+            };
+
+            Slider? bSlider = target switch
+            {
+                _textColorKey => TextColorB,
+                _borderColorKey => BorderColorB,
+                _backgroundColorKey => BackgroundColorB,
+                _ => null
+            };
+
+            Slider? opacitySlider = target switch
+            {
+                _textColorKey => TextOpacitySlider,
+                _borderColorKey => BorderOpacitySlider,
+                _backgroundColorKey => BackgroundOpacitySlider,
+                _ => null
+            };
+
+            if (targetTextBox == null || rSlider == null || gSlider == null || bSlider == null || opacitySlider == null) return;
+
+            byte r = (byte)rSlider.Value;
+            byte g = (byte)gSlider.Value;
+            byte b = (byte)bSlider.Value;
+            byte a = (byte)opacitySlider.Value;
+
+            string hex = $"#{a:X2}{r:X2}{g:X2}{b:X2}";
+
+            _isSynchronizing = true;
+            targetTextBox.Text = hex;
+            _isSynchronizing = false;
+
+            ColorTextBox_TextChanged(targetTextBox, null!);
+        }
+
+        private void ScreenPicker_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn) return;
+            string target = btn.Tag?.ToString() ?? "";
+
+            // Hide the style editor window briefly to pick colors on screen
+            this.Hide();
+            System.Threading.Thread.Sleep(150);
+
+            Color? pickedColor = ScreenColorPicker.ShowPicker();
+
+            // Re-show style editor
+            this.Show();
+            this.Activate();
+
+            if (pickedColor.HasValue)
+            {
+                var color = pickedColor.Value;
+
+                TextBox? targetTextBox = target switch
+                {
+                    _textColorKey => TextColorTextBox,
+                    _borderColorKey => BorderColorTextBox,
+                    _backgroundColorKey => BackgroundColorTextBox,
+                    _ => null
+                };
+
+                Slider? opacitySlider = target switch
+                {
+                    _textColorKey => TextOpacitySlider,
+                    _borderColorKey => BorderOpacitySlider,
+                    _backgroundColorKey => BackgroundOpacitySlider,
+                    _ => null
+                };
+
+                if (targetTextBox != null && opacitySlider != null)
+                {
+                    byte a = (byte)opacitySlider.Value;
+                    string hex = $"#{a:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+
+                    _isSynchronizing = true;
+                    targetTextBox.Text = hex;
+                    _isSynchronizing = false;
+
+                    ColorTextBox_TextChanged(targetTextBox, null!);
+                }
             }
         }
 
@@ -867,5 +986,150 @@ namespace LootPulse
         }
 
         #endregion
+    }
+
+    internal static partial class ScreenColorPicker
+    {
+        [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+        [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+        private static partial IntPtr GetDC(IntPtr hwnd);
+
+        [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+        [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+        private static partial int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
+        [System.Runtime.InteropServices.LibraryImport("gdi32.dll")]
+        [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+        private static partial uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
+
+        public static Color? ShowPicker()
+        {
+            Color? selectedColor = null;
+
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
+                Topmost = true,
+                ShowInTaskbar = false,
+                Cursor = System.Windows.Input.Cursors.Cross,
+                WindowStartupLocation = WindowStartupLocation.Manual
+            };
+
+            double left = SystemParameters.VirtualScreenLeft;
+            double top = SystemParameters.VirtualScreenTop;
+            double width = SystemParameters.VirtualScreenWidth;
+            double height = SystemParameters.VirtualScreenHeight;
+
+            window.Left = left;
+            window.Top = top;
+            window.Width = width;
+            window.Height = height;
+
+            var grid = new Grid();
+            window.Content = grid;
+
+            var border = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(255, 97, 36)),
+                BorderThickness = new Thickness(1.5),
+                Padding = new Thickness(8),
+                CornerRadius = new CornerRadius(6),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Width = 150,
+                Height = 65,
+                IsHitTestVisible = false
+            };
+
+            var stackPanel = new StackPanel();
+            var colorPreview = new Border
+            {
+                Height = 15,
+                Margin = new Thickness(0, 0, 0, 4),
+                BorderThickness = new Thickness(1),
+                BorderBrush = System.Windows.Media.Brushes.Gray,
+                CornerRadius = new CornerRadius(2)
+            };
+            var hexText = new TextBlock
+            {
+                Foreground = System.Windows.Media.Brushes.White,
+                FontSize = 10,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                FontFamily = new FontFamily("Consolas")
+            };
+            var tipText = new TextBlock
+            {
+                Text = "Click to pick | ESC to cancel",
+                Foreground = System.Windows.Media.Brushes.DarkGray,
+                FontSize = 8,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+
+            stackPanel.Children.Add(colorPreview);
+            stackPanel.Children.Add(hexText);
+            stackPanel.Children.Add(tipText);
+            border.Child = stackPanel;
+            grid.Children.Add(border);
+
+            window.MouseMove += (s, e) =>
+            {
+                var pos = e.GetPosition(window);
+                var screenPos = window.PointToScreen(pos);
+                var color = GetPixelAt((int)screenPos.X, (int)screenPos.Y);
+
+                colorPreview.Background = new SolidColorBrush(color);
+                hexText.Text = $"RGB: {color.R},{color.G},{color.B} (#{color.R:X2}{color.G:X2}{color.B:X2})";
+
+                double offsetX = pos.X + 20;
+                double offsetY = pos.Y + 20;
+
+                if (offsetX + border.Width > window.Width)
+                {
+                    offsetX = pos.X - border.Width - 20;
+                }
+                if (offsetY + border.Height > window.Height)
+                {
+                    offsetY = pos.Y - border.Height - 20;
+                }
+
+                border.Margin = new Thickness(offsetX, offsetY, 0, 0);
+            };
+
+            window.MouseLeftButtonDown += (s, e) =>
+            {
+                var pos = e.GetPosition(window);
+                var screenPos = window.PointToScreen(pos);
+                selectedColor = GetPixelAt((int)screenPos.X, (int)screenPos.Y);
+                window.Close();
+            };
+
+            window.KeyDown += (s, e) =>
+            {
+                if (e.Key == System.Windows.Input.Key.Escape)
+                {
+                    window.Close();
+                }
+            };
+
+            window.ShowDialog();
+            return selectedColor;
+        }
+
+        private static Color GetPixelAt(int x, int y)
+        {
+            IntPtr hdc = GetDC(IntPtr.Zero);
+            uint pixel = GetPixel(hdc, x, y);
+            _ = ReleaseDC(IntPtr.Zero, hdc);
+
+            return Color.FromRgb(
+                (byte)(pixel & 0x000000FF),
+                (byte)((pixel & 0x0000FF00) >> 8),
+                (byte)((pixel & 0x00FF0000) >> 16)
+            );
+        }
     }
 }
