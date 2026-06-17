@@ -13,7 +13,8 @@ namespace LootPulse.Services
     // New PoE2 Economy Models
     public record NinjaExchangeResponse(
         [property: JsonPropertyName("core")] NinjaExchangeCore? Core,
-        [property: JsonPropertyName("lines")] List<NinjaExchangeLine>? Lines
+        [property: JsonPropertyName("lines")] List<NinjaExchangeLine>? Lines,
+        [property: JsonPropertyName("items")] List<NinjaExchangeCoreItem>? Items
     );
 
     public record NinjaExchangeCore(

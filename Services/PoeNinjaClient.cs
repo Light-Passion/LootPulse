@@ -41,12 +41,16 @@ namespace LootPulse.Services
             if (raw?.Lines == null) return [];
 
             ExtractRates(raw.Core);
-            var itemMap = BuildItemMap(raw.Core?.Items);
+            var itemMap = BuildItemMap(raw.Items);
 
             var list = new List<MarketItem>();
             foreach (var line in raw.Lines.Where(line => !string.IsNullOrEmpty(line.Id)))
             {
-                list.Add(MapCurrencyLine(line, itemMap));
+                var item = MapCurrencyLine(line, itemMap);
+                if (item != null)
+                {
+                    list.Add(item);
+                }
             }
             return list;
         }
@@ -56,12 +60,16 @@ namespace LootPulse.Services
             var raw = await FetchExchangeDataAsync(league, type).ConfigureAwait(false);
             if (raw?.Lines == null) return [];
 
-            var itemMap = BuildItemMap(raw.Core?.Items);
+            var itemMap = BuildItemMap(raw.Items);
 
             var list = new List<MarketItem>();
             foreach (var line in raw.Lines.Where(line => !string.IsNullOrEmpty(line.Id)))
             {
-                list.Add(MapItemLine(line, itemMap, categoryName));
+                var item = MapItemLine(line, itemMap, categoryName);
+                if (item != null)
+                {
+                    list.Add(item);
+                }
             }
             return list;
         }
@@ -92,16 +100,19 @@ namespace LootPulse.Services
             return map;
         }
 
-        private MarketItem MapCurrencyLine(NinjaExchangeLine line, Dictionary<string, NinjaExchangeCoreItem> itemMap)
+        private MarketItem? MapCurrencyLine(NinjaExchangeLine line, Dictionary<string, NinjaExchangeCoreItem> itemMap)
         {
-            string name = line.Id;
-            string category = _currencyLiteral;
-
-            if (itemMap.TryGetValue(line.Id, out var coreItem))
+            // poe.ninja's "id" is an internal slug (e.g. "ancient-infuser"), not a valid
+            // in-game BaseType string. Skip the item rather than write the slug into the
+            // filter, which would make PoE2 reject the filter as referencing an unknown item.
+            if (!itemMap.TryGetValue(line.Id, out var coreItem))
             {
-                name = coreItem.Name;
-                category = coreItem.Category;
+                System.Diagnostics.Debug.WriteLine($"Skipping currency line with unresolved display name: {line.Id}");
+                return null;
             }
+
+            string name = coreItem.Name;
+            string category = coreItem.Category;
 
             if (category.Equals(_currencyLiteral, StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Vaal", StringComparison.OrdinalIgnoreCase))
@@ -124,16 +135,18 @@ namespace LootPulse.Services
             };
         }
 
-        private MarketItem MapItemLine(NinjaExchangeLine line, Dictionary<string, NinjaExchangeCoreItem> itemMap, string categoryName)
+        private MarketItem? MapItemLine(NinjaExchangeLine line, Dictionary<string, NinjaExchangeCoreItem> itemMap, string categoryName)
         {
-            string name = line.Id;
-            string baseType = string.Empty;
-
-            if (itemMap.TryGetValue(line.Id, out var coreItem))
+            // Same reasoning as MapCurrencyLine: never write poe.ninja's internal slug id
+            // into the filter as a BaseType, since it isn't a real PoE2 item name.
+            if (!itemMap.TryGetValue(line.Id, out var coreItem))
             {
-                name = coreItem.Name;
-                baseType = coreItem.Category;
+                System.Diagnostics.Debug.WriteLine($"Skipping item line with unresolved display name: {line.Id}");
+                return null;
             }
+
+            string name = coreItem.Name;
+            string baseType = coreItem.Category;
 
             double divineValue = line.PrimaryValue;
             double exaltedValue = divineValue * _cachedExaltedRate;

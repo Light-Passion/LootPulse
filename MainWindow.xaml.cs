@@ -96,8 +96,9 @@ namespace LootPulse
             _logMonitor = new ClientLogMonitor();
             _filterBuilder = new FilterBuilder();
 
-            // Bind log monitor event
+            // Bind log monitor events
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
+            _logMonitor.PlayerLevelChanged += LogMonitor_PlayerLevelChanged;
 
             // Load saved settings (or defaults)
             LoadSettings();
@@ -154,6 +155,9 @@ namespace LootPulse
 
             // Check if base filter was missing on load
             CheckMissingBaseFilter();
+
+            // Restore the last used .build file and refresh economy data automatically
+            _ = InitializeStartupDataAsync();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -267,6 +271,24 @@ namespace LootPulse
             });
         }
 
+        private void LogMonitor_PlayerLevelChanged(object? sender, PlayerLevelChangedEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _playerState.CharacterName = e.CharacterName;
+                _playerState.Level = e.Level;
+                CharNameText.Text = e.CharacterName;
+                CharLevelText.Text = e.Level.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                StatusText.Text = $"{e.CharacterName} is now level {e.Level}";
+
+                // Update HUD display
+                _hudWindow?.UpdateDisplay(e.CharacterName, e.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Level Up!");
+
+                // Regenerate filter with updated level
+                TriggerFilterRegeneration();
+            });
+        }
+
         private void TriggerFilterRegeneration()
         {
             _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
@@ -317,6 +339,11 @@ namespace LootPulse
 
         private async void SyncAll_Click(object sender, RoutedEventArgs e)
         {
+            await SyncEconomyDataAsync();
+        }
+
+        private async Task SyncEconomyDataAsync()
+        {
             StatusText.Text = "Syncing with poe.ninja...";
             string activeLeague = _appSettings.League;
             if (string.IsNullOrEmpty(activeLeague))
@@ -339,6 +366,32 @@ namespace LootPulse
             ItemListView.ItemsSource = _marketItems;
 
             TriggerFilterRegeneration();
+        }
+
+        private async Task AutoLoadLastBuildAsync()
+        {
+            string buildFilePath = _appSettings.BuildFilePath;
+            if (string.IsNullOrEmpty(buildFilePath) || !File.Exists(buildFilePath))
+            {
+                return;
+            }
+
+            var build = _buildParser.ParseBuildFile(buildFilePath);
+            if (build == null)
+            {
+                return;
+            }
+
+            _activeBuild = build;
+            BuildNameText.Text = build.Name;
+            StatusText.Text = $"Loaded last used build: {build.Name}";
+            await LoadBuildUniquePricesAsync(build);
+        }
+
+        private async Task InitializeStartupDataAsync()
+        {
+            await AutoLoadLastBuildAsync();
+            await SyncEconomyDataAsync();
         }
 
         private async void ImportPob_Click(object sender, RoutedEventArgs e)
@@ -387,6 +440,8 @@ namespace LootPulse
                     _activeBuild = build;
                     BuildNameText.Text = build.Name;
                     StatusText.Text = $"Loaded .build file: {build.Name}";
+                    _appSettings.BuildFilePath = ofd.FileName;
+                    SaveSettings();
                     await LoadBuildUniquePricesAsync(build);
                     TriggerFilterRegeneration();
                 }
@@ -562,6 +617,7 @@ namespace LootPulse
                         loadedLogPath = settings.LogPath;
                         loadedFilterPath = settings.FilterOutputPath;
                         loadedBaseFilterPath = settings.SelectedBaseFilterPath;
+                        _appSettings.BuildFilePath = settings.BuildFilePath;
 
                         _appSettings.HudWidth = settings.HudWidth;
                         _appSettings.HudHeight = settings.HudHeight;
@@ -1411,6 +1467,10 @@ namespace LootPulse
         private void AddPinnedExchangeRateItem()
         {
             _marketItems.RemoveAll(i => i.Category == "Exchange Rate");
+
+            // Rank every other commodity highest-to-lowest in Divine terms, so the pinned
+            // reference item inserted below always sits above a sensibly ordered list.
+            _marketItems.Sort((a, b) => b.DivineValue.CompareTo(a.DivineValue));
 
             double divinePriceInChaos = 120.0;
             double exaltedPriceInChaos = 15.0;

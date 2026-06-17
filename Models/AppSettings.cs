@@ -5,6 +5,7 @@ namespace LootPulse.Models
         public string LogPath { get; set; } = string.Empty;
         public string FilterOutputPath { get; set; } = string.Empty;
         public string SelectedBaseFilterPath { get; set; } = string.Empty;
+        public string BuildFilePath { get; set; } = string.Empty;
         public double Tier1Threshold { get; set; } = 1.0;
         public double Tier2Threshold { get; set; } = 1.0;
         public double HudWidth { get; set; } = 250;

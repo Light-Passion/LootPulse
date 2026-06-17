@@ -13,12 +13,14 @@ The tool provides a transparent, click-through overlay window that monitors your
 ## 🚀 Key Features
 
 - **🎮 Dynamic Click-Through HUD Overlay**: Toggle between **Edit Mode** (adjust thresholds, select profiles, configure settings) and **HUD Mode** (completely transparent, click-through overlay) using the `Ctrl + Shift + O` hotkey.
-- **📈 Real-Time Economy Sync**: Fetches real-time commodity, currency, and unique valuations from `poe.ninja` for the Path of Exile 2 Trade Economy (focusing on Exalted, Divine, and Chaos Orbs).
-- **📋 Build Planner Integration**: 
+- **📈 Real-Time Economy Sync**: Fetches real-time commodity, currency, and unique valuations from `poe.ninja` for the Path of Exile 2 Trade Economy (focusing on Exalted, Divine, and Chaos Orbs), ranked highest-to-lowest by value.
+- **📋 Build Planner Integration**:
   - Parses native Path of Exile 2 `.build` JSON schemas.
   - Decodes and parses Path of Building 2 (PoB2) compressed XML share codes.
-- **🔍 Active Zone & Level Tracking**: Automatically monitors your `Client.txt` log file to detect zone transitions and character leveling dynamically.
-- **🛡️ Custom Filter Builder**: Generates tailored `.filter` files on-the-fly, highlighting high-value economic drops and build-specific skill gems or uniques suitable for your current level.
+  - Remembers the last loaded `.build` file and automatically reloads it (and resyncs economy data) on startup.
+- **🔍 Active Zone & Level Tracking**: Monitors your `Client.txt` log file to detect zone transitions and character level-ups in real time, and scans recent log history on startup so the HUD starts with accurate state instead of defaults.
+- **🛡️ Custom Filter Builder**: Generates tailored `.filter` files on-the-fly, highlighting high-value economic drops and build-specific uniques suitable for your current level. Skill/support gems are highlighted via PoE2's "Uncut Gem" framework rather than named BaseTypes, since PoE2 only drops generic uncut gems on the ground.
+- **🎨 Style Editor**: Customize filter highlight colors with HSV sliders, custom RGB input, and a screen eyedropper picker.
 
 ---
 

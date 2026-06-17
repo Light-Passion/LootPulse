@@ -285,19 +285,18 @@ namespace LootPulse.Services
                 .ToList();
         }
 
+        // PoE2 does not drop pre-named skill/support gems on the ground - only the generic
+        // "Uncut Skill Gem" / "Uncut Support Gem" / "Uncut Spirit Gem" BaseTypes exist, and
+        // the player allocates a specific skill when using one (the "Uncut Gem" framework -
+        // see poe2_validator.md). Writing a named skill like "Wolf Pounce" as a BaseType rule
+        // breaks the whole filter on load, since that string is never a real item BaseType.
         private static void AppendSkillGemHighlights(StringBuilder sb, List<string> buildGems, FilterTheme activeTheme)
         {
             if (buildGems.Count == 0) return;
 
-            sb.AppendLine("# Active Build Skill Gems");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# Active Build Skills (Uncut Gem framework): {string.Join(", ", buildGems)}");
             sb.AppendLine("Show");
-            sb.AppendLine("    Class \"Skill Gems\"");
-            sb.Append(_baseTypePrefix);
-            foreach (var gem in buildGems)
-            {
-                sb.Append(CultureInfo.InvariantCulture, $" \"{gem}\"");
-            }
-            sb.AppendLine();
+            sb.AppendLine("    BaseType \"Uncut Skill Gem\" \"Uncut Support Gem\" \"Uncut Spirit Gem\"");
             AppendStyleBlock(sb, activeTheme.Gems);
             sb.AppendLine();
         }
@@ -558,216 +557,264 @@ namespace LootPulse.Services
             public int RequiredLevel { get; } = requiredLevel;
         }
 
+        // Base item names and required levels verified against poe2db.tw (2026-06-17).
+        // An earlier version of this table was copied from Path of Exile 1 base names
+        // (e.g. "Paua Ring", "Iron Mace", "Falconer's Jacket") that do not exist in PoE2 -
+        // the game rejects the whole filter on load if a BaseType rule references one.
+        // Do not add entries here without verifying them against poe2db.tw first.
         private static readonly Dictionary<string, List<BaseItemInfo>> _archetypes = new()
         {
             { "Mace", new() {
-                new("Iron Mace", 1),
-                new("Bronze Mace", 10),
-                new("Steel Mace", 20),
-                new("Flanged Mace", 32),
-                new("Ornate Mace", 44),
-                new("Jagged Mace", 56),
-                new("Petrified Mace", 68),
-                new("Sacred Maul", 72)
+                new("Wooden Club", 1),
+                new("Smithing Hammer", 4),
+                new("Forge Maul", 11),
+                new("Spiked Club", 16),
+                new("Cultist Greathammer", 22),
+                new("Brigand Mace", 33),
+                new("Crumbling Maul", 38),
+                new("Morning Star", 45),
+                new("Totemic Greatclub", 50),
+                new("Giant Maul", 65),
+                new("Sacred Maul", 72),
+                new("Massive Greathammer", 77)
             }},
             { "Staff", new() {
                 new("Wrapped Quarterstaff", 1),
-                new("Long Quarterstaff", 10),
-                new("Iron-Point Quarterstaff", 20),
-                new("Laminated Quarterstaff", 32),
-                new("Spliced Quarterstaff", 44),
-                new("Steel-Point Quarterstaff", 56),
-                new("Crescent Quarterstaff", 68),
-                new("Gothic Quarterstaff", 72)
+                new("Long Quarterstaff", 4),
+                new("Gothic Quarterstaff", 11),
+                new("Crackling Quarterstaff", 16),
+                new("Crescent Quarterstaff", 20),
+                new("Steelpoint Quarterstaff", 28),
+                new("Barrier Quarterstaff", 37),
+                new("Guardian Quarterstaff", 62),
+                new("Lunar Quarterstaff", 72),
+                new("Aegis Quarterstaff", 79)
             }},
             { "Bow", new() {
                 new("Crude Bow", 1),
-                new("Short Bow", 10),
-                new("Longbow", 20),
-                new("Recurve Bow", 32),
-                new("Composite Bow", 44),
-                new("Dual-Metal Bow", 56),
-                new("Warden's Bow", 68),
-                new("Greatbow", 72)
-            }},
-            { "Sword", new() {
-                new("Rusted Sword", 1),
-                new("Copper Sword", 10),
-                new("Sabre", 20),
-                new("Broadsword", 32),
-                new("Falchion", 44),
-                new("Cutlass", 56),
-                new("Estoc", 68),
-                new("Greatsword", 72)
+                new("Shortbow", 5),
+                new("Warden Bow", 11),
+                new("Recurve Bow", 16),
+                new("Composite Bow", 22),
+                new("Dualstring Bow", 28),
+                new("Cultist Bow", 33),
+                new("Artillery Bow", 45),
+                new("Heavy Bow", 65),
+                new("Cavalry Bow", 72),
+                new("Fanatic Bow", 79)
             }},
             { "Crossbow", new() {
                 new("Makeshift Crossbow", 1),
-                new("Light Crossbow", 10),
-                new("Arbalest", 20),
-                new("Recurve Crossbow", 32),
-                new("Heavy Crossbow", 44),
-                new("Steel Crossbow", 56),
-                new("Grand Crossbow", 68),
-                new("Siege Crossbow", 72)
+                new("Tense Crossbow", 4),
+                new("Sturdy Crossbow", 10),
+                new("Varnished Crossbow", 16),
+                new("Alloy Crossbow", 26),
+                new("Bombard Crossbow", 33),
+                new("Blackfire Crossbow", 45),
+                new("Cannonade Crossbow", 59),
+                new("Stout Crossbow", 67),
+                new("Siege Crossbow", 79)
             }},
             { "Wand", new() {
-                new("Twig Wand", 1),
-                new("Carved Wand", 10),
-                new("Engraved Wand", 20),
-                new("Ash Wand", 32),
-                new("Driftwood Wand", 44),
-                new("Sage Wand", 56),
-                new("Omen Wand", 68),
-                new("Prophecy Wand", 72)
+                new("Withered Wand", 1),
+                new("Bone Wand", 2),
+                new("Siphoning Wand", 11),
+                new("Volatile Wand", 16),
+                new("Galvanic Wand", 25),
+                new("Acrid Wand", 33),
+                new("Frigid Wand", 45),
+                new("Primordial Wand", 56),
+                new("Runic Fork", 65)
             }},
             { "Body Armour Armour", new() {
-                new("Plate Vest", 1),
-                new("Chainmail Vest", 10),
-                new("Ringmail Coat", 20),
-                new("Scale Vest", 30),
-                new("Knightly Plate", 60),
-                new("Majestic Plate", 75)
+                new("Rusted Cuirass", 1),
+                new("Fur Plate", 4),
+                new("Iron Cuirass", 11),
+                new("Raider Plate", 16),
+                new("Maraketh Cuirass", 20),
+                new("Steel Plate", 27),
+                new("Full Plate", 33),
+                new("Vaal Cuirass", 37),
+                new("Juggernaut Plate", 45),
+                new("Chieftain Cuirass", 50),
+                new("Glorious Plate", 65),
+                new("Abyssal Cuirass", 73)
             }},
             { "Body Armour Evasion", new() {
-                new("Laced Jacket", 1),
-                new("Rawhide Jacket", 10),
-                new("Leather Jacket", 20),
-                new("Buckskin Jerkin", 30),
-                new("Wildspire Jerkin", 40),
-                new("Hunter's Jacket", 50),
-                new("Corsair Jerkin", 60),
-                new("Falconer's Jacket", 70)
+                new("Leather Vest", 1),
+                new("Quilted Vest", 4),
+                new("Pathfinder Coat", 11),
+                new("Shrouded Vest", 16),
+                new("Rhoahide Coat", 22),
+                new("Studded Vest", 26),
+                new("Scout's Vest", 33),
+                new("Serpentscale Coat", 36),
+                new("Corsair Vest", 45),
+                new("Exquisite Vest", 65),
+                new("Armoured Vest", 73)
             }},
             { "Body Armour ES", new() {
-                new("Robe", 1),
-                new("Velvet Robe", 10),
-                new("Silk Robe", 20),
-                new("Scholar's Robe", 30),
-                new("Mage's Vestment", 40),
-                new("Sage's Robe", 50),
-                new("Cabalist Regalia", 60),
-                new("Silken Wrap", 70),
-                new("Grand Regalia", 75)
+                new("Tattered Robe", 1),
+                new("Feathered Robe", 5),
+                new("Hexer's Robe", 11),
+                new("Bone Raiment", 16),
+                new("Silk Robe", 22),
+                new("Votive Raiment", 33),
+                new("Altar Robe", 40),
+                new("Elementalist Robe", 45),
+                new("Imperial Robe", 52),
+                new("Havoc Raiment", 65),
+                new("Arcane Raiment", 73)
             }},
             { "Boots Armour", new() {
-                new("Iron Greaves", 1),
-                new("Chainmail Boots", 12),
-                new("Ringmail Boots", 22),
-                new("Knightly Greaves", 62)
+                new("Rough Greaves", 1),
+                new("Iron Greaves", 11),
+                new("Bronze Greaves", 16),
+                new("Trimmed Greaves", 27),
+                new("Stone Greaves", 33),
+                new("Reefsteel Greaves", 45),
+                new("Bulwark Greaves", 65),
+                new("Vaal Greaves", 75),
+                new("Tasalian Greaves", 80)
             }},
             { "Boots Evasion", new() {
-                new("Wrapped Boots", 1),
-                new("Rawhide Boots", 12),
-                new("Leather Boots", 22),
-                new("Goatskin Boots", 32),
-                new("Wildspire Boots", 42),
-                new("Hunter's Boots", 52),
-                new("Corsair Boots", 62),
-                new("Falconer's Boots", 72)
+                new("Rawhide Boots", 1),
+                new("Laced Boots", 11),
+                new("Embossed Boots", 16),
+                new("Steeltoe Boots", 28),
+                new("Lizardscale Boots", 33),
+                new("Flared Boots", 45),
+                new("Cinched Boots", 65),
+                new("Dragonscale Boots", 75),
+                new("Drakeskin Boots", 80)
             }},
             { "Boots ES", new() {
-                new("Wool Shoes", 1),
-                new("Velvet Slippers", 12),
-                new("Silk Slippers", 22),
-                new("Scholar's Boots", 32),
-                new("Mage's Shoes", 42),
-                new("Sage's Shoes", 52),
-                new("Cabalist Slippers", 62),
-                new("Silken Slippers", 72)
+                new("Straw Sandals", 1),
+                new("Wrapped Sandals", 11),
+                new("Lattice Sandals", 16),
+                new("Silk Slippers", 27),
+                new("Feathered Sandals", 33),
+                new("Bound Sandals", 65),
+                new("Sandsworn Sandals", 75),
+                new("Sekhema Sandals", 80)
             }},
             { "Gloves Armour", new() {
-                new("Iron Gauntlets", 1),
-                new("Chainmail Gloves", 11),
-                new("Ringmail Gauntlets", 21),
-                new("Knightly Gauntlets", 61)
+                new("Stocky Mitts", 1),
+                new("Riveted Mitts", 11),
+                new("Tempered Mitts", 16),
+                new("Bolstered Mitts", 27),
+                new("Moulded Mitts", 33),
+                new("Detailed Mitts", 45),
+                new("Titan Mitts", 52),
+                new("Grand Mitts", 65)
             }},
             { "Gloves Evasion", new() {
-                new("Wrapped Mitts", 1),
-                new("Rawhide Gloves", 11),
-                new("Leather Gloves", 21),
-                new("Goatskin Gloves", 31),
-                new("Wildspire Gauntlets", 41),
-                new("Hunter's Gloves", 51),
-                new("Corsair Gloves", 61),
-                new("Falconer's Gloves", 71)
+                new("Suede Bracers", 1),
+                new("Firm Bracers", 11),
+                new("Bound Bracers", 16),
+                new("Sectioned Bracers", 28),
+                new("Spined Bracers", 33),
+                new("Fine Bracers", 45),
+                new("Hardened Bracers", 52),
+                new("Engraved Bracers", 65)
             }},
             { "Gloves ES", new() {
-                new("Wool Gloves", 1),
-                new("Velvet Gloves", 11),
-                new("Silk Gloves", 21),
-                new("Scholar's Gloves", 31),
-                new("Mage's Gloves", 41),
-                new("Sage's Gloves", 51),
-                new("Cabalist Gloves", 61),
-                new("Silken Gloves", 71)
+                new("Torn Gloves", 1),
+                new("Sombre Gloves", 12),
+                new("Stitched Gloves", 16),
+                new("Jewelled Gloves", 26),
+                new("Intricate Gloves", 33),
+                new("Embroidered Gloves", 52),
+                new("Adorned Gloves", 65)
             }},
             { "Helm Armour", new() {
-                new("Iron Hat", 1),
-                new("Chainmail Coif", 10),
-                new("Ringmail Helm", 20),
-                new("Knightly Helm", 60)
+                new("Rusted Greathelm", 1),
+                new("Soldier Greathelm", 12),
+                new("Wrapped Greathelm", 16),
+                new("Spired Greathelm", 27),
+                new("Elite Greathelm", 33),
+                new("Commander Greathelm", 45),
+                new("Sentinel Greathelm", 52),
+                new("Guardian Greathelm", 65)
             }},
             { "Helm Evasion", new() {
-                new("Wrapped Cap", 1),
-                new("Rawhide Mask", 10),
-                new("Leather Hood", 20),
-                new("Goatskin Mask", 30),
-                new("Wildspire Mask", 40),
-                new("Hunter's Hood", 50),
-                new("Corsair Helmet", 60),
-                new("Falconer's Helmet", 70)
+                new("Shabby Hood", 1),
+                new("Felt Cap", 10),
+                new("Lace Hood", 16),
+                new("Swathed Cap", 26),
+                new("Hunter Hood", 33),
+                new("Viper Cap", 38),
+                new("Corsair Cap", 45),
+                new("Covert Hood", 56),
+                new("Armoured Cap", 65)
             }},
             { "Helm ES", new() {
-                new("Wool Hood", 1),
-                new("Velvet Hood", 10),
-                new("Silk Hood", 20),
-                new("Scholar's Hood", 30),
-                new("Mage's Hood", 40),
-                new("Sage's Hood", 50),
-                new("Cabalist Hood", 60),
-                new("Silken Hood", 70)
+                new("Twig Circlet", 1),
+                new("Wicker Tiara", 10),
+                new("Beaded Circlet", 16),
+                new("Chain Tiara", 26),
+                new("Feathered Tiara", 33),
+                new("Gold Circlet", 40),
+                new("Noble Circlet", 52),
+                new("Magus Tiara", 65)
             }},
             { "Belt", new() {
-                new("Rustic Sash", 1),
-                new("Chain Belt", 1),
-                new("Leather Belt", 15),
-                new("Heavy Belt", 15),
-                new("Cloth Belt", 30),
-                new("Studded Belt", 30),
-                new("Crystal Belt", 45),
-                new("Vanguard Belt", 45),
-                new("Utility Belt", 60)
+                new("Rawhide Belt", 1),
+                new("Linen Belt", 1),
+                new("Wide Belt", 14),
+                new("Long Belt", 20),
+                new("Plate Belt", 25),
+                new("Ornate Belt", 31),
+                new("Mail Belt", 40),
+                new("Double Belt", 44),
+                new("Heavy Belt", 50),
+                new("Utility Belt", 55),
+                new("Fine Belt", 62)
             }},
             { "Ring", new() {
                 new("Iron Ring", 1),
-                new("Coral Ring", 1),
-                new("Paua Ring", 12),
-                new("Gold Ring", 12),
-                new("Sapphire Ring", 24),
-                new("Topaz Ring", 24),
-                new("Ruby Ring", 24),
-                new("Diamond Ring", 36),
-                new("Prismatic Ring", 36),
-                new("Unset Ring", 48),
-                new("Moonstone Ring", 48)
+                new("Ruby Ring", 8),
+                new("Golden Hoop", 12),
+                new("Sapphire Ring", 12),
+                new("Topaz Ring", 16),
+                new("Amethyst Ring", 20),
+                new("Emerald Ring", 26),
+                new("Pearl Ring", 32),
+                new("Prismatic Ring", 35),
+                new("Gold Ring", 40),
+                new("Unset Ring", 44)
             }},
             { "Charm", new() {
+                new("Ruby Charm", 5),
+                new("Sapphire Charm", 5),
+                new("Topaz Charm", 5),
                 new("Stone Charm", 8),
-                new("Golden Charm", 12)
+                new("Silver Charm", 10),
+                new("Thawing Charm", 12),
+                new("Staunching Charm", 18),
+                new("Antidote Charm", 24),
+                new("Dousing Charm", 32),
+                new("Grounding Charm", 32),
+                new("Amethyst Charm", 40),
+                new("Cleansing Charm", 40),
+                new("Golden Charm", 50)
             }}
         };
 
+        // Note: PoE2's currently obtainable weapon classes do not include a "Sword" class
+        // (confirmed against the live, FilterBlade-authored base filter's Class list, which
+        // enumerates every weapon class and never references Swords). No "Sword" archetype
+        // is defined - guessing base names here risks reintroducing the same kind of bug.
         private static readonly (string[] Keywords, string Archetype)[] _keywordArchetypeMappings =
         [
-            (["maul", "mace"], "Mace"),
+            (["maul", "mace", "club", "hammer"], "Mace"),
             (["quarterstaff", "staff"], "Staff"),
             (["crossbow"], "Crossbow"),
             (["bow"], "Bow"),
-            (["sword", "sabre", "falchion", "cutlass", "greatsword"], "Sword"),
             (["wand"], "Wand"),
-            (["jacket", "jerkin"], "Body Armour Evasion"),
-            (["plate", "chainmail", "ringmail", "scale vest"], "Body Armour Armour"),
-            (["robe", "vestment", "regalia", "wrap"], "Body Armour ES"),
+            (["vest", "coat"], "Body Armour Evasion"),
+            (["plate", "cuirass"], "Body Armour Armour"),
+            (["robe", "raiment", "regalia"], "Body Armour ES"),
             (["belt", "sash"], "Belt"),
             (["ring"], "Ring"),
             (["charm"], "Charm")
@@ -787,46 +834,51 @@ namespace LootPulse.Services
                 .FirstOrDefault();
         }
 
+        // Sub-archetype routing below reflects PoE2's actual naming convention (verified
+        // against poe2db.tw): armour-tier gloves are "Mitts" (not "Gauntlets"), ES boots are
+        // "Sandals" (not just "Slippers"), and "Hood"/"Cap" are Evasion helms while
+        // "Circlet"/"Tiara" are ES helms - the inverse of what this previously assumed.
         private static List<BaseItemInfo> FindBootsArchetype(string cleanName)
         {
             if (cleanName.Contains("greaves", StringComparison.Ordinal)) return _archetypes["Boots Armour"];
-            if (cleanName.Contains("slippers", StringComparison.Ordinal) || cleanName.Contains("shoes", StringComparison.Ordinal)) return _archetypes["Boots ES"];
+            if (cleanName.Contains("sandals", StringComparison.Ordinal) || cleanName.Contains("slippers", StringComparison.Ordinal)) return _archetypes["Boots ES"];
             return _archetypes["Boots Evasion"];
         }
 
         private static List<BaseItemInfo> FindGlovesArchetype(string cleanName)
         {
-            if (cleanName.Contains("gauntlets", StringComparison.Ordinal)) return _archetypes["Gloves Armour"];
-            if (cleanName.Contains("gloves", StringComparison.Ordinal) && (cleanName.Contains("wool", StringComparison.Ordinal) || cleanName.Contains("silk", StringComparison.Ordinal) || cleanName.Contains("sage", StringComparison.Ordinal) || cleanName.Contains("cabalist", StringComparison.Ordinal))) return _archetypes["Gloves ES"];
-            return _archetypes["Gloves Evasion"];
+            if (cleanName.Contains("mitts", StringComparison.Ordinal) || cleanName.Contains("gauntlets", StringComparison.Ordinal)) return _archetypes["Gloves Armour"];
+            if (cleanName.Contains("bracers", StringComparison.Ordinal) || cleanName.Contains("cuffs", StringComparison.Ordinal)) return _archetypes["Gloves Evasion"];
+            return _archetypes["Gloves ES"];
         }
 
         private static List<BaseItemInfo> FindHelmArchetype(string cleanName)
         {
-            if (cleanName.Contains("hat", StringComparison.Ordinal) || cleanName.Contains("helm", StringComparison.Ordinal) || cleanName.Contains("coif", StringComparison.Ordinal)) return _archetypes["Helm Armour"];
-            if (cleanName.Contains("hood", StringComparison.Ordinal) || cleanName.Contains("circlet", StringComparison.Ordinal)) return _archetypes["Helm ES"];
+            if (cleanName.Contains("greathelm", StringComparison.Ordinal) || cleanName.Contains("helm", StringComparison.Ordinal)) return _archetypes["Helm Armour"];
+            if (cleanName.Contains("circlet", StringComparison.Ordinal) || cleanName.Contains("tiara", StringComparison.Ordinal)) return _archetypes["Helm ES"];
             return _archetypes["Helm Evasion"];
         }
 
         private static bool IsBoots(string name) =>
             name.Contains("boots", StringComparison.Ordinal) ||
             name.Contains("greaves", StringComparison.Ordinal) ||
-            name.Contains("slippers", StringComparison.Ordinal) ||
-            name.Contains("shoes", StringComparison.Ordinal);
+            name.Contains("sandals", StringComparison.Ordinal) ||
+            name.Contains("slippers", StringComparison.Ordinal);
 
         private static bool IsGloves(string name) =>
             name.Contains("gauntlets", StringComparison.Ordinal) ||
             name.Contains("gloves", StringComparison.Ordinal) ||
-            name.Contains("mitts", StringComparison.Ordinal);
+            name.Contains("mitts", StringComparison.Ordinal) ||
+            name.Contains("bracers", StringComparison.Ordinal) ||
+            name.Contains("cuffs", StringComparison.Ordinal);
 
         private static bool IsHelm(string name) =>
+            name.Contains("greathelm", StringComparison.Ordinal) ||
             name.Contains("helm", StringComparison.Ordinal) ||
-            name.Contains("helmet", StringComparison.Ordinal) ||
             name.Contains("cap", StringComparison.Ordinal) ||
-            name.Contains("mask", StringComparison.Ordinal) ||
             name.Contains("hood", StringComparison.Ordinal) ||
-            name.Contains("coif", StringComparison.Ordinal) ||
-            name.Contains("circlet", StringComparison.Ordinal);
+            name.Contains("circlet", StringComparison.Ordinal) ||
+            name.Contains("tiara", StringComparison.Ordinal);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Comparing with lowercase string literals is more readable and matches the established casing pattern for game items.")]
         private static List<BaseItemInfo>? FindArchetypeList(string baseItemName)
@@ -854,17 +906,20 @@ namespace LootPulse.Services
             return null;
         }
 
+        // Build-planner exports prefix rune-socketed items with the word "Runeforged"
+        // (e.g. "Runeforged Commander Gauntlets"), which is not part of the real BaseType.
+        // Only that literal, known prefix is stripped - earlier code stripped *any* first
+        // word, which silently mangled names like "Ultimate Life Flask" into the
+        // non-existent "Life Flask" (the tier word there is part of the real BaseType).
+        private const string _runeforgedPrefix = "Runeforged ";
+
         private static string CleanItemBaseName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return string.Empty;
 
-            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 1)
-            {
-                var candidate = string.Join(" ", parts.Skip(1));
-                return candidate;
-            }
-            return name;
+            return name.StartsWith(_runeforgedPrefix, StringComparison.OrdinalIgnoreCase)
+                ? name[_runeforgedPrefix.Length..]
+                : name;
         }
 
         private static void AppendStyleBlock(StringBuilder sb, CategoryStyle style)
