@@ -396,12 +396,13 @@ namespace LootPulse
 
         private async void ImportPob_Click(object sender, RoutedEventArgs e)
         {
-            // Open simple input box prompt
-            string pobCode = Microsoft.VisualBasic.Interaction.InputBox(
-                "Paste your Path of Building (PoB2) Share Code here:",
-                "Import PoB2 Build",
-                "");
+            var importWindow = new PobImportWindow { Owner = this };
+            if (importWindow.ShowDialog() != true)
+            {
+                return;
+            }
 
+            string pobCode = importWindow.ShareCode;
             if (!string.IsNullOrWhiteSpace(pobCode))
             {
                 var xml = _buildParser.DecodePobShareCode(pobCode);
