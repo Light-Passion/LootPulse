@@ -16,6 +16,13 @@ test_output.txt
 *.coverage
 _ReSharper*/
 
+# poe.ninja local probing harness captured schema reports
+probe-output/
+
+# Local build output & browser-probe scratch (not source)
+TestBuild/
+.playwright-mcp/
+
 # OS generated files
 .DS_Store
 Thumbs.db

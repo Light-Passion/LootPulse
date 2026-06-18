@@ -33,6 +33,12 @@
     <EmbeddedResource Remove="LootPulse.Tests\**" />
     <None Remove="LootPulse.Tests\**" />
     <Page Remove="LootPulse.Tests\**" />
+
+    <!-- Exclude the standalone probing test project folder from compilation in the main app -->
+    <Compile Remove="Probing\**" />
+    <EmbeddedResource Remove="Probing\**" />
+    <None Remove="Probing\**" />
+    <Page Remove="Probing\**" />
   </ItemGroup>
 
 </Project>
