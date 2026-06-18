@@ -474,7 +474,10 @@ namespace LootPulse
             TradeGroupsList.ItemsSource = _tradeGroups;
         }
 
-        // Map build gear slots to trade queries: uniques by name, plain bases by base type. Deduped.
+        // Map build gear slots to trade queries: uniques by name, everything else by base type.
+        // Many .build files specify gear only via additional_text (its first line is the base type,
+        // e.g. "Topaz Ring", "Varnished Crossbow"); BuildInventorySlot.ItemName already resolves that
+        // the same way the loot-filter highlighting does. Deduped.
         private static List<TradeItemQuery> BuildTradeQueries(PoeBuild build)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -482,19 +485,21 @@ namespace LootPulse
 
             foreach (var slot in build.InventorySlots)
             {
-                bool hasUnique = !string.IsNullOrWhiteSpace(slot.UniqueName);
-                bool hasBase = !string.IsNullOrWhiteSpace(slot.BaseType);
-                if (!hasUnique && !hasBase)
+                TradeItemQuery query;
+                if (!string.IsNullOrWhiteSpace(slot.UniqueName))
                 {
-                    continue;
+                    query = new TradeItemQuery { Label = slot.UniqueName!, Name = slot.UniqueName };
                 }
-
-                var query = new TradeItemQuery
+                else
                 {
-                    Label = hasUnique ? slot.UniqueName! : slot.BaseType!,
-                    Name = hasUnique ? slot.UniqueName : null,
-                    BaseType = hasUnique ? null : slot.BaseType,
-                };
+                    // UniqueName is empty here, so ItemName = BaseType ?? first line of additional_text.
+                    string baseType = slot.ItemName;
+                    if (string.IsNullOrWhiteSpace(baseType))
+                    {
+                        continue;
+                    }
+                    query = new TradeItemQuery { Label = baseType, BaseType = baseType };
+                }
 
                 string key = $"{query.Name}|{query.BaseType}";
                 if (seen.Add(key))

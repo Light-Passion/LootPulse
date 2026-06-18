@@ -40,7 +40,20 @@ namespace LootPulse.Services.Trade
     );
 
     public record TradeFilters(
+        [property: JsonPropertyName("type_filters")] TradeTypeFilters? TypeFilters = null,
         [property: JsonPropertyName("req_filters")] TradeReqFilters? ReqFilters = null
+    );
+
+    public record TradeTypeFilters(
+        [property: JsonPropertyName("filters")] TradeTypeFilterValues Filters
+    );
+
+    public record TradeTypeFilterValues(
+        [property: JsonPropertyName("rarity")] TradeOption? Rarity = null
+    );
+
+    public record TradeOption(
+        [property: JsonPropertyName("option")] string Option
     );
 
     public record TradeReqFilters(

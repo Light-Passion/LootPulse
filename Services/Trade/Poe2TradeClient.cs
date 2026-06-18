@@ -106,11 +106,19 @@ namespace LootPulse.Services.Trade
 
         private static TradeSearchRequest BuildSearchBody(TradeItemQuery item, int maxLevel)
         {
+            // Base-type searches must exclude uniques (which share base-type names with rares/normals)
+            // via the "Any Non-Unique" rarity filter. Unique-name searches stay unfiltered.
+            bool isBaseSearch = string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(item.BaseType);
+            TradeTypeFilters? typeFilters = isBaseSearch
+                ? new TradeTypeFilters(new TradeTypeFilterValues(Rarity: new TradeOption("nonunique")))
+                : null;
+
             var query = new TradeQuery(
                 Status: new TradeStatus("online"),
                 Stats: new[] { new TradeStatGroup("and", Array.Empty<object>()) },
-                // The requested feature: only items the character can currently equip.
                 Filters: new TradeFilters(
+                    TypeFilters: typeFilters,
+                    // The requested feature: only items the character can currently equip.
                     ReqFilters: new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel)))),
                 Name: string.IsNullOrWhiteSpace(item.Name) ? null : item.Name,
                 Type: string.IsNullOrWhiteSpace(item.BaseType) ? null : item.BaseType

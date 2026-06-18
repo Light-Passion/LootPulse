@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -32,8 +33,13 @@ namespace LootPulse.Services.Trade
         private readonly Window _owner;
         private Window? _browserWindow;
         private WebView2? _webView;
+        private DispatcherTimer? _loginPollTimer;
         private bool _initialized;
         private bool _disposing;
+
+        // Logged in if the page header carries a logout control (present on every pathofexile.com page).
+        private const string LoginCheckScript =
+            "(function(){try{return !!document.querySelector('form[action=\"/logout\"], a[href=\"/logout\"]');}catch(e){return false;}})()";
 
         // Pending fetch() calls keyed by request id; resolved when the page posts the result back.
         private readonly ConcurrentDictionary<string, TaskCompletionSource<TradeHttpResponse>> _pending = new();
@@ -68,6 +74,9 @@ namespace LootPulse.Services.Trade
             _browserWindow!.Show();
             _browserWindow.Activate();
             _webView!.CoreWebView2.Navigate($"{Origin}/trade2");
+
+            // Auto-close the login window as soon as we detect a logged-in session.
+            _loginPollTimer!.Start();
 
             // We can't reliably auto-detect login from outside the page, so connection is confirmed
             // lazily: the first successful (200) API call flips IsConnected. We optimistically set it
@@ -126,6 +135,12 @@ namespace LootPulse.Services.Trade
             // (unless we're actually disposing the transport).
             _browserWindow.Closing += OnBrowserClosing;
 
+            // The WPF WebView2 only finishes initializing once its control is realized in a shown
+            // window — so show the window BEFORE awaiting EnsureCoreWebView2Async, otherwise that
+            // await never completes and nothing appears to happen.
+            _browserWindow.Show();
+            _browserWindow.Activate();
+
             Directory.CreateDirectory(UserDataFolder);
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: UserDataFolder).ConfigureAwait(true);
             await _webView.EnsureCoreWebView2Async(env).ConfigureAwait(true);
@@ -133,7 +148,34 @@ namespace LootPulse.Services.Trade
             _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             _webView.CoreWebView2.Navigate($"{Origin}/trade2");
 
+            _loginPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            _loginPollTimer.Tick += OnLoginPollTick;
+
             _initialized = true;
+        }
+
+        private async void OnLoginPollTick(object? sender, EventArgs e)
+        {
+            if (_webView?.CoreWebView2 == null || _browserWindow == null || !_browserWindow.IsVisible)
+            {
+                _loginPollTimer?.Stop();
+                return;
+            }
+
+            try
+            {
+                string raw = await _webView.CoreWebView2.ExecuteScriptAsync(LoginCheckScript);
+                if (raw != null && raw.Trim() == "true")
+                {
+                    IsConnected = true;
+                    _loginPollTimer?.Stop();
+                    _browserWindow.Hide();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Login poll error: {ex.Message}");
+            }
         }
 
         private async Task EnsureOnOriginAsync()
@@ -232,6 +274,11 @@ namespace LootPulse.Services.Trade
             try
             {
                 _disposing = true;
+                if (_loginPollTimer != null)
+                {
+                    _loginPollTimer.Stop();
+                    _loginPollTimer.Tick -= OnLoginPollTick;
+                }
                 if (_webView?.CoreWebView2 != null)
                 {
                     _webView.CoreWebView2.WebMessageReceived -= OnWebMessageReceived;

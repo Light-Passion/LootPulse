@@ -21,6 +21,7 @@ probe-output/
 
 # Local build output & browser-probe scratch (not source)
 TestBuild/
+TradeTestBuild/
 .playwright-mcp/
 
 # OS generated files
