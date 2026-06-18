@@ -9,6 +9,15 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>lootpulse.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Product / version metadata (single source of truth for the installer) -->
+    <Version>0.2.0</Version>
+    <FileVersion>0.2.0.0</FileVersion>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <Authors>Light-Passion</Authors>
+    <Company>LootPulse</Company>
+    <Product>LootPulse</Product>
+    <Description>Path of Exile 2 loot filter and market overlay</Description>
     
     <!-- Code Quality & Rule Enforcement Configuration -->
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

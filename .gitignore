@@ -24,6 +24,10 @@ TestBuild/
 TradeTestBuild/
 .playwright-mcp/
 
+# Installer build artifacts (keep the .iss/.ps1 source, ignore outputs)
+installer/staging/
+installer/Output/
+
 # OS generated files
 .DS_Store
 Thumbs.db
