@@ -226,10 +226,51 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Dark context menu used by the "Load Build" dropdown button -->
+        <Style x:Key="DarkMenuItem" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF6124"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#252525"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkMenuItem}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="3">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- Main Window Border -->
-    <Border x:Name="MainWindowBorder" CornerRadius="12" BorderBrush="#3D3D3D" BorderThickness="1.5" Background="#F2121212">
+    <Border x:Name="MainWindowBorder" CornerRadius="12" BorderBrush="#3D3D3D" BorderThickness="1.5" Background="#121212">
         <Grid>
             <Grid.RowDefinitions>
                 <!-- Titlebar / Header -->
@@ -258,6 +299,7 @@
 
                 <!-- Window Actions -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0">
+                    <Button x:Name="SettingsToggleButton" Style="{StaticResource DarkButton}" Content="⚙ Settings" FontSize="12" Padding="10,5" VerticalAlignment="Center" Margin="0,0,8,0" Click="ToggleSettings_Click"/>
                     <Button Content="—" Foreground="Gray" FontSize="14" Background="Transparent" BorderThickness="0" Width="35" Height="35" Cursor="Hand" Click="MinimizeButton_Click">
                         <Button.Style>
                             <Style TargetType="Button">
@@ -286,149 +328,77 @@
 
             <!-- 2. Content Area -->
             <Grid Grid.Row="1" Margin="15" x:Name="MainContentGrid">
-                <Grid.ColumnDefinitions>
-                    <!-- Sidebar: Info & Settings -->
-                    <ColumnDefinition Width="320"/>
-                    <!-- Main panel: Economy Monitoring -->
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
 
-                <!-- Sidebar Panel -->
-                <Border Grid.Column="0" Background="#1C1C1C" CornerRadius="8" Padding="15" Margin="0,0,15,0">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <!-- Character Info Section -->
-                            <TextBlock Text="ACTIVE STATE" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
-                            <Border Background="#252525" CornerRadius="6" Padding="12" Margin="0,0,0,18">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,6">
-                                        <TextBlock Text="Character:" Foreground="#AAAAAA" FontSize="12"/>
-                                        <TextBlock x:Name="CharNameText" Text="Exile" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Grid Margin="0,0,0,6">
-                                        <TextBlock Text="Level:" Foreground="#AAAAAA" FontSize="12"/>
-                                        <TextBlock x:Name="CharLevelText" Text="1" Foreground="#E5B560" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Grid>
-                                        <TextBlock Text="Current Zone:" Foreground="#AAAAAA" FontSize="12"/>
-                                        <TextBlock x:Name="CharZoneText" Text="Lioneye's Watch" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Build Sync Section -->
-                            <TextBlock Text="BUILD CONFIG" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
-                            <Border Background="#252525" CornerRadius="6" Padding="12" Margin="0,0,0,18">
-                                <StackPanel>
-                                    <TextBlock x:Name="BuildNameText" Text="No active build loaded" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
-                                    
-                                    <Button Style="{StaticResource AccentButton}" Content="Import PoB Share Code" Margin="0,0,0,8" Click="ImportPob_Click"/>
-                                    <Button Style="{StaticResource DarkButton}" Content="Select .build File" Click="SelectBuildFile_Click"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Settings / Paths Section -->
-                            <TextBlock Text="DIRECTORIES &amp; SETTINGS" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
-                            <StackPanel Margin="0,0,0,5">
-                                <TextBlock Text="Client.txt Location" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="LogPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
-                                    <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
-                                </Grid>
-
-                                <TextBlock Text="Base Filter (to merge)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ComboBox x:Name="BaseFilterComboBox" Style="{StaticResource DarkComboBox}" SelectionChanged="BaseFilterComboBox_SelectionChanged" DisplayMemberPath="DisplayName"/>
-                                    <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseBaseFilter_Click"/>
-                                </Grid>
-
-                                <TextBlock Text="PoE2 Filter File Output Path" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="FilterPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
-                                    <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseFilter_Click"/>
-                                </Grid>
-
-                                <TextBlock Text="Interactive Toggle Hotkey" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <TextBox x:Name="HotkeyBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11" Text="Ctrl+Shift+O" IsReadOnly="True" Margin="0,0,0,10"/>
-
-                                <CheckBox x:Name="HudVisibleCheckBox" Content="Enable HUD Overlay" Checked="HudVisibleCheckBox_Changed" Unchecked="HudVisibleCheckBox_Changed" Foreground="White" Margin="0,5,0,10"/>
-
-                                <TextBlock Text="Edit Mode Dashboard Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="45"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider x:Name="EditOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.85" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=EditOpacitySlider, Path=Value, StringFormat={}{0:F2}}" Foreground="White" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                </Grid>
-
-                                <TextBlock Text="HUD Overlay Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="45"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider x:Name="HudOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.30" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=HudOpacitySlider, Path=Value, StringFormat={}{0:F2}}" Foreground="White" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                </Grid>
-
-                                <Button Style="{StaticResource DarkButton}" Content="Reset HUD Size &amp; Position" Margin="0,5,0,0" Click="ResetHudPosition_Click"/>
-                                <Button Style="{StaticResource DarkButton}" Content="Exit Application" Margin="0,15,0,0" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Border>
-
-                <!-- Economy Monitoring Main Panel -->
-                <Grid Grid.Column="1">
+                <!-- ============ DASHBOARD VIEW ============ -->
+                <Grid x:Name="DashboardView">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Filter Control bar -->
-                    <Border Grid.Row="0" Background="#1C1C1C" CornerRadius="8" Padding="15" Margin="0,0,0,15">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <StackPanel Orientation="Horizontal">
-                                <StackPanel Margin="0,0,20,0">
-                                    <TextBlock Text="Tier 1 Threshold (Divine Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier1Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier2Box" Width="100" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
-                                </StackPanel>
-                                <StackPanel VerticalAlignment="Bottom" Margin="20,0,0,0">
-                                    <CheckBox x:Name="EconomyHighlightsCheckBox" Content="Show Market Economy Highlights" Checked="EconomyHighlightsCheckBox_Changed" Unchecked="EconomyHighlightsCheckBox_Changed" Foreground="White"/>
-                                </StackPanel>
-                            </StackPanel>
+                    <!-- Top strip: Active State + Build Config -->
+                    <Grid Grid.Row="0" Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <Button Style="{StaticResource DarkButton}" Content="Customize Styles" Margin="0,0,10,0" Click="CustomizeStyles_Click"/>
-                                <Button Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" Click="SyncAll_Click"/>
+                        <!-- Active State -->
+                        <Border Grid.Column="0" Background="#1C1C1C" CornerRadius="8" Padding="15" Margin="0,0,15,0">
+                            <StackPanel>
+                                <TextBlock Text="ACTIVE STATE" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <Border Background="#252525" CornerRadius="6" Padding="12">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="Character:" Foreground="#AAAAAA" FontSize="12"/>
+                                            <TextBlock x:Name="CharNameText" Text="Exile" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="Level:" Foreground="#AAAAAA" FontSize="12"/>
+                                            <TextBlock x:Name="CharLevelText" Text="1" Foreground="#E5B560" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Grid>
+                                            <TextBlock Text="Current Zone:" Foreground="#AAAAAA" FontSize="12"/>
+                                            <TextBlock x:Name="CharZoneText" Text="Lioneye's Watch" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
-                        </Grid>
-                    </Border>
+                        </Border>
 
-                    <!-- Economy Items Panel (tabbed) -->
+                        <!-- Build Config -->
+                        <Border Grid.Column="1" Background="#1C1C1C" CornerRadius="8" Padding="15">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="BUILD CONFIG" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="BuildNameText" Text="No active build loaded" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu Style="{StaticResource DarkContextMenu}">
+                                                        <MenuItem Header="Import PoB Share Code" Click="ImportPob_Click"/>
+                                                        <MenuItem Header="Select .build File…" Click="SelectBuildFile_Click"/>
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" VerticalAlignment="Center" Margin="15,0,0,0" Click="SyncAll_Click"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Economy Items Panel (tabbed) - full width -->
                     <Border Grid.Row="1" Background="#1C1C1C" CornerRadius="8" Padding="15">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -441,23 +411,25 @@
                             <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}">
                                 <!-- Tab 1: existing poe.ninja economy list -->
                                 <TabItem Header="Currency Exchange Rates" Style="{StaticResource DarkTabItem}">
-                                    <ListView x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" Margin="0,10,0,0" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListView x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" Margin="0,10,0,0" AlternationCount="2" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="Margin" Value="0,2"/>
-                                                <Setter Property="Padding" Value="5"/>
+                                                <Setter Property="Margin" Value="0"/>
                                                 <Setter Property="BorderThickness" Value="0"/>
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="ListViewItem">
-                                                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="8">
+                                                            <Border Background="{TemplateBinding Background}" Padding="8,7">
                                                                 <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
                                                             </Border>
                                                         </ControlTemplate>
                                                     </Setter.Value>
                                                 </Setter>
                                                 <Style.Triggers>
+                                                    <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                                        <Setter Property="Background" Value="#202020"/>
+                                                    </Trigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter Property="Background" Value="#2A2A2A"/>
                                                     </Trigger>
@@ -466,24 +438,54 @@
                                         </ListView.ItemContainerStyle>
                                         <ListView.View>
                                             <GridView>
-                                                <GridViewColumn Header="Name" Width="250">
+                                                <GridView.ColumnHeaderContainerStyle>
+                                                    <Style TargetType="GridViewColumnHeader">
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Setter Property="Foreground" Value="#888888"/>
+                                                        <Setter Property="FontSize" Value="10"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                        <Setter Property="Padding" Value="8,0,8,8"/>
+                                                        <Setter Property="BorderBrush" Value="#2C2C2C"/>
+                                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="GridViewColumnHeader">
+                                                                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                                                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Bottom"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </GridView.ColumnHeaderContainerStyle>
+                                                <GridViewColumn Width="340">
+                                                    <GridViewColumn.HeaderTemplate>
+                                                        <DataTemplate><TextBlock Text="NAME" HorizontalAlignment="Left"/></DataTemplate>
+                                                    </GridViewColumn.HeaderTemplate>
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate>
                                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
-                                                <GridViewColumn Header="Category" Width="120">
+                                                <GridViewColumn Width="160">
+                                                    <GridViewColumn.HeaderTemplate>
+                                                        <DataTemplate><TextBlock Text="CATEGORY" HorizontalAlignment="Left"/></DataTemplate>
+                                                    </GridViewColumn.HeaderTemplate>
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate>
                                                             <TextBlock Text="{Binding Category}" Foreground="#888888"/>
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
-                                                <GridViewColumn Header="Value" Width="120">
+                                                <GridViewColumn Width="140">
+                                                    <GridViewColumn.HeaderTemplate>
+                                                        <DataTemplate><TextBlock Text="VALUE" HorizontalAlignment="Right"/></DataTemplate>
+                                                    </GridViewColumn.HeaderTemplate>
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold"/>
+                                                            <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold" HorizontalAlignment="Right"/>
                                                         </DataTemplate>
                                                     </GridViewColumn.CellTemplate>
                                                 </GridViewColumn>
@@ -562,6 +564,94 @@
                         </Grid>
                     </Border>
                 </Grid>
+
+                <!-- ============ SETTINGS VIEW ============ -->
+                <Border x:Name="SettingsView" Visibility="Collapsed" Background="#1C1C1C" CornerRadius="8" Padding="20">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+
+                            <!-- Paths & Files -->
+                            <TextBlock Text="PATHS &amp; FILES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+
+                            <TextBlock Text="Client.txt Location" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LogPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
+                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="Base Filter (to merge)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="BaseFilterComboBox" Style="{StaticResource DarkComboBox}" SelectionChanged="BaseFilterComboBox_SelectionChanged" DisplayMemberPath="DisplayName"/>
+                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseBaseFilter_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="PoE2 Filter File Output Path" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,22">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="FilterPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
+                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseFilter_Click"/>
+                            </Grid>
+
+                            <!-- Economy Thresholds -->
+                            <TextBlock Text="ECONOMY THRESHOLDS" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <StackPanel Margin="0,0,20,0">
+                                    <TextBlock Text="Tier 1 Threshold (Divine Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Tier1Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Tier2Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <CheckBox x:Name="EconomyHighlightsCheckBox" Content="Show Market Economy Highlights" Checked="EconomyHighlightsCheckBox_Changed" Unchecked="EconomyHighlightsCheckBox_Changed" Foreground="White" Margin="0,0,0,22"/>
+
+                            <!-- Appearance -->
+                            <TextBlock Text="APPEARANCE" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Customize Styles…" HorizontalAlignment="Left" Margin="0,0,0,22" Click="CustomizeStyles_Click"/>
+
+                            <!-- HUD Overlay -->
+                            <TextBlock Text="HUD OVERLAY" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                            <CheckBox x:Name="HudVisibleCheckBox" Content="Enable HUD Overlay" Checked="HudVisibleCheckBox_Changed" Unchecked="HudVisibleCheckBox_Changed" Foreground="White" Margin="0,0,0,12"/>
+
+                            <TextBlock Text="Interactive Toggle Hotkey" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <TextBox x:Name="HotkeyBox" Width="160" HorizontalAlignment="Left" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11" Text="Ctrl+Shift+O" IsReadOnly="True" Margin="0,0,0,12"/>
+
+                            <TextBlock Text="Dashboard Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,12" Width="480" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider x:Name="EditOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.85" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding ElementName=EditOpacitySlider, Path=Value, StringFormat={}{0:P0}}" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <TextBlock Text="HUD Overlay Opacity" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                            <Grid Margin="0,0,0,16" Width="480" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider x:Name="HudOpacitySlider" Minimum="0.1" Maximum="1.0" Value="0.30" ValueChanged="OpacitySliders_ValueChanged" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding ElementName=HudOpacitySlider, Path=Value, StringFormat={}{0:P0}}" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Button Style="{StaticResource DarkButton}" Content="Reset HUD Size &amp; Position" HorizontalAlignment="Left" Click="ResetHudPosition_Click"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
             </Grid>
 
             <!-- 3. Status Bar -->
@@ -569,9 +659,11 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusText" Text="Ready" Foreground="#888888" FontSize="11" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="LootPulse Overlay v1.0.0" Foreground="#555555" FontSize="11" VerticalAlignment="Center"/>
+                <TextBlock x:Name="VersionText" Grid.Column="1" Text="LootPulse Overlay" Foreground="#555555" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Exit Application" FontSize="11" Padding="10,3" VerticalAlignment="Center" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
             </Grid>
         </Grid>
     </Border>

@@ -98,6 +98,11 @@ namespace LootPulse
         {
             InitializeComponent();
 
+            // Show the actual assembly version in the status bar (sourced from csproj <Version>).
+            var asmVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            if (asmVersion != null)
+                VersionText.Text = $"LootPulse Overlay v{asmVersion.Major}.{asmVersion.Minor}.{asmVersion.Build}";
+
             // Initialize Services
             _ninjaClient = new PoeNinjaClient();
             _buildParser = new BuildProfileParser();
@@ -118,7 +123,8 @@ namespace LootPulse
 
             // Create HUD Window
             _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
-            _hudWindow.Show();
+            if (_appSettings.IsHudVisible)
+                _hudWindow.Show();
 
             // Populate base filter options
             LoadBaseFilterOptions();
@@ -153,10 +159,10 @@ namespace LootPulse
                 _logMonitor.StartMonitoring(LogPathBox.Text);
             }
 
-            // Apply opacity immediately to MainWindow
+            // Apply opacity immediately to MainWindow (whole dashboard, not just the border)
             if (MainWindowBorder != null && _appSettings != null)
             {
-                MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb((byte)(_appSettings.EditModeOpacity * 255), 18, 18, 18));
+                MainWindowBorder.Opacity = _appSettings.EditModeOpacity;
             }
 
             // Initialize Tray Icon
@@ -264,8 +270,11 @@ namespace LootPulse
                 this.Show();
                 this.Activate();
 
-                _hudWindow?.SetClickThrough(false, _appSettings.EditModeOpacity);
-                _hudWindow?.Show();
+                _hudWindow?.SetClickThrough(false, _appSettings.HudModeOpacity);
+                if (_appSettings.IsHudVisible)
+                    _hudWindow?.Show();
+                else
+                    _hudWindow?.Hide();
             }
         }
 
@@ -292,13 +301,22 @@ namespace LootPulse
             Dispatcher.Invoke(() =>
             {
                 _playerState.CharacterName = e.CharacterName;
-                _playerState.Level = e.Level;
                 CharNameText.Text = e.CharacterName;
-                CharLevelText.Text = e.Level.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                StatusText.Text = $"{e.CharacterName} is now level {e.Level}";
+
+                // Level may be unknown (0) when only the active character name was recovered.
+                if (e.Level > 0)
+                {
+                    _playerState.Level = e.Level;
+                    CharLevelText.Text = e.Level.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    StatusText.Text = $"{e.CharacterName} is now level {e.Level}";
+                }
+                else
+                {
+                    StatusText.Text = $"Active character: {e.CharacterName}";
+                }
 
                 // Update HUD display
-                _hudWindow?.UpdateDisplay(e.CharacterName, e.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Level Up!");
+                _hudWindow?.UpdateDisplay(e.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Level Up!");
 
                 // Regenerate filter with updated level
                 TriggerFilterRegeneration();
@@ -351,6 +369,25 @@ namespace LootPulse
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void LoadBuildButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
+            {
+                btn.ContextMenu.PlacementTarget = btn;
+                btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                btn.ContextMenu.IsOpen = true;
+            }
+        }
+
+        private void ToggleSettings_Click(object sender, RoutedEventArgs e)
+        {
+            bool showSettings = SettingsView.Visibility != Visibility.Visible;
+            SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
+            DashboardView.Visibility = showSettings ? Visibility.Collapsed : Visibility.Visible;
+            OverlayModeText.Text = showSettings ? "SETTINGS" : "EDIT MODE";
+            SettingsToggleButton.Content = showSettings ? "← Dashboard" : "⚙ Settings";
         }
 
         private async void SyncAll_Click(object sender, RoutedEventArgs e)
@@ -1323,10 +1360,7 @@ namespace LootPulse
 
             if (_appSettings.IsHudVisible)
             {
-                if (_isClickThroughEnabled)
-                {
-                    _hudWindow?.Show();
-                }
+                _hudWindow?.Show();
                 StatusText.Text = "HUD overlay enabled.";
             }
             else
@@ -1343,7 +1377,7 @@ namespace LootPulse
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
             SaveSettings();
 
-            if (_hudWindow != null && _isClickThroughEnabled)
+            if (_hudWindow != null)
             {
                 if (_appSettings.IsHudVisible)
                     _hudWindow.Show();
@@ -1368,20 +1402,14 @@ namespace LootPulse
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
             SaveSettings();
 
-            if (_isClickThroughEnabled)
+            // Dashboard Opacity fades the whole dashboard (panels + content), not just the border.
+            if (MainWindowBorder != null)
             {
-                _hudWindow?.SetClickThrough(true, _appSettings.HudModeOpacity);
+                MainWindowBorder.Opacity = _appSettings.EditModeOpacity;
             }
-            else
-            {
-                _hudWindow?.SetClickThrough(false, _appSettings.EditModeOpacity);
 
-                // Adjust MainWindow background opacity
-                if (MainWindowBorder != null)
-                {
-                    MainWindowBorder.Background = new SolidColorBrush(Color.FromArgb((byte)(_appSettings.EditModeOpacity * 255), 18, 18, 18));
-                }
-            }
+            // HUD Overlay Opacity controls only the HUD window, in either mode.
+            _hudWindow?.SetClickThrough(_isClickThroughEnabled, _appSettings.HudModeOpacity);
         }
 
         private void ResetHudPosition_Click(object sender, RoutedEventArgs e)
@@ -1738,5 +1766,9 @@ namespace LootPulse
         public string DisplayName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
         public bool IsSubscribed { get; set; }
+
+        // The custom DarkComboBox template renders the closed selection box from SelectionBoxItem,
+        // which falls back to ToString(); return DisplayName so the chosen item shows correctly.
+        public override string ToString() => DisplayName;
     }
 }

@@ -49,7 +49,11 @@ namespace LootPulse.Services
         private static readonly Regex AreaLevelRegex = new Regex(@"Generating level (\d+) area", RegexOptions.Compiled);
         // Matches lines like: ... : MyCharacter is now level 55
         private static readonly Regex CharLevelRegex = new Regex(@"] : (.+?) is now level (\d+)", RegexOptions.Compiled);
+        // Identifies the *active* character, logged on every instance load:
+        //   ... [WARN Client] Character Light_Fisted has unknown build of path: None
+        private static readonly Regex ActiveCharRegex = new Regex(@"Character (\S+) has .* build of path", RegexOptions.Compiled);
         private int _lastGeneratedLevel = 1;
+        private string? _currentCharacterName;
 
         public void StartMonitoring(string logFilePath)
         {
@@ -67,9 +71,6 @@ namespace LootPulse.Services
             {
                 var fileInfo = new FileInfo(_logFilePath);
                 _lastMaxOffset = fileInfo.Length;
-
-                // Scan recent history to find the current character level, name, and zone
-                ScanRecentHistory();
             }
             catch (Exception ex)
             {
@@ -77,6 +78,8 @@ namespace LootPulse.Services
                 _lastMaxOffset = 0;
             }
 
+            // Scan recent history off the UI thread (large logs can require reading far back).
+            Task.Run(() => ScanRecentHistory());
             Task.Run(() => MonitorLoopAsync(_cts.Token));
         }
 
@@ -127,15 +130,33 @@ namespace LootPulse.Services
                                             }
                                         }
 
-                                        // Check for character level-up
+                                        // Track the active character (logged on each instance load).
+                                        var activeMatch = ActiveCharRegex.Match(line);
+                                        if (activeMatch.Success)
+                                        {
+                                            string activeName = activeMatch.Groups[1].Value.Trim();
+                                            if (!string.Equals(activeName, _currentCharacterName, StringComparison.Ordinal))
+                                            {
+                                                System.Diagnostics.Debug.WriteLine($"Active character switched to: {activeName}");
+                                                _currentCharacterName = activeName;
+                                                // Name is known now; level will follow on the next level-up
+                                                // or via a background lookup of this character's last level.
+                                                int known = FindLatestLevelForCharacter(activeName);
+                                                PlayerLevelChanged?.Invoke(this, new PlayerLevelChangedEventArgs(activeName, known));
+                                            }
+                                        }
+
+                                        // Check for character level-up (attribute to the active character only).
                                         var charLvlMatch = CharLevelRegex.Match(line);
                                         if (charLvlMatch.Success)
                                         {
                                             string charName = charLvlMatch.Groups[1].Value.Trim();
-                                            if (int.TryParse(charLvlMatch.Groups[2].Value, out int charLevel))
+                                            if (int.TryParse(charLvlMatch.Groups[2].Value, out int charLevel)
+                                                && (_currentCharacterName == null || NamesMatch(charName, _currentCharacterName)))
                                             {
+                                                _currentCharacterName = StripClass(charName);
                                                 System.Diagnostics.Debug.WriteLine($"Detected level-up: {charName} is now level {charLevel}");
-                                                PlayerLevelChanged?.Invoke(this, new PlayerLevelChangedEventArgs(charName, charLevel));
+                                                PlayerLevelChanged?.Invoke(this, new PlayerLevelChangedEventArgs(_currentCharacterName, charLevel));
                                             }
                                         }
 
@@ -182,6 +203,27 @@ namespace LootPulse.Services
         /// </summary>
         private void ScanRecentHistory()
         {
+            // Determine the *active* character from the most recent instance-load line (this is the
+            // character currently being played, not merely whichever one leveled up most recently),
+            // then look up that character's last known level. Both can be far back in a large log.
+            try
+            {
+                var nameMatch = FindLatestLineMatch(ActiveCharRegex);
+                string? activeName = nameMatch?.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(activeName))
+                {
+                    _currentCharacterName = activeName;
+                    int level = FindLatestLevelForCharacter(activeName);
+                    System.Diagnostics.Debug.WriteLine($"Restored active character from log: {activeName} level {level}");
+                    PlayerLevelChanged?.Invoke(this, new PlayerLevelChangedEventArgs(activeName, level));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error scanning character history: {ex.Message}");
+            }
+
+            // The current zone appears frequently, so the recent tail is enough.
             try
             {
                 const int tailBytes = 128 * 1024; // Read last 128KB
@@ -191,8 +233,6 @@ namespace LootPulse.Services
                 stream.Seek(startPos, SeekOrigin.Begin);
 
                 using var reader = new StreamReader(stream, Encoding.UTF8);
-                string? lastCharName = null;
-                int lastCharLevel = 0;
                 string? lastZoneName = null;
                 int lastZoneLevel = 1;
                 int lastAreaLevel = 1;
@@ -206,13 +246,6 @@ namespace LootPulse.Services
                         lastAreaLevel = aLvl;
                     }
 
-                    var charMatch = CharLevelRegex.Match(line);
-                    if (charMatch.Success && int.TryParse(charMatch.Groups[2].Value, out int cLvl))
-                    {
-                        lastCharName = charMatch.Groups[1].Value.Trim();
-                        lastCharLevel = cLvl;
-                    }
-
                     var zoneMatch = ZoneRegex.Match(line);
                     if (zoneMatch.Success && !string.Equals(zoneMatch.Groups[1].Value, NullSceneSource, StringComparison.Ordinal))
                     {
@@ -220,13 +253,6 @@ namespace LootPulse.Services
                         lastZoneLevel = lastAreaLevel > 1 ? lastAreaLevel : GetZoneLevelFromName(lastZoneName);
                         lastAreaLevel = 1; // Reset for next zone
                     }
-                }
-
-                // Fire events for the most recent state found
-                if (!string.IsNullOrEmpty(lastCharName) && lastCharLevel > 0)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Restored from log: {lastCharName} level {lastCharLevel}");
-                    PlayerLevelChanged?.Invoke(this, new PlayerLevelChangedEventArgs(lastCharName, lastCharLevel));
                 }
 
                 if (!string.IsNullOrEmpty(lastZoneName))
@@ -237,9 +263,81 @@ namespace LootPulse.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error scanning recent log history: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error scanning recent zone history: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Finds the most recent level reached by a specific character, or 0 if not found in the log.
+        /// </summary>
+        private int FindLatestLevelForCharacter(string characterName)
+        {
+            string baseName = StripClass(characterName);
+            // e.g. "Light_Fisted (Martial Artist) is now level 94" — class part is optional.
+            var regex = new Regex(Regex.Escape(baseName) + @"(?: \([^)]*\))? is now level (\d+)", RegexOptions.Compiled);
+            var match = FindLatestLineMatch(regex);
+            if (match != null && int.TryParse(match.Groups[1].Value, out int level))
+            {
+                return level;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Searches the log backwards in chunks and returns the most recent line matching the
+        /// given regex (or null). Stops as soon as a match is found, so it is cheap when the
+        /// target line is recent even in a multi-hundred-MB log.
+        /// </summary>
+        private Match? FindLatestLineMatch(Regex regex)
+        {
+            using var stream = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+            const int chunkSize = 256 * 1024;
+            long pos = stream.Length;
+            var buffer = new byte[chunkSize];
+            string carry = string.Empty; // partial line carried from the previous (later) chunk
+
+            while (pos > 0)
+            {
+                int toRead = (int)Math.Min(chunkSize, pos);
+                pos -= toRead;
+                stream.Seek(pos, SeekOrigin.Begin);
+
+                int read = 0;
+                while (read < toRead)
+                {
+                    int n = stream.Read(buffer, read, toRead - read);
+                    if (n == 0) break;
+                    read += n;
+                }
+
+                // This chunk is earlier in the file, so the carried partial line goes on the end.
+                string text = Encoding.UTF8.GetString(buffer, 0, read) + carry;
+
+                var matches = regex.Matches(text);
+                if (matches.Count > 0)
+                {
+                    return matches[matches.Count - 1]; // last match = most recent in this chunk
+                }
+
+                // Carry this chunk's incomplete first line to the next (earlier) chunk.
+                int firstNl = text.IndexOf('\n', StringComparison.Ordinal);
+                carry = firstNl >= 0 ? text.Substring(0, firstNl) : text;
+            }
+
+            return null;
+        }
+
+        // "Light_Fisted (Martial Artist)" -> "Light_Fisted"
+        private static string StripClass(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            int paren = name.IndexOf(" (", StringComparison.Ordinal);
+            return paren > 0 ? name.Substring(0, paren) : name;
+        }
+
+        private static bool NamesMatch(string a, string b)
+            => string.Equals(StripClass(a), StripClass(b), StringComparison.Ordinal);
 
         public static int GetZoneLevelFromName(string zoneName)
         {

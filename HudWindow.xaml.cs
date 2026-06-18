@@ -48,8 +48,8 @@ namespace LootPulse
 
             Loaded += (s, e) => {
                 _isInitialized = true;
-                // Force initial styling
-                SetClickThrough(false, _settings.EditModeOpacity);
+                // Force initial styling (HUD uses its own opacity setting)
+                SetClickThrough(false, _settings.HudModeOpacity);
             };
         }
 

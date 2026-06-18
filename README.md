@@ -12,14 +12,15 @@ The tool provides a transparent, click-through overlay window that monitors your
 
 ## 🚀 Key Features
 
-- **🎮 Dynamic Click-Through HUD Overlay**: Toggle between **Edit Mode** (adjust thresholds, select profiles, configure settings) and **HUD Mode** (completely transparent, click-through overlay) using the `Ctrl + Shift + O` hotkey.
+- **🎮 Dynamic Click-Through HUD Overlay**: Toggle between **Edit Mode** (interactive dashboard) and **HUD Mode** (completely transparent, click-through overlay) using the `Ctrl + Shift + O` hotkey. The dashboard and the HUD have **independent opacity controls**, and the whole dashboard (not just its border) fades with the Dashboard Opacity slider.
+- **🗂️ Dashboard / Settings split**: The main dashboard stays focused on live state and economy data — Active State (top-left), build config, and the full-width commodities panel — while paths, economy thresholds, appearance, and HUD options live on a dedicated **Settings** page reached via the header gear.
 - **📈 Real-Time Economy Sync** *(Currency Exchange Rates tab)*: Fetches real-time commodity, currency, and unique valuations from `poe.ninja` for the Path of Exile 2 Trade Economy (focusing on Exalted, Divine, and Chaos Orbs), ranked highest-to-lowest by value.
 - **🛒 Trade Market** *(Trade Market tab)*: Prices the gear in your loaded `.build` against the **official Path of Exile 2 trade site** (`pathofexile.com/trade2`). For each item it lists the **cheapest live listings you can currently equip** — filtered to your character's level, with uniques excluded from base-type searches — plus a one-click **Open on Trade Site** button. You sign in to pathofexile.com once via an embedded browser; requests are throttled to respect the trade API's rate limits.
 - **📋 Build Planner Integration**:
   - Parses native Path of Exile 2 `.build` JSON schemas.
   - Decodes and parses Path of Building 2 (PoB2) compressed XML share codes.
   - Remembers the last loaded `.build` file and automatically reloads it (and resyncs economy data) on startup.
-- **🔍 Active Zone & Level Tracking**: Monitors your `Client.txt` log file to detect zone transitions and character level-ups in real time, and scans recent log history on startup so the HUD starts with accurate state instead of defaults.
+- **🔍 Active Zone & Character Tracking**: Monitors your `Client.txt` log file to detect zone transitions and character level-ups in real time. On startup it identifies the **character you're actually playing** (from the active-character instance-load line, not merely whichever character leveled up most recently) and recovers its name and level by scanning backwards through the log — so the HUD starts with accurate state even with multiple characters and very large log files.
 - **🛡️ Custom Filter Builder**: Generates tailored `.filter` files on-the-fly, highlighting high-value economic drops and build-specific uniques suitable for your current level. Skill/support gems are highlighted via PoE2's "Uncut Gem" framework rather than named BaseTypes, since PoE2 only drops generic uncut gems on the ground.
 - **🎨 Style Editor**: Customize filter highlight colors with HSV sliders, custom RGB input, and a screen eyedropper picker.
 
