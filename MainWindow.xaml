@@ -18,6 +18,9 @@
     </WindowChrome.WindowChrome>
     
     <Window.Resources>
+        <!-- Converters -->
+        <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+
         <!-- Fluent Design Styles -->
         <Color x:Key="PoeOrange">#FF6124</Color>
         <Color x:Key="PoeGold">#E5B560</Color>
@@ -77,6 +80,39 @@
                     <Setter Property="Foreground" Value="White"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- Dark Tab styling for the Commodities & Valuables panel -->
+        <Style x:Key="DarkTabControl" TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style x:Key="DarkTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="Transparent" BorderBrush="Transparent"
+                                BorderThickness="0,0,0,2" Padding="4,6" Margin="0,0,18,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#FF6124"/>
+                                <Setter Property="Foreground" Value="#FF6124"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="DarkComboBox" TargetType="ComboBox">
@@ -392,7 +428,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Economy Items List -->
+                    <!-- Economy Items Panel (tabbed) -->
                     <Border Grid.Row="1" Background="#1C1C1C" CornerRadius="8" Padding="15">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -402,55 +438,127 @@
 
                             <TextBlock Grid.Row="0" Text="COMMODITIES &amp; VALUABLES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <ListView Grid.Row="1" x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Margin" Value="0,2"/>
-                                        <Setter Property="Padding" Value="5"/>
-                                        <Setter Property="BorderThickness" Value="0"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListViewItem">
-                                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="8">
-                                                        <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#2A2A2A"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Name" Width="250">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Category" Width="120">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Category}" Foreground="#888888"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Value" Width="120">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
+                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}">
+                                <!-- Tab 1: existing poe.ninja economy list -->
+                                <TabItem Header="Currency Exchange Rates" Style="{StaticResource DarkTabItem}">
+                                    <ListView x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" Margin="0,10,0,0" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                        <ListView.ItemContainerStyle>
+                                            <Style TargetType="ListViewItem">
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="Margin" Value="0,2"/>
+                                                <Setter Property="Padding" Value="5"/>
+                                                <Setter Property="BorderThickness" Value="0"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListViewItem">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="8">
+                                                                <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#2A2A2A"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListView.ItemContainerStyle>
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Name" Width="250">
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Header="Category" Width="120">
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Category}" Foreground="#888888"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Header="Value" Width="120">
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </TabItem>
+
+                                <!-- Tab 2: PoE2 trade site listings for build items -->
+                                <TabItem Header="Trade Market" Style="{StaticResource DarkTabItem}">
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Action bar -->
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button x:Name="ConnectTradeButton" Style="{StaticResource DarkButton}" Content="Connect Trade Account" Margin="0,0,10,0" Click="ConnectTradeAccount_Click"/>
+                                            <Button x:Name="SearchTradeButton" Style="{StaticResource AccentButton}" Content="Search Trade Market" Click="SearchTradeMarket_Click"/>
+                                            <TextBlock x:Name="TradeStatusText" Text="Cheapest listings you can equip now." Foreground="#888888" FontWeight="Normal" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- Per-build-item groups, each with cheapest-5 -->
+                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="TradeGroupsList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#232323" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                                                            <Grid>
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                </Grid.RowDefinitions>
+                                                                <Grid Grid.Row="0">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Grid.Column="0" Text="{Binding ItemLabel}" Foreground="White" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                                                                    <Border Grid.Column="1" Background="#1C1C1C" CornerRadius="4" Padding="6,2" Margin="8,0" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding LevelNote}" Foreground="#E5B560" FontSize="11"/>
+                                                                    </Border>
+                                                                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Open on Trade Site" Click="OpenTradeSearch_Click" Tag="{Binding BrowserUrl}"/>
+                                                                </Grid>
+
+                                                                <ItemsControl Grid.Row="1" ItemsSource="{Binding Listings}" Margin="0,8,0,0">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,2">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="120"/>
+                                                                                    <ColumnDefinition Width="*"/>
+                                                                                    <ColumnDefinition Width="Auto"/>
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <TextBlock Grid.Column="0" Text="{Binding PriceText}" Foreground="#E5B560" FontWeight="Bold"/>
+                                                                                <TextBlock Grid.Column="1" Text="{Binding ItemLabel}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
+                                                                                <TextBlock Grid.Column="2" Text="{Binding Seller}" Foreground="#777777" FontSize="11"/>
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+
+                                                                <TextBlock Grid.Row="1" Text="{Binding StatusText}" Foreground="#777777" FontStyle="Italic" Margin="0,8,0,0"
+                                                                           Visibility="{Binding HasListings, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
                         </Grid>
                     </Border>
                 </Grid>

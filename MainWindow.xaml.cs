@@ -14,6 +14,7 @@ using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using LootPulse.Models;
 using LootPulse.Services;
+using LootPulse.Services.Trade;
 
 namespace LootPulse
 {
@@ -29,6 +30,13 @@ namespace LootPulse
         private readonly BuildProfileParser _buildParser;
         private readonly ClientLogMonitor _logMonitor;
         private readonly FilterBuilder _filterBuilder;
+
+        // Trade Market (PoE2 trade2 API) services
+        private readonly WebView2TradeTransport _tradeTransport;
+        private readonly TradeRateLimiter _tradeRateLimiter;
+        private readonly Poe2TradeClient _tradeClient;
+        private readonly List<TradeItemGroup> _tradeGroups = [];
+        private bool _isTradeSearchRunning;
 
         // Active State Data
         private PoeBuild? _activeBuild;
@@ -95,6 +103,11 @@ namespace LootPulse
             _buildParser = new BuildProfileParser();
             _logMonitor = new ClientLogMonitor();
             _filterBuilder = new FilterBuilder();
+
+            // Trade Market services (WebView2 session-backed; init deferred until first Connect)
+            _tradeTransport = new WebView2TradeTransport(this);
+            _tradeRateLimiter = new TradeRateLimiter();
+            _tradeClient = new Poe2TradeClient(_tradeTransport, _tradeRateLimiter);
 
             // Bind log monitor events
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
@@ -183,6 +196,9 @@ namespace LootPulse
             }
 
             _hudWindow?.Close();
+
+            _tradeTransport.Dispose();
+            _tradeRateLimiter.Dispose();
 
             base.OnClosed(e);
         }
@@ -366,6 +382,128 @@ namespace LootPulse
             ItemListView.ItemsSource = _marketItems;
 
             TriggerFilterRegeneration();
+        }
+
+        // ---- Trade Market tab (PoE2 trade2 API) ----
+
+        private async void ConnectTradeAccount_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                TradeStatusText.Text = "Opening Path of Exile login… sign in, then run a search.";
+                await _tradeTransport.ConnectAsync();
+                TradeStatusText.Text = "Connected. Click \"Search Trade Market\" to price your build items.";
+            }
+            catch (Exception ex)
+            {
+                TradeStatusText.Text = $"Could not open trade login: {ex.Message}";
+            }
+        }
+
+        private async void SearchTradeMarket_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isTradeSearchRunning)
+            {
+                return;
+            }
+
+            if (_activeBuild == null || _activeBuild.InventorySlots.Count == 0)
+            {
+                TradeStatusText.Text = "Load a .build first — no items to search.";
+                return;
+            }
+
+            var queries = BuildTradeQueries(_activeBuild);
+            if (queries.Count == 0)
+            {
+                TradeStatusText.Text = "No gear with a base type or unique name found in the build.";
+                return;
+            }
+
+            string league = string.IsNullOrEmpty(_appSettings.League) ? "Runes of Aldur" : _appSettings.League;
+            int maxLevel = Math.Max(_playerState.Level, 1);
+
+            _isTradeSearchRunning = true;
+            SearchTradeButton.IsEnabled = false;
+            _tradeGroups.Clear();
+            RefreshTradeGroups();
+
+            try
+            {
+                for (int i = 0; i < queries.Count; i++)
+                {
+                    TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label} (≤ Lv {maxLevel})…";
+                    TradeItemGroup group = await _tradeClient.SearchCheapestAsync(league, queries[i], maxLevel);
+                    _tradeGroups.Add(group);
+                    RefreshTradeGroups();
+                }
+                TradeStatusText.Text = $"Done — priced {queries.Count} item(s) at ≤ Lv {maxLevel}.";
+            }
+            catch (Exception ex)
+            {
+                TradeStatusText.Text = $"Trade search stopped: {ex.Message}";
+            }
+            finally
+            {
+                _isTradeSearchRunning = false;
+                SearchTradeButton.IsEnabled = true;
+            }
+        }
+
+        private void OpenTradeSearch_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.Tag is not string url || string.IsNullOrEmpty(url))
+            {
+                TradeStatusText.Text = "No trade search to open yet — run a search first.";
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                TradeStatusText.Text = $"Could not open browser: {ex.Message}";
+            }
+        }
+
+        private void RefreshTradeGroups()
+        {
+            TradeGroupsList.ItemsSource = null;
+            TradeGroupsList.ItemsSource = _tradeGroups;
+        }
+
+        // Map build gear slots to trade queries: uniques by name, plain bases by base type. Deduped.
+        private static List<TradeItemQuery> BuildTradeQueries(PoeBuild build)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var queries = new List<TradeItemQuery>();
+
+            foreach (var slot in build.InventorySlots)
+            {
+                bool hasUnique = !string.IsNullOrWhiteSpace(slot.UniqueName);
+                bool hasBase = !string.IsNullOrWhiteSpace(slot.BaseType);
+                if (!hasUnique && !hasBase)
+                {
+                    continue;
+                }
+
+                var query = new TradeItemQuery
+                {
+                    Label = hasUnique ? slot.UniqueName! : slot.BaseType!,
+                    Name = hasUnique ? slot.UniqueName : null,
+                    BaseType = hasUnique ? null : slot.BaseType,
+                };
+
+                string key = $"{query.Name}|{query.BaseType}";
+                if (seen.Add(key))
+                {
+                    queries.Add(query);
+                }
+            }
+
+            return queries;
         }
 
         private async Task AutoLoadLastBuildAsync()
