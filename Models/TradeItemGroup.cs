@@ -26,6 +26,10 @@ namespace LootPulse.Models
 
         /// <summary>The build's minimum level for this item (level_interval[0]), or null if unknown.</summary>
         public int? MinRequiredLevel { get; set; }
+
+        /// <summary>The build inventory slot id (e.g. "Weapon1", "Boots1") — selects the Best-in-slot
+        /// weighting profile. Null/unknown falls back to an even profile.</summary>
+        public string? SlotId { get; set; }
     }
 
     /// <summary>One trade listing row shown under a group (cheapest-5).</summary>
@@ -40,6 +44,12 @@ namespace LootPulse.Models
 
         /// <summary>Display form of <see cref="NormalizedExalted"/>, e.g. "≈ 12 ex" / "≈ 3 div" (empty when unknown).</summary>
         public string NormalizedText { get; set; } = string.Empty;
+
+        /// <summary>Best-in-slot weighted score from the listing's matched recommended affixes (higher = better).</summary>
+        public double Score { get; set; }
+
+        /// <summary>The listing's actual character-level requirement (base + affixes), or null if unknown.</summary>
+        public int? RequiredLevel { get; set; }
     }
 
     /// <summary>A build item and the cheapest live listings found for it, bound to the Trade Market tab.</summary>

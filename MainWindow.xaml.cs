@@ -445,6 +445,15 @@ namespace LootPulse
             }
         }
 
+        // Show the per-item budget input only in Best-in-slot mode.
+        private void TradeMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (BudgetPanel != null && BestInSlotModeRadio != null)
+            {
+                BudgetPanel.Visibility = BestInSlotModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
         private void TradeTransport_ConnectionChanged(object? sender, TradeConnectionChangedEventArgs e)
         {
             bool connected = e.IsConnected;
@@ -495,6 +504,9 @@ namespace LootPulse
             int maxLevel = Math.Max(_playerState.Level, 1);
             CurrencyRates rates = BuildCurrencyRates();
             int minAffixMatches = ReadMinAffixMatches();
+            bool bestInSlot = BestInSlotModeRadio?.IsChecked == true;
+            TradeSearchMode mode = bestInSlot ? TradeSearchMode.BestInSlot : TradeSearchMode.Cheapest;
+            double? budgetExalted = bestInSlot ? ReadBudgetExalted(rates) : null;
 
             _isTradeSearchRunning = true;
             SearchTradeButton.IsEnabled = false;
@@ -506,12 +518,14 @@ namespace LootPulse
                 for (int i = 0; i < queries.Count; i++)
                 {
                     TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label}…";
-                    TradeItemGroup group = await _tradeClient.SearchCheapestAsync(
-                        league, queries[i], maxLevel, rates, minAffixMatches);
+                    TradeItemGroup group = await _tradeClient.SearchAsync(
+                        league, queries[i], maxLevel, rates, mode, minAffixMatches, budgetExalted);
                     _tradeGroups.Add(group);
                     RefreshTradeGroups();
                 }
-                TradeStatusText.Text = $"Done — priced {queries.Count} item(s).";
+                TradeStatusText.Text = bestInSlot
+                    ? $"Done — best-in-slot for {queries.Count} item(s)."
+                    : $"Done — cheapest for {queries.Count} item(s).";
             }
             catch (Exception ex)
             {
@@ -577,6 +591,7 @@ namespace LootPulse
                     query.Affixes.AddRange(ParseRecommendedAffixes(slot.AdditionalText));
                 }
 
+                query.SlotId = slot.InventoryId;
                 if (slot.LevelInterval is { Count: >= 1 } interval)
                 {
                     query.MinRequiredLevel = interval[0];
@@ -631,6 +646,17 @@ namespace LootPulse
                 return n;
             }
             return 0;
+        }
+
+        // Per-item Best-in-slot budget, entered in Divine Orbs, converted to the Exalted base for
+        // comparison against normalized listing prices. Null (no/zero/invalid input) = no budget cap.
+        private double? ReadBudgetExalted(CurrencyRates rates)
+        {
+            if (double.TryParse(BudgetDivineBox?.Text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double div) && div > 0)
+            {
+                return div * rates.DivineInExalted;
+            }
+            return null;
         }
 
         private async Task AutoLoadLastBuildAsync()

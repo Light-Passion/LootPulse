@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using LootPulse.Models;
@@ -23,10 +22,6 @@ namespace LootPulse.Services.Trade
 
         private readonly ITradeTransport _transport;
         private readonly TradeRateLimiter _rateLimiter;
-
-        // Numbers (with optional decimal) collapse to "#"; matches how the catalogue templates read.
-        private static readonly Regex NumberRegex = new(@"\d+(\.\d+)?", RegexOptions.Compiled);
-        private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
         // template text -> stat id. Cached once populated; an empty/failed fetch is retried next time
         // (e.g. the first attempt happened before the trade session was connected).
@@ -60,7 +55,7 @@ namespace LootPulse.Services.Trade
             var filters = new List<TradeStatFilter>();
             foreach (var affix in affixes)
             {
-                if (table.TryGetValue(Templatize(affix.Text), out var id) && seen.Add(id))
+                if (table.TryGetValue(TradeAffixText.Templatize(affix.Text), out var id) && seen.Add(id))
                 {
                     filters.Add(new TradeStatFilter(id));
                 }
@@ -123,7 +118,7 @@ namespace LootPulse.Services.Trade
                         {
                             continue;
                         }
-                        map.TryAdd(Templatize(entry.Text), entry.Id);
+                        map.TryAdd(TradeAffixText.Templatize(entry.Text), entry.Id);
                     }
                 }
             }
@@ -133,17 +128,6 @@ namespace LootPulse.Services.Trade
             }
 
             return map;
-        }
-
-        private static string Templatize(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return string.Empty;
-            }
-            // Upper-case both sides identically so matching stays case-insensitive (CA1308: prefer upper).
-            string withHashes = NumberRegex.Replace(text, "#");
-            return WhitespaceRegex.Replace(withHashes, " ").Trim().ToUpperInvariant();
         }
     }
 }

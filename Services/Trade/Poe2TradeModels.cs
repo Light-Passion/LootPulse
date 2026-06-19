@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LootPulse.Services.Trade
@@ -120,7 +121,17 @@ namespace LootPulse.Services.Trade
     public record TradeFetchItem(
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("baseType")] string? BaseType,
-        [property: JsonPropertyName("typeLine")] string? TypeLine
+        [property: JsonPropertyName("typeLine")] string? TypeLine,
+        [property: JsonPropertyName("ilvl")] int? Ilvl = null,
+        [property: JsonPropertyName("requirements")] List<TradeRequirement>? Requirements = null,
+        [property: JsonPropertyName("explicitMods")] List<string>? ExplicitMods = null,
+        [property: JsonPropertyName("implicitMods")] List<string>? ImplicitMods = null
+    );
+
+    // requirements: [ { "name": "Level", "values": [ ["65", 0] ] }, ... ] — we read the "Level" entry.
+    public record TradeRequirement(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("values")] List<List<JsonElement>>? Values
     );
 
     // ---- Stats lookup table: GET /api/trade2/data/stats ----
