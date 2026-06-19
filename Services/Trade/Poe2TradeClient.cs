@@ -115,12 +115,12 @@ namespace LootPulse.Services.Trade
                 foreach (var entry in fetched.Result.Where(e => e?.Listing?.Price != null))
                 {
                     var price = entry!.Listing!.Price!;
-                    double? chaos = rates.ToChaos(price.Amount, price.Currency);
+                    double? exalted = rates.ToExalted(price.Amount, price.Currency);
                     rows.Add(new TradeListingRow
                     {
                         PriceText = FormatPrice(price),
-                        NormalizedChaos = chaos,
-                        NormalizedText = CurrencyRates.FormatChaos(chaos),
+                        NormalizedExalted = exalted,
+                        NormalizedText = rates.Format(exalted),
                         Seller = entry.Listing.Account?.Name ?? "?",
                         ItemLabel = entry.Item?.Name is { Length: > 0 } n
                             ? $"{n} {entry.Item?.TypeLine ?? entry.Item?.BaseType}".Trim()
@@ -128,10 +128,10 @@ namespace LootPulse.Services.Trade
                     });
                 }
 
-                // Re-sort by normalized chaos so the shown rows are the genuine cheapest across
-                // currencies; listings in a currency we don't value (null) fall to the end.
+                // Re-sort by the Exalted-equivalent value so the shown rows are the genuine cheapest
+                // across currencies; listings in a currency we don't value (null) fall to the end.
                 foreach (var row in rows
-                    .OrderBy(r => r.NormalizedChaos ?? double.MaxValue)
+                    .OrderBy(r => r.NormalizedExalted ?? double.MaxValue)
                     .Take(take))
                 {
                     group.Listings.Add(row);

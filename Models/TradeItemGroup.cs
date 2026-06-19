@@ -35,10 +35,10 @@ namespace LootPulse.Models
         public string Seller { get; set; } = string.Empty;
         public string ItemLabel { get; set; } = string.Empty;   // item name / typeLine
 
-        /// <summary>Price converted to chaos for cross-currency comparison; null if currency unknown.</summary>
-        public double? NormalizedChaos { get; set; }
+        /// <summary>Exalted-equivalent value used to rank cheapest across currencies; null if unknown.</summary>
+        public double? NormalizedExalted { get; set; }
 
-        /// <summary>Display form of <see cref="NormalizedChaos"/>, e.g. "≈ 600c" (empty when unknown).</summary>
+        /// <summary>Display form of <see cref="NormalizedExalted"/>, e.g. "≈ 12 ex" / "≈ 3 div" (empty when unknown).</summary>
         public string NormalizedText { get; set; } = string.Empty;
     }
 

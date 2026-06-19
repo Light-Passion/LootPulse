@@ -36,6 +36,10 @@ namespace LootPulse.Services.Trade
         private DispatcherTimer? _loginPollTimer;
         private bool _initialized;
         private bool _disposing;
+        private bool _awaitingLogin;   // true only while the login window is shown for the user
+
+        // Park position for the realized-but-hidden host window (keeps it off any real monitor).
+        private const double OffscreenCoord = -32000;
 
         // Logged in if the page header carries a logout control (present on every pathofexile.com page).
         private const string LoginCheckScript =
@@ -49,7 +53,24 @@ namespace LootPulse.Services.Trade
             _owner = owner ?? throw new ArgumentNullException(nameof(owner));
         }
 
-        public bool IsConnected { get; private set; }
+        private bool _isConnected;
+
+        /// <summary>True once we have a usable authenticated pathofexile.com session.</summary>
+        public bool IsConnected => _isConnected;
+
+        /// <summary>Raised whenever the connected state changes, so the UI can enable/disable the
+        /// Connect button without polling.</summary>
+        public event EventHandler<TradeConnectionChangedEventArgs>? ConnectionChanged;
+
+        private void SetConnected(bool value)
+        {
+            if (_isConnected == value)
+            {
+                return;
+            }
+            _isConnected = value;
+            ConnectionChanged?.Invoke(this, new TradeConnectionChangedEventArgs(value));
+        }
 
         private static string UserDataFolder
         {
@@ -69,20 +90,104 @@ namespace LootPulse.Services.Trade
             }
 
             await EnsureInitializedAsync().ConfigureAwait(true);
+            await EnsureOnOriginAsync().ConfigureAwait(true);
 
-            // Show the browser so the user can sign in, then navigate to the trade page.
-            _browserWindow!.Show();
-            _browserWindow.Activate();
+            // If the persisted session is still valid we don't need to bother the user at all.
+            if (await CheckLoggedInAsync().ConfigureAwait(true))
+            {
+                SetConnected(true);
+                return true;
+            }
+
+            // Not logged in — show the browser so the user can sign in. The poll timer auto-closes it
+            // the moment a logged-in session is detected.
+            _awaitingLogin = true;
+            ShowForLogin();
             _webView!.CoreWebView2.Navigate($"{Origin}/trade2");
-
-            // Auto-close the login window as soon as we detect a logged-in session.
             _loginPollTimer!.Start();
-
-            // We can't reliably auto-detect login from outside the page, so connection is confirmed
-            // lazily: the first successful (200) API call flips IsConnected. We optimistically set it
-            // here so the user can run a search; a 401/403 will surface a "please log in" message.
-            IsConnected = true;
             return true;
+        }
+
+        /// <summary>
+        /// Silently check whether the persisted session is still authenticated and update
+        /// <see cref="IsConnected"/> (and raise <see cref="ConnectionChanged"/>) — without ever showing
+        /// the login window. Used to decide whether the Connect button needs to be offered.
+        /// </summary>
+        public async Task<bool> RefreshConnectionAsync(CancellationToken ct = default)
+        {
+            if (!_owner.Dispatcher.CheckAccess())
+            {
+                return await _owner.Dispatcher.InvokeAsync(() => RefreshConnectionAsync(ct)).Task.Unwrap().ConfigureAwait(false);
+            }
+
+            await EnsureInitializedAsync().ConfigureAwait(true);
+            await EnsureOnOriginAsync().ConfigureAwait(true);
+            bool loggedIn = await CheckLoggedInAsync().ConfigureAwait(true);
+            SetConnected(loggedIn);
+            return loggedIn;
+        }
+
+        // Poll the page a few times for the logout control — the trade page is an SPA, so right after a
+        // NavigationCompleted the header may not be in the DOM yet.
+        private async Task<bool> CheckLoggedInAsync()
+        {
+            if (_webView?.CoreWebView2 == null)
+            {
+                return false;
+            }
+
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    string raw = await _webView.CoreWebView2.ExecuteScriptAsync(LoginCheckScript);
+                    if (raw != null && raw.Trim() == "true")
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Login check error: {ex.Message}");
+                }
+                await Task.Delay(500).ConfigureAwait(true);
+            }
+            return false;
+        }
+
+        // Bring the realized host window onto the owner's monitor for an interactive login.
+        private void ShowForLogin()
+        {
+            if (_browserWindow == null)
+            {
+                return;
+            }
+            try
+            {
+                _browserWindow.Left = _owner.Left + Math.Max(0, (_owner.ActualWidth - _browserWindow.Width) / 2);
+                _browserWindow.Top = _owner.Top + Math.Max(0, (_owner.ActualHeight - _browserWindow.Height) / 2);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Center login window error: {ex.Message}");
+            }
+            _browserWindow.ShowInTaskbar = true;
+            _browserWindow.Show();
+            _browserWindow.Activate();
+        }
+
+        // Hide the host window and move it back off-screen (kept realized so the session stays alive).
+        private void ParkWindow()
+        {
+            _awaitingLogin = false;
+            if (_browserWindow == null)
+            {
+                return;
+            }
+            _browserWindow.Hide();
+            _browserWindow.ShowInTaskbar = false;
+            _browserWindow.Left = OffscreenCoord;
+            _browserWindow.Top = OffscreenCoord;
         }
 
         public async Task<TradeHttpResponse> SendAsync(HttpMethod method, string url, string? jsonBody, CancellationToken ct = default)
@@ -109,7 +214,12 @@ namespace LootPulse.Services.Trade
             var response = await tcs.Task.ConfigureAwait(true);
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                IsConnected = true;
+                SetConnected(true);
+            }
+            else if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                // Session expired/insufficient — re-offer the Connect button.
+                SetConnected(false);
             }
             return response;
         }
@@ -118,28 +228,32 @@ namespace LootPulse.Services.Trade
         {
             if (_initialized) return;
 
-            // Create a hidden host window for the WebView2 (it needs an HWND to live in).
+            // Host window for the WebView2 (it needs an HWND to live in). Created off-screen and
+            // un-activated so realizing it doesn't flash anything in front of the user — it's only
+            // brought on-screen (ShowForLogin) when an interactive sign-in is actually required.
             _browserWindow = new Window
             {
                 Title = "LootPulse — Path of Exile Trade Login",
                 Width = 1100,
                 Height = 800,
                 Owner = _owner,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ShowInTaskbar = true,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = OffscreenCoord,
+                Top = OffscreenCoord,
+                ShowInTaskbar = false,
+                ShowActivated = false,
             };
             _webView = new WebView2();
             _browserWindow.Content = _webView;
 
-            // Closing the login window just hides it so the session/CoreWebView2 stays alive
+            // Closing the login window just hides/parks it so the session/CoreWebView2 stays alive
             // (unless we're actually disposing the transport).
             _browserWindow.Closing += OnBrowserClosing;
 
             // The WPF WebView2 only finishes initializing once its control is realized in a shown
-            // window — so show the window BEFORE awaiting EnsureCoreWebView2Async, otherwise that
-            // await never completes and nothing appears to happen.
+            // window — so show the window (off-screen) BEFORE awaiting EnsureCoreWebView2Async,
+            // otherwise that await never completes and nothing appears to happen.
             _browserWindow.Show();
-            _browserWindow.Activate();
 
             Directory.CreateDirectory(UserDataFolder);
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: UserDataFolder).ConfigureAwait(true);
@@ -151,12 +265,14 @@ namespace LootPulse.Services.Trade
             _loginPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
             _loginPollTimer.Tick += OnLoginPollTick;
 
+            // Realized; keep it hidden off-screen until a login is actually needed.
+            _browserWindow.Hide();
             _initialized = true;
         }
 
         private async void OnLoginPollTick(object? sender, EventArgs e)
         {
-            if (_webView?.CoreWebView2 == null || _browserWindow == null || !_browserWindow.IsVisible)
+            if (!_awaitingLogin || _webView?.CoreWebView2 == null || _browserWindow == null)
             {
                 _loginPollTimer?.Stop();
                 return;
@@ -167,9 +283,9 @@ namespace LootPulse.Services.Trade
                 string raw = await _webView.CoreWebView2.ExecuteScriptAsync(LoginCheckScript);
                 if (raw != null && raw.Trim() == "true")
                 {
-                    IsConnected = true;
                     _loginPollTimer?.Stop();
-                    _browserWindow.Hide();
+                    ParkWindow();              // auto-close the login window on success
+                    SetConnected(true);
                 }
             }
             catch (Exception ex)
@@ -201,8 +317,10 @@ namespace LootPulse.Services.Trade
         private void OnBrowserClosing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             if (_disposing) return;
+            // User dismissed the login window: keep the WebView2 alive, just park it and stop polling.
             e.Cancel = true;
-            _browserWindow!.Hide();
+            _loginPollTimer?.Stop();
+            ParkWindow();
         }
 
         private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -295,5 +413,13 @@ namespace LootPulse.Services.Trade
                 System.Diagnostics.Debug.WriteLine($"WebView2TradeTransport dispose error: {ex.Message}");
             }
         }
+    }
+
+    /// <summary>Carries the new connected state when the trade session connects or disconnects.</summary>
+    public sealed class TradeConnectionChangedEventArgs : EventArgs
+    {
+        public TradeConnectionChangedEventArgs(bool isConnected) => IsConnected = isConnected;
+
+        public bool IsConnected { get; }
     }
 }

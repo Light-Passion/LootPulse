@@ -113,6 +113,7 @@ namespace LootPulse
             _tradeTransport = new WebView2TradeTransport(this);
             _tradeRateLimiter = new TradeRateLimiter();
             _tradeClient = new Poe2TradeClient(_tradeTransport, _tradeRateLimiter);
+            _tradeTransport.ConnectionChanged += TradeTransport_ConnectionChanged;
 
             // Bind log monitor events
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
@@ -423,13 +424,46 @@ namespace LootPulse
 
         // ---- Trade Market tab (PoE2 trade2 API) ----
 
+        private bool _tradeConnectionChecked;
+
+        // First time the Trade Market tab is opened, silently check whether the persisted session is
+        // still valid so the Connect button can be greyed out when no sign-in is needed.
+        private async void CommoditiesTab_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            // Ignore SelectionChanged bubbling up from inner controls (combo boxes, etc.).
+            if (e.OriginalSource is not System.Windows.Controls.TabControl tc) return;
+            if (_tradeConnectionChecked || !ReferenceEquals(tc.SelectedItem, TradeMarketTab)) return;
+
+            _tradeConnectionChecked = true;
+            try
+            {
+                await _tradeTransport.RefreshConnectionAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Trade connection check failed: {ex.Message}");
+            }
+        }
+
+        private void TradeTransport_ConnectionChanged(object? sender, TradeConnectionChangedEventArgs e)
+        {
+            bool connected = e.IsConnected;
+            Dispatcher.Invoke(() =>
+            {
+                ConnectTradeButton.IsEnabled = !connected;
+                ConnectTradeButton.Content = connected ? "Trade Account Connected" : "Connect Trade Account";
+            });
+        }
+
         private async void ConnectTradeAccount_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                TradeStatusText.Text = "Opening Path of Exile login… sign in, then run a search.";
+                TradeStatusText.Text = "Checking Path of Exile session…";
                 await _tradeTransport.ConnectAsync();
-                TradeStatusText.Text = "Connected. Click \"Search Trade Market\" to price your build items.";
+                TradeStatusText.Text = _tradeTransport.IsConnected
+                    ? "Connected. Click \"Search Trade Market\" to price your build items."
+                    : "Sign in to Path of Exile in the window, then run a search.";
             }
             catch (Exception ex)
             {

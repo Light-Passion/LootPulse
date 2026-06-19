@@ -408,7 +408,7 @@
 
                             <TextBlock Grid.Row="0" Text="COMMODITIES &amp; VALUABLES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}">
+                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}" SelectionChanged="CommoditiesTab_SelectionChanged">
                                 <!-- Tab 1: existing poe.ninja economy list -->
                                 <TabItem Header="Currency Exchange Rates" Style="{StaticResource DarkTabItem}">
                                     <ListView x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" Margin="0,10,0,0" AlternationCount="2" ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -495,7 +495,7 @@
                                 </TabItem>
 
                                 <!-- Tab 2: PoE2 trade site listings for build items -->
-                                <TabItem Header="Trade Market" Style="{StaticResource DarkTabItem}">
+                                <TabItem x:Name="TradeMarketTab" Header="Trade Market" Style="{StaticResource DarkTabItem}">
                                     <Grid Margin="0,10,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -562,7 +562,7 @@
                                                                                 </Grid.ColumnDefinitions>
                                                                                 <TextBlock Grid.Column="0" Text="{Binding PriceText}" Foreground="#E5B560" FontWeight="Bold"/>
                                                                                 <TextBlock Grid.Column="1" Text="{Binding NormalizedText}" Foreground="#8A8A8A" FontSize="11" VerticalAlignment="Center"
-                                                                                           ToolTip="Approximate value in Chaos Orbs, used to rank cheapest across currencies."/>
+                                                                                           ToolTip="Approximate value in Exalted Orbs (Divine for larger values), used to rank cheapest across currencies."/>
                                                                                 <TextBlock Grid.Column="2" Text="{Binding ItemLabel}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
                                                                                 <TextBlock Grid.Column="3" Text="{Binding Seller}" Foreground="#777777" FontSize="11"/>
                                                                             </Grid>
