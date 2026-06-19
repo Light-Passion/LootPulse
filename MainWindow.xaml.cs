@@ -459,6 +459,8 @@ namespace LootPulse
 
             string league = string.IsNullOrEmpty(_appSettings.League) ? "Runes of Aldur" : _appSettings.League;
             int maxLevel = Math.Max(_playerState.Level, 1);
+            CurrencyRates rates = BuildCurrencyRates();
+            int minAffixMatches = ReadMinAffixMatches();
 
             _isTradeSearchRunning = true;
             SearchTradeButton.IsEnabled = false;
@@ -469,12 +471,13 @@ namespace LootPulse
             {
                 for (int i = 0; i < queries.Count; i++)
                 {
-                    TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label} (≤ Lv {maxLevel})…";
-                    TradeItemGroup group = await _tradeClient.SearchCheapestAsync(league, queries[i], maxLevel);
+                    TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label}…";
+                    TradeItemGroup group = await _tradeClient.SearchCheapestAsync(
+                        league, queries[i], maxLevel, rates, minAffixMatches);
                     _tradeGroups.Add(group);
                     RefreshTradeGroups();
                 }
-                TradeStatusText.Text = $"Done — priced {queries.Count} item(s) at ≤ Lv {maxLevel}.";
+                TradeStatusText.Text = $"Done — priced {queries.Count} item(s).";
             }
             catch (Exception ex)
             {
@@ -514,7 +517,8 @@ namespace LootPulse
         // Map build gear slots to trade queries: uniques by name, everything else by base type.
         // Many .build files specify gear only via additional_text (its first line is the base type,
         // e.g. "Topaz Ring", "Varnished Crossbow"); BuildInventorySlot.ItemName already resolves that
-        // the same way the loot-filter highlighting does. Deduped.
+        // the same way the loot-filter highlighting does. Deduped. Base searches also carry the slot's
+        // recommended affixes (additional_text lines 2+) and the build's minimum level (level_interval[0]).
         private static List<TradeItemQuery> BuildTradeQueries(PoeBuild build)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -536,6 +540,12 @@ namespace LootPulse
                         continue;
                     }
                     query = new TradeItemQuery { Label = baseType, BaseType = baseType };
+                    query.Affixes.AddRange(ParseRecommendedAffixes(slot.AdditionalText));
+                }
+
+                if (slot.LevelInterval is { Count: >= 1 } interval)
+                {
+                    query.MinRequiredLevel = interval[0];
                 }
 
                 string key = $"{query.Name}|{query.BaseType}";
@@ -546,6 +556,47 @@ namespace LootPulse
             }
 
             return queries;
+        }
+
+        // additional_text is "<base type>\n1. <affix>\n2. <affix>…"; line 0 is the base type, the rest
+        // are numbered recommended affixes. Strip the "N. " prefix and return the mod text.
+        private static IEnumerable<BuildAffix> ParseRecommendedAffixes(string? additionalText)
+        {
+            if (string.IsNullOrWhiteSpace(additionalText))
+            {
+                yield break;
+            }
+
+            var lines = additionalText.Split('\n');
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string text = AffixPrefixRegex.Replace(lines[i], string.Empty).Trim();
+                if (text.Length > 0)
+                {
+                    yield return new BuildAffix { Text = text };
+                }
+            }
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex AffixPrefixRegex =
+            new(@"^\s*\d+\.\s*", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Current Divine/Exalted → Chaos rates from loaded poe.ninja data; falls back to defaults.
+        private CurrencyRates BuildCurrencyRates()
+        {
+            double divine = _marketItems.Find(i => i.Name == _divineOrbName && i.Category == _currencyCategory)?.ChaosValue ?? 0;
+            double exalted = _marketItems.Find(i => i.Name == _exaltedOrbName && i.Category == _currencyCategory)?.ChaosValue ?? 0;
+            return new CurrencyRates(divine, exalted);
+        }
+
+        // Player-chosen minimum number of recommended affixes a listing must match (0 = ignore affixes).
+        private int ReadMinAffixMatches()
+        {
+            if (int.TryParse(MinAffixMatchBox?.Text, out int n) && n >= 0)
+            {
+                return n;
+            }
+            return 0;
         }
 
         private async Task AutoLoadLastBuildAsync()

@@ -9,6 +9,7 @@ namespace LootPulse.Services.Trade
     [JsonSerializable(typeof(TradeSearchRequest))]
     [JsonSerializable(typeof(TradeSearchResponse))]
     [JsonSerializable(typeof(TradeFetchResponse))]
+    [JsonSerializable(typeof(TradeStatsDataResponse))]
     internal sealed partial class Poe2TradeJsonContext : JsonSerializerContext
     {
     }
@@ -34,9 +35,19 @@ namespace LootPulse.Services.Trade
         [property: JsonPropertyName("option")] string Option
     );
 
+    // A stats group. type "and" = match all; type "count" = match at least Value.Min of the Filters
+    // (used for the build's recommended affixes — the user picks the minimum number that must match).
     public record TradeStatGroup(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("filters")] IReadOnlyList<object> Filters
+        [property: JsonPropertyName("filters")] IReadOnlyList<TradeStatFilter> Filters,
+        [property: JsonPropertyName("value")] TradeMinMax? Value = null
+    );
+
+    // One stat in a group. We match on presence (id only) — a listing "matches" the affix if it has
+    // that mod at all; the count group's Value.Min then controls how many must be present.
+    public record TradeStatFilter(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("value")] TradeMinMax? Value = null
     );
 
     public record TradeFilters(
@@ -110,5 +121,25 @@ namespace LootPulse.Services.Trade
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("baseType")] string? BaseType,
         [property: JsonPropertyName("typeLine")] string? TypeLine
+    );
+
+    // ---- Stats lookup table: GET /api/trade2/data/stats ----
+    // { "result": [ { "id":"explicit", "label":"Explicit", "entries":[
+    //     { "id":"explicit.stat_3299347043", "text":"#% increased Physical Damage", "type":"explicit" } ] } ] }
+    // Maps the build's human-readable affix text to the stat IDs the search "stats" filter requires.
+    public record TradeStatsDataResponse(
+        [property: JsonPropertyName("result")] List<TradeStatsCategory>? Result
+    );
+
+    public record TradeStatsCategory(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("entries")] List<TradeStatEntry>? Entries
+    );
+
+    public record TradeStatEntry(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("text")] string? Text,
+        [property: JsonPropertyName("type")] string? Type
     );
 }

@@ -96,8 +96,8 @@ namespace LootPulse.Services
         {
             if (marketItems == null || marketItems.Count == 0) return;
 
-            double divinePriceInChaos = 120.0;
-            double exaltedPriceInChaos = 15.0;
+            double divinePriceInChaos = Trade.CurrencyRates.DefaultDivineInChaos;
+            double exaltedPriceInChaos = Trade.CurrencyRates.DefaultExaltedInChaos;
 
             var divOrb = marketItems.FirstOrDefault(i => i.Name == "Divine Orb" && i.Category == "Currency");
             if (divOrb?.ChaosValue > 0)
