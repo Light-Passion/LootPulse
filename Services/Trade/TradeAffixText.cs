@@ -13,15 +13,21 @@ namespace LootPulse.Services.Trade
         private static readonly Regex NumberRegex = new(@"\d+(\.\d+)?", RegexOptions.Compiled);
         private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
+        // GGG inline markup in trade2 mod descriptions: "[Physical]" or "[Reference|Displayed]".
+        // The displayed text is the segment after the pipe, or the whole token when there's no pipe.
+        private static readonly Regex MarkupRegex = new(@"\[(?:[^\[\]\|]*\|)?([^\[\]\|]+)\]", RegexOptions.Compiled);
+
         /// <summary>Reduce mod text to a comparable template, e.g. "253% increased Physical Damage" →
-        /// "#% INCREASED PHYSICAL DAMAGE". Empty for null/blank input.</summary>
+        /// "#% INCREASED PHYSICAL DAMAGE". Strips GGG markup tags so a listing's
+        /// "69% increased [Physical] Damage" matches a build's plain "…Physical Damage". Empty for blank.</summary>
         public static string Templatize(string? text)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
                 return string.Empty;
             }
-            string withHashes = NumberRegex.Replace(text, "#");
+            string unmarked = MarkupRegex.Replace(text, "$1");
+            string withHashes = NumberRegex.Replace(unmarked, "#");
             // Upper-case so matching is case-insensitive (analyzers prefer ToUpperInvariant).
             return WhitespaceRegex.Replace(withHashes, " ").Trim().ToUpperInvariant();
         }

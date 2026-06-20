@@ -220,11 +220,17 @@ namespace LootPulse.Services.Trade
         {
             if (item?.ExplicitMods != null)
             {
-                foreach (var m in item.ExplicitMods) yield return m;
+                foreach (var m in item.ExplicitMods)
+                {
+                    if (m?.Description is { Length: > 0 } d) yield return d;
+                }
             }
             if (item?.ImplicitMods != null)
             {
-                foreach (var m in item.ImplicitMods) yield return m;
+                foreach (var m in item.ImplicitMods)
+                {
+                    if (m?.Description is { Length: > 0 } d) yield return d;
+                }
             }
         }
 
