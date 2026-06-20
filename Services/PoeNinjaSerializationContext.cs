@@ -6,15 +6,27 @@ namespace LootPulse.Services
     [JsonSerializable(typeof(NinjaExchangeResponse))]
     [JsonSerializable(typeof(NinjaCurrencyRoot))]
     [JsonSerializable(typeof(NinjaItemRoot))]
-    internal sealed partial class PoeNinjaJsonContext : JsonSerializerContext
-    {
-    }
+    [JsonSerializable(typeof(NinjaStashResponse))]
+    internal sealed partial class PoeNinjaJsonContext : JsonSerializerContext;
 
     // New PoE2 Economy Models
     public record NinjaExchangeResponse(
         [property: JsonPropertyName("core")] NinjaExchangeCore? Core,
         [property: JsonPropertyName("lines")] List<NinjaExchangeLine>? Lines,
         [property: JsonPropertyName("items")] List<NinjaExchangeCoreItem>? Items
+    );
+
+    public record NinjaStashResponse(
+        [property: JsonPropertyName("core")] NinjaExchangeCore? Core,
+        [property: JsonPropertyName("lines")] List<NinjaStashLine>? Lines
+    );
+
+    public record NinjaStashLine(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("detailsId")] string DetailsId,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("baseType")] string BaseType,
+        [property: JsonPropertyName("primaryValue")] double PrimaryValue
     );
 
     public record NinjaExchangeCore(

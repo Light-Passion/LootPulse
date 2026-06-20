@@ -14,7 +14,7 @@ namespace LootPulse
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching generic Exception in UI controllers and event handlers is necessary to prevent app crashes and display error alerts to the user.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "This desktop overlay utility does not support localized resource tables.")]
-    public partial class StyleEditorWindow : Window
+    public partial class StyleEditorControl : UserControl
     {
         private const string _uniquesCategory = "Uniques";
         private const string _defaultThemeName = "Default LootPulse";
@@ -31,6 +31,12 @@ namespace LootPulse
         private const string _unknownTargetMessage = "Unknown target";
         private const double _floatEpsilon = 1e-10;
 
+        /// <summary>
+        /// Invoked when the user clicks "Save &amp; Apply". The argument is the edited theme,
+        /// which the host should persist and use to regenerate the loot filter.
+        /// </summary>
+        public Action<FilterTheme>? ThemeApplied { get; set; }
+
         public FilterTheme WorkingTheme { get; private set; }
         private readonly Dictionary<string, FilterTheme> _presets = [];
         private readonly string _presetsFilePath;
@@ -38,7 +44,7 @@ namespace LootPulse
         private bool _isSynchronizing;
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
-        public StyleEditorWindow(FilterTheme currentTheme)
+        public StyleEditorControl(FilterTheme currentTheme)
         {
             InitializeComponent();
 
@@ -66,32 +72,20 @@ namespace LootPulse
             LoadCategoryState(_currentCategory);
         }
 
-        private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
-            {
-                this.DragMove();
-            }
-        }
-
-        private void Close_Click(object sender, RoutedEventArgs e)
-        {
-            this.DialogResult = false;
-            this.Close();
-        }
-
-        private void Cancel_Click(object sender, RoutedEventArgs e)
-        {
-            Close_Click(sender, e);
-        }
-
         private void SaveApply_Click(object sender, RoutedEventArgs e)
         {
             // Save state of current category
             SaveCategoryState(_currentCategory);
 
-            this.DialogResult = true;
-            this.Close();
+            // Hand the edited theme back to the host to persist & regenerate the filter.
+            string json = JsonSerializer.Serialize(WorkingTheme);
+            var applied = JsonSerializer.Deserialize<FilterTheme>(json) ?? new FilterTheme();
+            ThemeApplied?.Invoke(applied);
+
+            if (FooterStatusText != null)
+            {
+                FooterStatusText.Text = "Saved & applied. Your loot filter has been regenerated.";
+            }
         }
 
         #region Swatches Grid Setup
@@ -626,20 +620,23 @@ namespace LootPulse
 
         #endregion
 
+        #endregion
+
         private void ScreenPicker_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
             string target = btn.Tag?.ToString() ?? "";
 
-            // Hide the style editor window briefly to pick colors on screen
-            this.Hide();
+            // Hide the host window briefly so colors can be picked from the screen behind it.
+            var hostWindow = Window.GetWindow(this);
+            hostWindow?.Hide();
             System.Threading.Thread.Sleep(150);
 
             Color? pickedColor = ScreenColorPicker.ShowPicker();
 
-            // Re-show style editor
-            this.Show();
-            this.Activate();
+            // Re-show the host window
+            hostWindow?.Show();
+            hostWindow?.Activate();
 
             if (pickedColor.HasValue)
             {
@@ -674,8 +671,6 @@ namespace LootPulse
                 }
             }
         }
-
-        #endregion
 
         #region Sound Picker
 

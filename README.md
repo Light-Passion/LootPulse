@@ -39,9 +39,10 @@ The tool provides a transparent, click-through overlay window that monitors your
 ## ⚙️ Getting Started
 
 ### Install (end users)
-Download the latest `LootPulse-Setup-<version>.exe` and run it. The installer is **per-user** (no admin
-rights required), detects any existing install and **upgrades in place**, and won't downgrade over a
-newer version.
+Download the latest `LootPulse-Setup-<version>.exe` from the
+[**Releases**](https://github.com/Light-Passion/LootPulse/releases/latest) page and run it. The installer
+is **per-user** (no admin rights required), detects any existing install and **upgrades in place**, and
+won't downgrade over a newer version.
 
 **Runtime requirements:**
 - [.NET 9 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/9.0/runtime) — the

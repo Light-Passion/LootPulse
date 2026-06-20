@@ -27,6 +27,8 @@ TradeTestBuild/
 # Installer build artifacts (keep the .iss/.ps1 source, ignore outputs)
 installer/staging/
 installer/Output/
+installer.log
+installer_install.log
 
 # OS generated files
 .DS_Store

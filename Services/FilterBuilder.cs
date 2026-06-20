@@ -14,7 +14,9 @@ namespace LootPulse.Services
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S107:Methods should not have too many parameters", Justification = "Parameters represent the essential config context (path, items, build, levels, thresholds, themes) needed for the single-pass filter generation.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325:Methods and properties that don't access instance data should be static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
-    public class FilterBuilder
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Economy highlights are temporarily disabled per user request but the methods are retained for the future end-game feature.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Parameters represent the essential config context (thresholds) retained for public API compatibility.")]
+    public partial class FilterBuilder
     {
         private const string _sectionSeparator = "# --------------------------------------------------";
         private const string _baseTypePrefix = "    BaseType";
@@ -39,6 +41,9 @@ namespace LootPulse.Services
         {
             try
             {
+                _ = tier1Threshold;
+                _ = tier2Threshold;
+
                 activeTheme ??= new FilterTheme();
                 marketItems ??= [];
 
@@ -61,9 +66,7 @@ namespace LootPulse.Services
                 List<MarketItem> tier2Items = [];
                 if (showEconomyHighlights)
                 {
-                    tier1Items = GetTier1EconomyItems(marketItems, tier1Threshold);
-                    tier2Items = GetTier2EconomyItems(marketItems, tier1Threshold, tier2Threshold);
-                    AppendDynamicEconomyHighlights(sb, tier1Items, tier2Items, activeTheme);
+                    // Disabled for now: economy thresholds are being rethought as a future end-game feature.
                 }
 
                 var highlightedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -156,7 +159,7 @@ namespace LootPulse.Services
         {
             if (activeBuild == null) return [];
 
-            return activeBuild.InventorySlots
+            return [.. activeBuild.InventorySlots
                 .Where(slot => !string.IsNullOrWhiteSpace(slot.ItemName) && !string.IsNullOrEmpty(slot.UniqueName))
                 .Where(slot => {
                     if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
@@ -164,8 +167,7 @@ namespace LootPulse.Services
                 })
                 .Select(slot => GetUniqueBaseType(slot.ItemName, marketItems))
                 .Where(baseType => !string.IsNullOrEmpty(baseType))
-                .Distinct()
-                .ToList();
+                .Distinct()];
         }
 
         private static void AppendUniqueHighlights(StringBuilder sb, PoeBuild? activeBuild, int playerLevel, List<string> buildUniqueItems, FilterTheme activeTheme)
@@ -273,7 +275,7 @@ namespace LootPulse.Services
         {
             if (activeBuild == null) return [];
 
-            return activeBuild.Skills
+            return [.. activeBuild.Skills
                 .Where(skill => {
                     var name = !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id);
                     if (string.IsNullOrWhiteSpace(name)) return false;
@@ -281,8 +283,7 @@ namespace LootPulse.Services
                     return playerLevel >= skill.LevelInterval[0] && playerLevel <= skill.LevelInterval[1];
                 })
                 .Select(skill => !string.IsNullOrWhiteSpace(skill.Name) ? skill.Name : GetGemNameFromId(skill.Id))
-                .Distinct()
-                .ToList();
+                .Distinct()];
         }
 
         // PoE2 does not drop pre-named skill/support gems on the ground - only the generic
@@ -301,17 +302,17 @@ namespace LootPulse.Services
             sb.AppendLine();
         }
 
-        private static List<MarketItem> GetTier1EconomyItems(List<MarketItem> marketItems, double tier1Threshold)
+        internal static List<MarketItem> GetTier1EconomyItems(List<MarketItem> marketItems, double tier1Threshold)
         {
-            return marketItems.Where(i => i.DivineValue >= tier1Threshold && i.Category != "Exchange Rate").ToList();
+            return [.. marketItems.Where(i => i.DivineValue >= tier1Threshold && i.Category != "Exchange Rate")];
         }
 
-        private static List<MarketItem> GetTier2EconomyItems(List<MarketItem> marketItems, double tier1Threshold, double tier2Threshold)
+        internal static List<MarketItem> GetTier2EconomyItems(List<MarketItem> marketItems, double tier1Threshold, double tier2Threshold)
         {
-            return marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold && i.Category != "Exchange Rate").ToList();
+            return [.. marketItems.Where(i => i.ExaltedValue >= tier2Threshold && i.DivineValue < tier1Threshold && i.Category != "Exchange Rate")];
         }
 
-        private static void AppendDynamicEconomyHighlights(StringBuilder sb, List<MarketItem> tier1Items, List<MarketItem> tier2Items, FilterTheme activeTheme)
+        internal static void AppendDynamicEconomyHighlights(StringBuilder sb, List<MarketItem> tier1Items, List<MarketItem> tier2Items, FilterTheme activeTheme)
         {
             sb.AppendLine(_sectionSeparator);
             sb.AppendLine("# DYNAMIC ECONOMY HIGHLIGHTS (poe.ninja)");
@@ -374,7 +375,8 @@ namespace LootPulse.Services
             }
         }
 
-        private static readonly Regex _quotedTokenRegex = new("\"([^\"]*)\"", RegexOptions.Compiled);
+        [GeneratedRegex("\"([^\"]*)\"")]
+        private static partial Regex QuotedTokenRegex();
 
         private static readonly HashSet<string> _styleDirectiveKeywords = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -473,7 +475,7 @@ namespace LootPulse.Services
 
         private static (string Line, bool RemovedAny, bool HasTokens) RemoveQuotedTokens(string line, HashSet<string> highlightedNames)
         {
-            var matches = _quotedTokenRegex.Matches(line);
+            var matches = QuotedTokenRegex().Matches(line);
             if (matches.Count == 0) return (line, false, false);
 
             var keptTokens = new List<string>();

@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -47,6 +49,7 @@ namespace LootPulse
         private string? _selectedBaseFilterPath;
         private FileSystemWatcher? _baseFilterWatcher;
         private bool _isBaseFilterMissingOnStartup;
+        private bool _isUiInitialized;
 
         // Win32 Interop Constants
         private const int _hotkeyId = 9000;
@@ -56,12 +59,15 @@ namespace LootPulse
         private const string _exaltedOrbName = "Exalted Orb";
         private const string _chaosOrbName = "Chaos Orb";
         private const string _mirrorName = "Mirror of Kalandra";
+        private const string _exchangeRateCategory = "Exchange Rate";
 
         private const string _myGamesFolder = "My Games";
         private const string _poe2Folder = "Path of Exile 2";
         private const string _clientLogFile = "Client.txt";
         private const string _steamappsFolder = "steamapps";
         private const string _commonFolder = "common";
+        private const string _darkMenuItemStyleKey = "DarkMenuItem";
+        private const string _darkContextMenuStyleKey = "DarkContextMenu";
 
         private readonly HudWindow? _hudWindow;
         private readonly AppSettings _appSettings = new();
@@ -136,6 +142,13 @@ namespace LootPulse
             // Load Saved Theme
             LoadActiveTheme();
 
+            // Host the loot-filter style editor in the "Filter Styles" dashboard tab.
+            var styleEditor = new StyleEditorControl(ActiveTheme)
+            {
+                ThemeApplied = StyleEditor_ThemeApplied
+            };
+            FilterStylesHost.Content = styleEditor;
+
             // Mock list view items until sync
             LoadMockItems();
         }
@@ -178,6 +191,9 @@ namespace LootPulse
 
             // Restore the last used .build file and refresh economy data automatically
             _ = InitializeStartupDataAsync();
+
+            // Defer setting _isUiInitialized to true until the UI is fully loaded and idle
+            Dispatcher.BeginInvoke(new Action(() => _isUiInitialized = true), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         protected override void OnClosed(EventArgs e)
@@ -405,21 +421,106 @@ namespace LootPulse
                 activeLeague = "Runes of Aldur";
             }
 
-            var fetchedCurrencies = await _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
-            var fetchedGems = await _ninjaClient.FetchItemPricesAsync(activeLeague, "SkillGem", "Gems");
-            var fetchedUniques = await _ninjaClient.FetchItemPricesAsync(activeLeague, "UniqueWeapon", "Unique Weapons");
+            try
+            {
+                var currencyTask = _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
 
-            _marketItems.Clear();
-            _marketItems.AddRange(fetchedCurrencies);
-            _marketItems.AddRange(fetchedGems);
-            _marketItems.AddRange(fetchedUniques);
-            NormalizeMarketValues(_marketItems);
-            AddPinnedExchangeRateItem();
+                var categoryTasks = new List<(string Type, string Name, Task<List<MarketItem>> Task)>();
+                var categories = new[]
+                {
+                    // Exchange Commodities
+                    ("Fragments", "Fragments"),
+                    ("Runes", "Runes"),
+                    ("SoulCores", "Soul Cores"),
+                    ("Essences", "Essences"),
+                    ("Ritual", "Omens"),
+                    ("Abyss", "Abyssal Bones"),
+                    ("UncutGems", "Gems"),
+                    ("LineageSupportGems", "Lineage Support Gems"),
+                    ("Idols", "Idols"),
+                    ("Expedition", "Expedition"),
+                    ("Delirium", "Liquid Emotions"),
+                    ("Breach", "Breach Catalysts"),
+                    ("Verisium", "Verisium"),
 
-            ItemListView.ItemsSource = null;
-            ItemListView.ItemsSource = _marketItems;
+                    // Unique Items
+                    ("UniqueWeapons", "Unique Weapons"),
+                    ("UniqueArmours", "Unique Armour"),
+                    ("UniqueAccessories", "Unique Accessories"),
+                    ("UniqueFlasks", "Unique Flasks"),
+                    ("UniqueCharms", "Unique Charms"),
+                    ("UniqueJewels", "Unique Jewels"),
+                    ("UniqueSanctumRelics", "Unique Relics"),
+                    ("UniqueTablets", "Unique Tablets"),
+                    ("PrecursorTablets", "Precursor Tablets")
+                };
 
-            TriggerFilterRegeneration();
+                foreach (var cat in categories)
+                {
+                    categoryTasks.Add((cat.Item1, cat.Item2, _ninjaClient.FetchItemPricesAsync(activeLeague, cat.Item1, cat.Item2)));
+                }
+
+                var allTasks = new List<Task> { currencyTask };
+                foreach (var ct in categoryTasks)
+                {
+                    allTasks.Add(ct.Task);
+                }
+
+                try
+                {
+                    await Task.WhenAll(allTasks);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"One or more poe.ninja category sync tasks failed: {ex.Message}");
+                }
+
+                var allItems = new List<MarketItem>();
+                try
+                {
+                    var currencyItems = await currencyTask;
+                    if (currencyItems != null)
+                    {
+                        allItems.AddRange(currencyItems);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to fetch Currency category: {ex.Message}");
+                }
+
+                foreach (var ct in categoryTasks)
+                {
+                    try
+                    {
+                        var items = await ct.Task;
+                        if (items != null)
+                        {
+                            allItems.AddRange(items);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to fetch category {ct.Type}: {ex.Message}");
+                    }
+                }
+
+                _marketItems.Clear();
+                _marketItems.AddRange(allItems);
+
+                NormalizeMarketValues(_marketItems);
+                AddPinnedExchangeRateItem();
+                UpdateCategoryDropdown();
+                ApplyCategoryFilter();
+
+                TriggerFilterRegeneration();
+                StatusText.Text = "Sync complete. All economy categories updated.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Sync failed: {ex.Message}";
+                Debug.WriteLine($"Error during parallel economy sync: {ex.Message}");
+            }
         }
 
         // ---- Trade Market tab (PoE2 trade2 API) ----
@@ -619,7 +720,7 @@ namespace LootPulse
             var lines = additionalText.Split('\n');
             for (int i = 1; i < lines.Length; i++)
             {
-                string text = AffixPrefixRegex.Replace(lines[i], string.Empty).Trim();
+                string text = AffixPrefixRegex().Replace(lines[i], string.Empty).Trim();
                 if (text.Length > 0)
                 {
                     yield return new BuildAffix { Text = text };
@@ -627,8 +728,8 @@ namespace LootPulse
             }
         }
 
-        private static readonly System.Text.RegularExpressions.Regex AffixPrefixRegex =
-            new(@"^\s*\d+\.\s*", System.Text.RegularExpressions.RegexOptions.Compiled);
+        [GeneratedRegex(@"^\s*\d+\.\s*")]
+        private static partial Regex AffixPrefixRegex();
 
         // Current Divine/Exalted → Chaos rates from loaded poe.ninja data; falls back to defaults.
         private CurrencyRates BuildCurrencyRates()
@@ -843,7 +944,8 @@ namespace LootPulse
             ];
             NormalizeMarketValues(_marketItems);
             AddPinnedExchangeRateItem();
-            ItemListView.ItemsSource = _marketItems;
+            UpdateCategoryDropdown();
+            ApplyCategoryFilter();
         }
 
         private void LoadActiveTheme()
@@ -881,15 +983,12 @@ namespace LootPulse
             }
         }
 
-        private void CustomizeStyles_Click(object sender, RoutedEventArgs e)
+        // The "Filter Styles" tab invokes this when the user clicks Save & Apply.
+        private void StyleEditor_ThemeApplied(FilterTheme theme)
         {
-            var editor = new StyleEditorWindow(ActiveTheme) { Owner = this };
-            if (editor.ShowDialog() == true)
-            {
-                ActiveTheme = editor.WorkingTheme;
-                SaveActiveTheme();
-                TriggerFilterRegeneration();
-            }
+            ActiveTheme = theme;
+            SaveActiveTheme();
+            TriggerFilterRegeneration();
         }
 
         // --- Settings & Base Filter Merging Methods ---
@@ -979,7 +1078,7 @@ namespace LootPulse
 
             if (resolvedLogPath != loadedLogPath || resolvedFilterPath != loadedFilterPath)
             {
-                SaveSettings();
+                SaveSettings(force: true);
             }
         }
 
@@ -1173,8 +1272,9 @@ namespace LootPulse
             return Path.Combine(defaultDir, "LootPulse_Only.filter");
         }
 
-        private void SaveSettings()
+        private void SaveSettings(bool force = false)
         {
+            if (!_isUiInitialized && !force) return;
             try
             {
                 string settingsFile = GetSettingsFilePath();
@@ -1225,18 +1325,53 @@ namespace LootPulse
             return Path.GetFileName(filepath);
         }
 
+        private void UpdateSelectedFilterDisplayText()
+        {
+            if (string.IsNullOrEmpty(_selectedBaseFilterPath))
+            {
+                SelectedFilterNameText.Text = "Base Filter: None (LootPulse Highlights Only)";
+            }
+            else
+            {
+                string displayName = "Unknown Filter";
+                if (BaseFilterButton.ContextMenu != null)
+                {
+                    foreach (var obj in BaseFilterButton.ContextMenu.Items)
+                    {
+                        if (obj is MenuItem mi && mi.IsChecked)
+                        {
+                            displayName = mi.Header.ToString() ?? Path.GetFileName(_selectedBaseFilterPath);
+                            break;
+                        }
+                    }
+                }
+
+                if (displayName == "Unknown Filter")
+                {
+                    displayName = ParseFilterDisplayName(_selectedBaseFilterPath);
+                }
+
+                SelectedFilterNameText.Text = $"Base Filter: {displayName}";
+            }
+        }
+
         private void LoadBaseFilterOptions()
         {
-            BaseFilterComboBox.SelectionChanged -= BaseFilterComboBox_SelectionChanged;
-            BaseFilterComboBox.Items.Clear();
+            var contextMenu = new ContextMenu { Style = (Style)FindResource(_darkContextMenuStyleKey) };
 
-            var noneOption = new FilterOption { DisplayName = "None (LootPulse Highlights Only)", FilePath = string.Empty, IsSubscribed = false };
-            BaseFilterComboBox.Items.Add(noneOption);
+            var noneMenuItem = new MenuItem
+            {
+                Header = "None (LootPulse Highlights Only)",
+                Style = (Style)FindResource(_darkMenuItemStyleKey),
+                IsChecked = string.IsNullOrEmpty(_selectedBaseFilterPath)
+            };
+            noneMenuItem.Click += (s, e) => SelectBaseFilterOption(string.Empty, noneMenuItem);
+            contextMenu.Items.Add(noneMenuItem);
 
             string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string onlineFiltersDir = Path.Combine(myDocs, @"My Games\Path of Exile 2\OnlineFilters");
 
-            FilterOption? selectedOption = noneOption;
+            bool matchedAny = false;
 
             if (Directory.Exists(onlineFiltersDir))
             {
@@ -1246,18 +1381,17 @@ namespace LootPulse
                     foreach (var file in files)
                     {
                         string displayName = ParseFilterDisplayName(file);
-                        var option = new FilterOption
-                        {
-                            DisplayName = $"{displayName} (Subscribed)",
-                            FilePath = file,
-                            IsSubscribed = true
-                        };
-                        BaseFilterComboBox.Items.Add(option);
+                        bool isSelected = string.Equals(file, _selectedBaseFilterPath, StringComparison.OrdinalIgnoreCase);
+                        if (isSelected) matchedAny = true;
 
-                        if (string.Equals(file, _selectedBaseFilterPath, StringComparison.OrdinalIgnoreCase))
+                        var item = new MenuItem
                         {
-                            selectedOption = option;
-                        }
+                            Header = $"{displayName} (Subscribed)",
+                            Style = (Style)FindResource(_darkMenuItemStyleKey),
+                            IsChecked = isSelected
+                        };
+                        item.Click += (s, e) => SelectBaseFilterOption(file, item);
+                        contextMenu.Items.Add(item);
                     }
                 }
                 catch (Exception ex)
@@ -1266,18 +1400,18 @@ namespace LootPulse
                 }
             }
 
-            if (!string.IsNullOrEmpty(_selectedBaseFilterPath) && selectedOption == noneOption)
+            if (!string.IsNullOrEmpty(_selectedBaseFilterPath) && !matchedAny)
             {
                 if (File.Exists(_selectedBaseFilterPath))
                 {
-                    var customOption = new FilterOption
+                    var item = new MenuItem
                     {
-                        DisplayName = $"{Path.GetFileName(_selectedBaseFilterPath)} (Local)",
-                        FilePath = _selectedBaseFilterPath,
-                        IsSubscribed = false
+                        Header = $"{Path.GetFileName(_selectedBaseFilterPath)} (Local)",
+                        Style = (Style)FindResource(_darkMenuItemStyleKey),
+                        IsChecked = true
                     };
-                    BaseFilterComboBox.Items.Add(customOption);
-                    selectedOption = customOption;
+                    item.Click += (s, e) => SelectBaseFilterOption(_selectedBaseFilterPath, item);
+                    contextMenu.Items.Add(item);
                 }
                 else
                 {
@@ -1285,8 +1419,19 @@ namespace LootPulse
                 }
             }
 
-            BaseFilterComboBox.SelectedItem = selectedOption;
-            BaseFilterComboBox.SelectionChanged += BaseFilterComboBox_SelectionChanged;
+            contextMenu.Items.Add(new Separator { Style = (Style)FindResource("DarkMenuSeparator") });
+
+            var browseItem = new MenuItem
+            {
+                Header = "Browse for Local Filter File...",
+                Style = (Style)FindResource(_darkMenuItemStyleKey)
+            };
+            browseItem.Click += BrowseBaseFilter_Click;
+            contextMenu.Items.Add(browseItem);
+
+            BaseFilterButton.ContextMenu = contextMenu;
+
+            UpdateSelectedFilterDisplayText();
         }
 
         private void CheckMissingBaseFilter()
@@ -1307,8 +1452,8 @@ namespace LootPulse
                 else
                 {
                     _selectedBaseFilterPath = string.Empty;
-                    BaseFilterComboBox.SelectedIndex = 0;
-                    SaveSettings();
+                    _appSettings.SelectedBaseFilterPath = string.Empty;
+                    SaveSettings(force: true);
                     UpdateOutputFilterPath();
                     TriggerFilterRegeneration();
                 }
@@ -1394,39 +1539,58 @@ namespace LootPulse
 
         private void UpdateOutputFilterPath()
         {
-            if (BaseFilterComboBox.SelectedItem is FilterOption selectedOption)
+            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string folder = Path.Combine(myDocs, @"My Games\Path of Exile 2");
+
+            string namePart = "LootPulse_Only";
+            if (!string.IsNullOrEmpty(_selectedBaseFilterPath))
             {
-                string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                string folder = Path.Combine(myDocs, @"My Games\Path of Exile 2");
+                string cleanName = ParseFilterDisplayName(_selectedBaseFilterPath);
 
-                string namePart = "LootPulse_Only";
-                if (!string.IsNullOrEmpty(selectedOption.FilePath))
+                cleanName = cleanName
+                    .Replace(" (Subscribed)", "", StringComparison.Ordinal)
+                    .Replace(" (Local)", "", StringComparison.Ordinal);
+
+                foreach (char c in Path.GetInvalidFileNameChars())
                 {
-                    string cleanName = selectedOption.DisplayName
-                        .Replace(" (Subscribed)", "", StringComparison.Ordinal)
-                        .Replace(" (Local)", "", StringComparison.Ordinal);
-
-                    foreach (char c in Path.GetInvalidFileNameChars())
-                    {
-                        cleanName = cleanName.Replace(c.ToString(), "_", StringComparison.Ordinal);
-                    }
-                    namePart = $"{cleanName}_LootPulse";
+                    cleanName = cleanName.Replace(c.ToString(), "_", StringComparison.Ordinal);
                 }
+                namePart = $"{cleanName}_LootPulse";
+            }
 
-                FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
-                SaveSettings();
+            FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
+            SaveSettings();
+        }
+
+        private void BaseFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.ContextMenu != null)
+            {
+                btn.ContextMenu.PlacementTarget = btn;
+                btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                btn.ContextMenu.IsOpen = true;
             }
         }
 
-        private void BaseFilterComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
         {
-            if (BaseFilterComboBox.SelectedItem is FilterOption selectedOption)
+            _selectedBaseFilterPath = filePath;
+            SetupBaseFilterWatcher(_selectedBaseFilterPath);
+            UpdateOutputFilterPath();
+            TriggerFilterRegeneration();
+
+            if (BaseFilterButton.ContextMenu != null)
             {
-                _selectedBaseFilterPath = selectedOption.FilePath;
-                SetupBaseFilterWatcher(_selectedBaseFilterPath);
-                UpdateOutputFilterPath();
-                TriggerFilterRegeneration();
+                foreach (var obj in BaseFilterButton.ContextMenu.Items)
+                {
+                    if (obj is MenuItem mi)
+                    {
+                        mi.IsChecked = (mi == selectedItem);
+                    }
+                }
             }
+
+            UpdateSelectedFilterDisplayText();
         }
 
         private void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
@@ -1439,35 +1603,18 @@ namespace LootPulse
 
             if (ofd.ShowDialog() == true)
             {
-                string selectedPath = ofd.FileName;
+                _selectedBaseFilterPath = ofd.FileName;
+                SetupBaseFilterWatcher(_selectedBaseFilterPath);
+                UpdateOutputFilterPath();
+                TriggerFilterRegeneration();
 
-                FilterOption? existing = null;
-                foreach (FilterOption item in BaseFilterComboBox.Items)
-                {
-                    if (string.Equals(item.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        existing = item;
-                        break;
-                    }
-                }
-
-                if (existing == null)
-                {
-                    existing = new FilterOption
-                    {
-                        DisplayName = $"{Path.GetFileName(selectedPath)} (Local)",
-                        FilePath = selectedPath,
-                        IsSubscribed = false
-                    };
-                    BaseFilterComboBox.Items.Add(existing);
-                }
-
-                BaseFilterComboBox.SelectedItem = existing;
+                LoadBaseFilterOptions();
             }
         }
 
         private void OnHudPositionChanged(AppSettings updatedSettings)
         {
+            if (!_isUiInitialized) return;
             _appSettings.HudWidth = updatedSettings.HudWidth;
             _appSettings.HudHeight = updatedSettings.HudHeight;
             _appSettings.HudXPercent = updatedSettings.HudXPercent;
@@ -1502,6 +1649,7 @@ namespace LootPulse
 
         private void HudVisibleCheckBox_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isUiInitialized) return;
             if (_appSettings == null) return;
 
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
@@ -1518,6 +1666,7 @@ namespace LootPulse
 
         private void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isUiInitialized) return;
             if (_appSettings == null) return;
 
             _appSettings.ShowEconomyHighlights = EconomyHighlightsCheckBox.IsChecked == true;
@@ -1526,6 +1675,7 @@ namespace LootPulse
 
         private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (!_isUiInitialized) return;
             if (_appSettings == null || EditOpacitySlider == null || HudOpacitySlider == null) return;
 
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
@@ -1557,6 +1707,30 @@ namespace LootPulse
                 _hudWindow.RestorePosition();
             }
             StatusText.Text = "HUD size and position reset to defaults.";
+        }
+
+        private void SaveSettings_Click(object sender, RoutedEventArgs e)
+        {
+            string oldLogPath = _appSettings.LogPath;
+            string oldBaseFilter = _appSettings.SelectedBaseFilterPath;
+
+            SaveSettings(force: true);
+
+            // Restart log monitor if path changed
+            if (LogPathBox.Text != oldLogPath && File.Exists(LogPathBox.Text))
+            {
+                _logMonitor.StopMonitoring();
+                _logMonitor.StartMonitoring(LogPathBox.Text);
+            }
+
+            // Re-setup base filter watcher if changed
+            if (_selectedBaseFilterPath != oldBaseFilter)
+            {
+                SetupBaseFilterWatcher(_selectedBaseFilterPath);
+            }
+
+            TriggerFilterRegeneration();
+            StatusText.Text = "Settings saved successfully.";
         }
 
         private void InitializeTrayIcon()
@@ -1729,6 +1903,16 @@ namespace LootPulse
         {
             if (items == null) return;
 
+            var (divinePriceInChaos, exaltedPriceInChaos) = ResolveCurrencyRates(items);
+
+            foreach (var item in items)
+            {
+                NormalizeItemValues(item, divinePriceInChaos, exaltedPriceInChaos);
+            }
+        }
+
+        private static (double divinePriceInChaos, double exaltedPriceInChaos) ResolveCurrencyRates(List<MarketItem> items)
+        {
             double divinePriceInChaos = 120.0;
             double exaltedPriceInChaos = 15.0;
 
@@ -1744,31 +1928,33 @@ namespace LootPulse
                 exaltedPriceInChaos = exOrb.ChaosValue;
             }
 
-            foreach (var item in items)
-            {
-                if (item.DivineValue <= 0 && item.ChaosValue > 0)
-                {
-                    item.DivineValue = item.ChaosValue / divinePriceInChaos;
-                }
-                if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
-                {
-                    item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
-                }
+            return (divinePriceInChaos, exaltedPriceInChaos);
+        }
 
-                if (item.ChaosValue <= 0 && item.DivineValue > 0)
-                {
-                    item.ChaosValue = item.DivineValue * divinePriceInChaos;
-                }
-                if (item.ExaltedValue <= 0 && item.DivineValue > 0)
-                {
-                    item.ExaltedValue = item.DivineValue * (divinePriceInChaos / exaltedPriceInChaos);
-                }
+        private static void NormalizeItemValues(MarketItem item, double divinePriceInChaos, double exaltedPriceInChaos)
+        {
+            if (item.DivineValue <= 0 && item.ChaosValue > 0)
+            {
+                item.DivineValue = item.ChaosValue / divinePriceInChaos;
+            }
+            if (item.ExaltedValue <= 0 && item.ChaosValue > 0)
+            {
+                item.ExaltedValue = item.ChaosValue / exaltedPriceInChaos;
+            }
+
+            if (item.ChaosValue <= 0 && item.DivineValue > 0)
+            {
+                item.ChaosValue = item.DivineValue * divinePriceInChaos;
+            }
+            if (item.ExaltedValue <= 0 && item.DivineValue > 0)
+            {
+                item.ExaltedValue = item.DivineValue * (divinePriceInChaos / exaltedPriceInChaos);
             }
         }
 
         private void AddPinnedExchangeRateItem()
         {
-            _marketItems.RemoveAll(i => i.Category == "Exchange Rate");
+            _marketItems.RemoveAll(i => i.Category == _exchangeRateCategory);
 
             // Rank every other commodity highest-to-lowest in Divine terms, so the pinned
             // reference item inserted below always sits above a sensibly ordered list.
@@ -1793,11 +1979,63 @@ namespace LootPulse
             var exchangeRateItem = new MarketItem
             {
                 Name = _divineOrbName,
-                Category = "Exchange Rate",
+                Category = _exchangeRateCategory,
                 ExaltedValue = rate,
                 LastUpdated = DateTime.UtcNow
             };
             _marketItems.Insert(0, exchangeRateItem);
+        }
+
+        private void UpdateCategoryDropdown()
+        {
+            if (EconomyCategoryComboBox == null) return;
+
+            string? currentSelection = EconomyCategoryComboBox.SelectedItem as string;
+
+            List<string> categories = [.. _marketItems
+                .Select(i => i.Category)
+                .Distinct()
+                .Where(c => c != _exchangeRateCategory && !string.IsNullOrEmpty(c))];
+
+            categories.Sort();
+            categories.Insert(0, "All Categories");
+
+            EconomyCategoryComboBox.SelectionChanged -= EconomyCategoryComboBox_SelectionChanged;
+            EconomyCategoryComboBox.ItemsSource = categories;
+
+            if (currentSelection is not null && categories.Contains(currentSelection))
+            {
+                EconomyCategoryComboBox.SelectedItem = currentSelection;
+            }
+            else
+            {
+                EconomyCategoryComboBox.SelectedIndex = 0;
+            }
+            EconomyCategoryComboBox.SelectionChanged += EconomyCategoryComboBox_SelectionChanged;
+        }
+
+        private void ApplyCategoryFilter()
+        {
+            if (EconomyCategoryComboBox == null || ItemListView == null) return;
+
+            string selectedCategory = (EconomyCategoryComboBox.SelectedItem as string) ?? "All Categories";
+
+            if (selectedCategory == "All Categories")
+            {
+                ItemListView.ItemsSource = null;
+                ItemListView.ItemsSource = _marketItems;
+            }
+            else
+            {
+                var filtered = _marketItems.Where(i => i.Category == _exchangeRateCategory || i.Category == selectedCategory).ToList();
+                ItemListView.ItemsSource = null;
+                ItemListView.ItemsSource = filtered;
+            }
+        }
+
+        private void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyCategoryFilter();
         }
 
         private async Task LoadBuildUniquePricesAsync(PoeBuild build)
@@ -1850,8 +2088,8 @@ namespace LootPulse
             {
                 NormalizeMarketValues(_marketItems);
                 AddPinnedExchangeRateItem();
-                ItemListView.ItemsSource = null;
-                ItemListView.ItemsSource = _marketItems;
+                UpdateCategoryDropdown();
+                ApplyCategoryFilter();
                 StatusText.Text = $"Loaded build: {build.Name} (fetched missing unique prices)";
             }
         }
