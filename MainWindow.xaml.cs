@@ -705,6 +705,16 @@ namespace LootPulse
                         _activeBuild = build;
                         BuildNameText.Text = build.Name;
                         StatusText.Text = $"Loaded PoB build: {build.Name}";
+
+                        // Cache the imported build to a .build file and remember it, so it auto-loads
+                        // next launch (PoB imports have no source file path of their own).
+                        string cachePath = GetCachedBuildPath();
+                        if (_buildParser.SaveBuildFile(build, cachePath))
+                        {
+                            _appSettings.BuildFilePath = cachePath;
+                            SaveSettings();
+                        }
+
                         await LoadBuildUniquePricesAsync(build);
                         TriggerFilterRegeneration();
                         return;
@@ -888,6 +898,15 @@ namespace LootPulse
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(appData, "LootPulse", "settings.json");
+        }
+
+        // Where a PoB-imported build is cached so it can be auto-loaded next launch.
+        private static string GetCachedBuildPath()
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string dir = Path.Combine(appData, "LootPulse");
+            Directory.CreateDirectory(dir);
+            return Path.Combine(dir, "last_build.build");
         }
 
         private void LoadSettings()
