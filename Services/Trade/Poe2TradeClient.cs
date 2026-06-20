@@ -313,7 +313,9 @@ namespace LootPulse.Services.Trade
                 : null;
 
             var query = new TradeQuery(
-                Status: new TradeStatus("online"),
+                // "securable" = Instant Buyout listings (auto-purchasable; seller needn't be online),
+                // which is what we want to surface — not "online" (In Person). Verified live on trade2.
+                Status: new TradeStatus("securable"),
                 Stats: new[] { statGroup },
                 Filters: new TradeFilters(
                     TypeFilters: typeFilters,
