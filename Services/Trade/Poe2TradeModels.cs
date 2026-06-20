@@ -78,11 +78,16 @@ namespace LootPulse.Services.Trade
 
     public record TradeMinMax(
         [property: JsonPropertyName("min")] int? Min = null,
-        [property: JsonPropertyName("max")] int? Max = null
+        [property: JsonPropertyName("max")] int? Max = null,
+        // Best-in-slot: a stat filter's weight inside a "weight"/"weight2" group.
+        [property: JsonPropertyName("weight")] double? Weight = null
     );
 
+    // Sort by price (Cheapest mode) or by the weighted stat group "statgroup.0" (Best-in-slot).
+    // WhenWritingNull keeps only the populated key, so the body carries exactly one sort field.
     public record TradeSort(
-        [property: JsonPropertyName("price")] string Price
+        [property: JsonPropertyName("price")] string? Price = null,
+        [property: JsonPropertyName("statgroup.0")] string? StatGroup0 = null
     );
 
     // ---- Search response: { "id": "...", "total": N, "result": ["hash", ...] } ----

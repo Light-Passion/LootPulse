@@ -9,6 +9,9 @@ using LootPulse.Models;
 
 namespace LootPulse.Services.Trade
 {
+    /// <summary>A recommended build affix paired with the trade2 stat id it resolved to.</summary>
+    public sealed record ResolvedAffix(BuildAffix Affix, string StatId);
+
     /// <summary>
     /// Maps a build's human-readable recommended affix text (e.g. "253% increased Physical Damage")
     /// to the trade2 stat IDs that the search "stats" filter needs. Fetches GGG's stat table from
@@ -34,33 +37,34 @@ namespace LootPulse.Services.Trade
         }
 
         /// <summary>
-        /// Resolve the given affixes to presence-only stat filters (id only). Returns an empty list if
-        /// the stat table is unavailable or nothing matched.
+        /// Resolve the given affixes to their trade2 stat IDs, keeping the originating affix so callers
+        /// can weight each stat (Best-in-slot). De-duplicated by stat id. Empty if the table is
+        /// unavailable or nothing matched.
         /// </summary>
-        public async Task<IReadOnlyList<TradeStatFilter>> ResolveAsync(
+        public async Task<IReadOnlyList<ResolvedAffix>> ResolveDetailedAsync(
             IReadOnlyList<BuildAffix> affixes, CancellationToken ct = default)
         {
             if (affixes == null || affixes.Count == 0)
             {
-                return Array.Empty<TradeStatFilter>();
+                return Array.Empty<ResolvedAffix>();
             }
 
             var table = await EnsureTableAsync(ct).ConfigureAwait(false);
             if (table.Count == 0)
             {
-                return Array.Empty<TradeStatFilter>();
+                return Array.Empty<ResolvedAffix>();
             }
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            var filters = new List<TradeStatFilter>();
+            var resolved = new List<ResolvedAffix>();
             foreach (var affix in affixes)
             {
                 if (table.TryGetValue(TradeAffixText.Templatize(affix.Text), out var id) && seen.Add(id))
                 {
-                    filters.Add(new TradeStatFilter(id));
+                    resolved.Add(new ResolvedAffix(affix, id));
                 }
             }
-            return filters;
+            return resolved;
         }
 
         private async Task<Dictionary<string, string>> EnsureTableAsync(CancellationToken ct)

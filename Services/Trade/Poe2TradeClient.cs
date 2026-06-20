@@ -62,27 +62,28 @@ namespace LootPulse.Services.Trade
 
             var group = new TradeItemGroup { ItemLabel = item.Label, MaxLevel = characterLevel };
 
-            // Resolve the build's recommended affixes to stat IDs (presence-only); the count group then
-            // requires at least the user-selected number of them to be present on a listing.
-            IReadOnlyList<TradeStatFilter> statFilters = item.Affixes.Count > 0 && minMatchedAffixes > 0
-                ? await _statResolver.ResolveAsync(item.Affixes, ct).ConfigureAwait(false)
-                : Array.Empty<TradeStatFilter>();
+            // Resolve the build's recommended affixes to trade2 stat IDs. Needed for the Cheapest "count"
+            // filter (≥N present) and for the Best-in-slot "weight2" group (rank by per-slot weighting).
+            bool needAffixes = item.Affixes.Count > 0 && (mode == TradeSearchMode.BestInSlot || minMatchedAffixes > 0);
+            IReadOnlyList<ResolvedAffix> resolved = needAffixes
+                ? await _statResolver.ResolveDetailedAsync(item.Affixes, ct).ConfigureAwait(false)
+                : Array.Empty<ResolvedAffix>();
+
+            (TradeStatGroup statGroup, TradeSort sort, bool constrains) = BuildStatGroupAndSort(item, mode, resolved, minMatchedAffixes);
 
             // Primary search at the character's level — naturally limits results to affix tiers the
             // character can already equip.
-            var search = await RunSearchAsync(league, item, characterLevel, statFilters, minMatchedAffixes, ct)
-                .ConfigureAwait(false);
+            var search = await RunSearchAsync(league, item, characterLevel, statGroup, sort, ct).ConfigureAwait(false);
             int usedCap = characterLevel;
 
             // Fallback: if requiring those affixes left nothing equippable now, raise the cap a little
             // (levels come fast early, slow late) so the player can pre-buy something usable soon.
-            if (search.NoResults && statFilters.Count > 0)
+            if (search.NoResults && constrains)
             {
                 int overshootCap = characterLevel + LevelOvershoot(characterLevel);
                 if (overshootCap > characterLevel)
                 {
-                    var retry = await RunSearchAsync(league, item, overshootCap, statFilters, minMatchedAffixes, ct)
-                        .ConfigureAwait(false);
+                    var retry = await RunSearchAsync(league, item, overshootCap, statGroup, sort, ct).ConfigureAwait(false);
                     if (!retry.NoResults)
                     {
                         search = retry;
@@ -125,14 +126,15 @@ namespace LootPulse.Services.Trade
             IEnumerable<TradeListingRow> ranked;
             if (mode == TradeSearchMode.BestInSlot)
             {
-                // Best-in-slot: only listings within budget, ranked by the per-slot weighted score
-                // (best roll first), then cheaper as a tie-break.
+                // Best-in-slot: the server already ranked the candidates by the weighted-sum (weight2)
+                // group, so keep that order — just drop anything over budget. (If no affixes resolved,
+                // there's no weighting; fall back to a sensible cheapest order.)
                 IEnumerable<TradeListingRow> within = budgetExalted is { } cap
                     ? rows.Where(r => r.NormalizedExalted is { } v && v <= cap)
                     : rows;
-                ranked = within
-                    .OrderByDescending(r => r.Score)
-                    .ThenBy(r => r.NormalizedExalted ?? double.MaxValue);
+                ranked = constrains
+                    ? within
+                    : within.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
             }
             else
             {
@@ -163,9 +165,9 @@ namespace LootPulse.Services.Trade
         // One search request at a given level cap; returns the query id + result hashes (or an error).
         private async Task<SearchOutcome> RunSearchAsync(
             string league, TradeItemQuery item, int levelCap,
-            IReadOnlyList<TradeStatFilter> statFilters, int minMatchedAffixes, CancellationToken ct)
+            TradeStatGroup statGroup, TradeSort sort, CancellationToken ct)
         {
-            var requestBody = BuildSearchBody(item, levelCap, statFilters, minMatchedAffixes);
+            var requestBody = BuildSearchBody(item, levelCap, statGroup, sort);
             string json = JsonSerializer.Serialize(requestBody, Poe2TradeJsonContext.Default.TradeSearchRequest);
 
             // The API path has NO realm segment: "trade2" (vs PoE1 "trade") is what selects PoE2.
@@ -263,8 +265,34 @@ namespace LootPulse.Services.Trade
             public string? Error { get; init; }
         }
 
+        // Choose the stats group + sort for the request based on mode. Returns whether the group
+        // constrains results (so the caller knows an empty result is worth a level-overshoot retry).
+        private static (TradeStatGroup Group, TradeSort Sort, bool Constrains) BuildStatGroupAndSort(
+            TradeItemQuery item, TradeSearchMode mode, IReadOnlyList<ResolvedAffix> resolved, int minMatchedAffixes)
+        {
+            if (mode == TradeSearchMode.BestInSlot && resolved.Count > 0)
+            {
+                // Weight each recommended affix's stat by its per-slot priority, and let GGG rank by the
+                // normalized weighted sum (weight2). value.min = 1 → must carry at least one of them.
+                var weighted = resolved
+                    .Select(r => new TradeStatFilter(
+                        r.StatId,
+                        new TradeMinMax(Weight: BisWeighting.Weight(item.SlotId, BisWeighting.Categorize(r.Affix.Text)))))
+                    .ToArray();
+                var group = new TradeStatGroup("weight2", weighted, new TradeMinMax(Min: 1));
+                return (group, new TradeSort(StatGroup0: "desc"), true);
+            }
+
+            // Cheapest (or BIS with nothing resolved): require ≥N recommended affixes present, sort price.
+            int matchMin = Math.Min(minMatchedAffixes, resolved.Count);
+            TradeStatGroup countGroup = matchMin > 0
+                ? new TradeStatGroup("count", resolved.Select(r => new TradeStatFilter(r.StatId)).ToArray(), new TradeMinMax(Min: matchMin))
+                : new TradeStatGroup("and", Array.Empty<TradeStatFilter>());
+            return (countGroup, new TradeSort(Price: "asc"), matchMin > 0);
+        }
+
         private static TradeSearchRequest BuildSearchBody(
-            TradeItemQuery item, int maxLevel, IReadOnlyList<TradeStatFilter> statFilters, int minMatchedAffixes)
+            TradeItemQuery item, int maxLevel, TradeStatGroup statGroup, TradeSort sort)
         {
             // Base-type searches must exclude uniques (which share base-type names with rares/normals)
             // via the "Any Non-Unique" rarity filter. Unique-name searches stay unfiltered.
@@ -273,24 +301,17 @@ namespace LootPulse.Services.Trade
                 ? new TradeTypeFilters(new TradeTypeFilterValues(Rarity: new TradeOption("nonunique")))
                 : null;
 
-            // When the build supplies recommended affixes, require at least N of them to be present
-            // (N clamped to how many actually resolved). Otherwise send the empty "and" group as before.
-            int matchMin = Math.Min(minMatchedAffixes, statFilters.Count);
-            TradeStatGroup statGroup = matchMin > 0
-                ? new TradeStatGroup("count", statFilters, new TradeMinMax(Min: matchMin))
-                : new TradeStatGroup("and", Array.Empty<TradeStatFilter>());
-
             var query = new TradeQuery(
                 Status: new TradeStatus("online"),
                 Stats: new[] { statGroup },
                 Filters: new TradeFilters(
                     TypeFilters: typeFilters,
-                    // The requested feature: only items the character can currently equip.
+                    // Only items the character can equip at this cap (raised a little for buy-ahead).
                     ReqFilters: new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel)))),
                 Name: string.IsNullOrWhiteSpace(item.Name) ? null : item.Name,
                 Type: string.IsNullOrWhiteSpace(item.BaseType) ? null : item.BaseType
             );
-            return new TradeSearchRequest(query, new TradeSort("asc"));
+            return new TradeSearchRequest(query, sort);
         }
 
         private static string FormatPrice(TradePrice price)
