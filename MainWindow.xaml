@@ -523,6 +523,8 @@
                                                     <TextBox x:Name="BudgetDivineBox" Text="1" Width="50" Height="24" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
                                                              Background="#1C1C1C" Foreground="White" BorderBrush="#3A3A3A"
                                                              ToolTip="Maximum spend per item, in Divine Orbs. Listings above this are excluded in Best-in-slot mode."/>
+                                                    <TextBlock Text="site opens price-sorted — click Sum to match" Foreground="#888888" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                               ToolTip="LootPulse ranks by weighted Sum, but the trade site's link opens sorted by price. Click the Sum column on the site to match this order."/>
                                                 </StackPanel>
                                             </StackPanel>
                                             <TextBlock x:Name="TradeStatusText" Text="Cheapest listings you can equip now." Foreground="#888888" FontWeight="Normal" Margin="0,8,0,0"/>
