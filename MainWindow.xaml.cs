@@ -506,7 +506,7 @@ namespace LootPulse
             int minAffixMatches = ReadMinAffixMatches();
             bool bestInSlot = BestInSlotModeRadio?.IsChecked == true;
             TradeSearchMode mode = bestInSlot ? TradeSearchMode.BestInSlot : TradeSearchMode.Cheapest;
-            double? budgetExalted = bestInSlot ? ReadBudgetExalted(rates) : null;
+            double? budgetDivine = bestInSlot ? ReadBudgetDivine() : null;
 
             _isTradeSearchRunning = true;
             SearchTradeButton.IsEnabled = false;
@@ -519,7 +519,7 @@ namespace LootPulse
                 {
                     TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label}…";
                     TradeItemGroup group = await _tradeClient.SearchAsync(
-                        league, queries[i], maxLevel, rates, mode, minAffixMatches, budgetExalted);
+                        league, queries[i], maxLevel, rates, mode, minAffixMatches, budgetDivine);
                     _tradeGroups.Add(group);
                     RefreshTradeGroups();
                 }
@@ -648,13 +648,13 @@ namespace LootPulse
             return 0;
         }
 
-        // Per-item Best-in-slot budget, entered in Divine Orbs, converted to the Exalted base for
-        // comparison against normalized listing prices. Null (no/zero/invalid input) = no budget cap.
-        private double? ReadBudgetExalted(CurrencyRates rates)
+        // Per-item Best-in-slot budget in Divine Orbs, sent straight to the trade2 "Buyout Price" filter.
+        // Null (no/zero/invalid input) = no budget cap.
+        private double? ReadBudgetDivine()
         {
             if (double.TryParse(BudgetDivineBox?.Text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double div) && div > 0)
             {
-                return div * rates.DivineInExalted;
+                return div;
             }
             return null;
         }

@@ -53,7 +53,23 @@ namespace LootPulse.Services.Trade
 
     public record TradeFilters(
         [property: JsonPropertyName("type_filters")] TradeTypeFilters? TypeFilters = null,
-        [property: JsonPropertyName("req_filters")] TradeReqFilters? ReqFilters = null
+        [property: JsonPropertyName("req_filters")] TradeReqFilters? ReqFilters = null,
+        [property: JsonPropertyName("trade_filters")] TradeBuyoutFilters? BuyoutFilters = null
+    );
+
+    // Best-in-slot budget → the site's "Buyout Price" filter: { price: { max, option:"divine" } }.
+    public record TradeBuyoutFilters(
+        [property: JsonPropertyName("filters")] TradeBuyoutFilterValues Filters
+    );
+
+    public record TradeBuyoutFilterValues(
+        [property: JsonPropertyName("price")] TradePriceFilter Price
+    );
+
+    public record TradePriceFilter(
+        [property: JsonPropertyName("max")] double? Max = null,
+        [property: JsonPropertyName("option")] string? Option = null,
+        [property: JsonPropertyName("min")] double? Min = null
     );
 
     public record TradeTypeFilters(

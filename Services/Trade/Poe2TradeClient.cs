@@ -54,7 +54,7 @@ namespace LootPulse.Services.Trade
         public async Task<TradeItemGroup> SearchAsync(
             string league, TradeItemQuery item, int characterLevel, CurrencyRates rates,
             TradeSearchMode mode = TradeSearchMode.Cheapest,
-            int minMatchedAffixes = 0, double? budgetExalted = null, int take = 5,
+            int minMatchedAffixes = 0, double? budgetDivine = null, int take = 5,
             CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(item);
@@ -71,9 +71,13 @@ namespace LootPulse.Services.Trade
 
             (TradeStatGroup statGroup, TradeSort sort, bool constrains) = BuildStatGroupAndSort(item, mode, resolved, minMatchedAffixes);
 
+            // Best-in-slot budget → the server-side "Buyout Price" filter (in Divine), so the trade-site
+            // deep link and the in-app results agree. Cheapest mode is unbudgeted.
+            double? buyoutDivine = mode == TradeSearchMode.BestInSlot ? budgetDivine : null;
+
             // Primary search at the character's level — naturally limits results to affix tiers the
             // character can already equip.
-            var search = await RunSearchAsync(league, item, characterLevel, statGroup, sort, ct).ConfigureAwait(false);
+            var search = await RunSearchAsync(league, item, characterLevel, statGroup, sort, buyoutDivine, ct).ConfigureAwait(false);
             int usedCap = characterLevel;
 
             // Fallback: if requiring those affixes left nothing equippable now, raise the cap a little
@@ -83,7 +87,7 @@ namespace LootPulse.Services.Trade
                 int overshootCap = characterLevel + LevelOvershoot(characterLevel);
                 if (overshootCap > characterLevel)
                 {
-                    var retry = await RunSearchAsync(league, item, overshootCap, statGroup, sort, ct).ConfigureAwait(false);
+                    var retry = await RunSearchAsync(league, item, overshootCap, statGroup, sort, buyoutDivine, ct).ConfigureAwait(false);
                     if (!retry.NoResults)
                     {
                         search = retry;
@@ -101,7 +105,9 @@ namespace LootPulse.Services.Trade
             }
             if (search.NoResults)
             {
-                group.StatusText = usedCap > characterLevel ? $"no listings ≤ Lv {usedCap}" : "no listings found";
+                group.StatusText = buyoutDivine is { } b
+                    ? $"no listings within budget ({b:0.##} div)"
+                    : usedCap > characterLevel ? $"no listings ≤ Lv {usedCap}" : "no listings found";
                 return group;
             }
 
@@ -124,21 +130,16 @@ namespace LootPulse.Services.Trade
             var rows = BuildRows(fetched, item, rates);
 
             IEnumerable<TradeListingRow> ranked;
-            if (mode == TradeSearchMode.BestInSlot)
+            if (mode == TradeSearchMode.BestInSlot && constrains)
             {
-                // Best-in-slot: the server already ranked the candidates by the weighted-sum (weight2)
-                // group, so keep that order — just drop anything over budget. (If no affixes resolved,
-                // there's no weighting; fall back to a sensible cheapest order.)
-                IEnumerable<TradeListingRow> within = budgetExalted is { } cap
-                    ? rows.Where(r => r.NormalizedExalted is { } v && v <= cap)
-                    : rows;
-                ranked = constrains
-                    ? within
-                    : within.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
+                // Best-in-slot: the server already filtered to within budget and ranked by the
+                // weighted-sum (weight2) group, so keep that order as-is.
+                ranked = rows;
             }
             else
             {
-                // Cheapest: genuine cheapest across currencies (unvalued currencies sort last).
+                // Cheapest (or BIS with nothing to weight): genuine cheapest across currencies
+                // (unvalued currencies sort last). Budget, if any, was already applied server-side.
                 ranked = rows.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
             }
 
@@ -149,9 +150,7 @@ namespace LootPulse.Services.Trade
 
             if (group.Listings.Count == 0)
             {
-                group.StatusText = mode == TradeSearchMode.BestInSlot && budgetExalted != null
-                    ? "no listings within budget"
-                    : "no listings found";
+                group.StatusText = "no listings found";
             }
             else
             {
@@ -165,9 +164,9 @@ namespace LootPulse.Services.Trade
         // One search request at a given level cap; returns the query id + result hashes (or an error).
         private async Task<SearchOutcome> RunSearchAsync(
             string league, TradeItemQuery item, int levelCap,
-            TradeStatGroup statGroup, TradeSort sort, CancellationToken ct)
+            TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine, CancellationToken ct)
         {
-            var requestBody = BuildSearchBody(item, levelCap, statGroup, sort);
+            var requestBody = BuildSearchBody(item, levelCap, statGroup, sort, buyoutDivine);
             string json = JsonSerializer.Serialize(requestBody, Poe2TradeJsonContext.Default.TradeSearchRequest);
 
             // The API path has NO realm segment: "trade2" (vs PoE1 "trade") is what selects PoE2.
@@ -292,7 +291,7 @@ namespace LootPulse.Services.Trade
         }
 
         private static TradeSearchRequest BuildSearchBody(
-            TradeItemQuery item, int maxLevel, TradeStatGroup statGroup, TradeSort sort)
+            TradeItemQuery item, int maxLevel, TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine)
         {
             // Base-type searches must exclude uniques (which share base-type names with rares/normals)
             // via the "Any Non-Unique" rarity filter. Unique-name searches stay unfiltered.
@@ -301,13 +300,19 @@ namespace LootPulse.Services.Trade
                 ? new TradeTypeFilters(new TradeTypeFilterValues(Rarity: new TradeOption("nonunique")))
                 : null;
 
+            // Budget → the site's "Buyout Price" filter (max, in Divine). Verified live on trade2.
+            TradeBuyoutFilters? buyoutFilters = buyoutDivine is { } b
+                ? new TradeBuyoutFilters(new TradeBuyoutFilterValues(new TradePriceFilter(Max: b, Option: "divine")))
+                : null;
+
             var query = new TradeQuery(
                 Status: new TradeStatus("online"),
                 Stats: new[] { statGroup },
                 Filters: new TradeFilters(
                     TypeFilters: typeFilters,
                     // Only items the character can equip at this cap (raised a little for buy-ahead).
-                    ReqFilters: new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel)))),
+                    ReqFilters: new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel))),
+                    BuyoutFilters: buyoutFilters),
                 Name: string.IsNullOrWhiteSpace(item.Name) ? null : item.Name,
                 Type: string.IsNullOrWhiteSpace(item.BaseType) ? null : item.BaseType
             );
