@@ -41,6 +41,32 @@ namespace LootPulse.Services
             }
         }
 
+        private static readonly JsonSerializerOptions _writeOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+            WriteIndented = true
+        };
+
+        /// <summary>
+        /// Serializes a build back to a native .build JSON file (round-trips with <see cref="ParseBuildFile"/>).
+        /// Used to cache a PoB-imported build so it can be auto-loaded on the next launch.
+        /// </summary>
+        public bool SaveBuildFile(PoeBuild build, string filePath)
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(build, _writeOptions);
+                File.WriteAllText(filePath, json);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving build file: {ex.Message}");
+                return false;
+            }
+        }
+
         /// <summary>
         /// Decodes a Path of Building (PoB) URL-safe Base64 string and returns the raw XML content.
         /// </summary>

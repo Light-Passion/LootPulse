@@ -251,12 +251,19 @@
         </Style>
 
         <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
+            <Style.Resources>
+                <Style TargetType="MenuItem" BasedOn="{StaticResource DarkMenuItem}"/>
+                <Style TargetType="Separator">
+                    <Setter Property="Background" Value="#444444"/>
+                    <Setter Property="Margin" Value="0,4"/>
+                    <Setter Property="Height" Value="1"/>
+                </Style>
+            </Style.Resources>
             <Setter Property="Background" Value="#252525"/>
             <Setter Property="BorderBrush" Value="#444444"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="HasDropShadow" Value="True"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkMenuItem}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
@@ -266,6 +273,15 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Keyed separator style for context menus built in code-behind. A locally-set Style on the
+             Separator stops WPF's container generator from applying the implicit MenuItem style to it
+             (which throws "A style intended for type 'MenuItem' cannot be applied to type 'Separator'"). -->
+        <Style x:Key="DarkMenuSeparator" TargetType="Separator">
+            <Setter Property="Background" Value="#444444"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Height" Value="1"/>
         </Style>
     </Window.Resources>
 
@@ -380,9 +396,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="SelectedFilterNameText" Text="Base Filter: None (LootPulse Highlights Only)" Foreground="#FF6124" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="BuildNameText" Text="No active build loaded" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click">
+                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click" Margin="0,0,8,0">
                                                 <Button.ContextMenu>
                                                     <ContextMenu Style="{StaticResource DarkContextMenu}">
                                                         <MenuItem Header="Import PoB Share Code" Click="ImportPob_Click"/>
@@ -390,6 +407,7 @@
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                             </Button>
+                                            <Button x:Name="BaseFilterButton" Style="{StaticResource AccentButton}" Content="Select Base Filter  ▾" Click="BaseFilterButton_Click"/>
                                         </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" VerticalAlignment="Center" Margin="15,0,0,0" Click="SyncAll_Click"/>
@@ -408,94 +426,107 @@
 
                             <TextBlock Grid.Row="0" Text="COMMODITIES &amp; VALUABLES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}">
+                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}" SelectionChanged="CommoditiesTab_SelectionChanged">
                                 <!-- Tab 1: existing poe.ninja economy list -->
                                 <TabItem Header="Currency Exchange Rates" Style="{StaticResource DarkTabItem}">
-                                    <ListView x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" Margin="0,10,0,0" AlternationCount="2" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                        <ListView.ItemContainerStyle>
-                                            <Style TargetType="ListViewItem">
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="Margin" Value="0"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="ListViewItem">
-                                                            <Border Background="{TemplateBinding Background}" Padding="8,7">
-                                                                <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
-                                                            </Border>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                                <Style.Triggers>
-                                                    <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-                                                        <Setter Property="Background" Value="#202020"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#2A2A2A"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ListView.ItemContainerStyle>
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridView.ColumnHeaderContainerStyle>
-                                                    <Style TargetType="GridViewColumnHeader">
-                                                        <Setter Property="Background" Value="Transparent"/>
-                                                        <Setter Property="Foreground" Value="#888888"/>
-                                                        <Setter Property="FontSize" Value="10"/>
-                                                        <Setter Property="FontWeight" Value="Bold"/>
-                                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                        <Setter Property="Padding" Value="8,0,8,8"/>
-                                                        <Setter Property="BorderBrush" Value="#2C2C2C"/>
-                                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="GridViewColumnHeader">
-                                                                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                                                                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Bottom"/>
-                                                                    </Border>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Style>
-                                                </GridView.ColumnHeaderContainerStyle>
-                                                <GridViewColumn Width="340">
-                                                    <GridViewColumn.HeaderTemplate>
-                                                        <DataTemplate><TextBlock Text="NAME" HorizontalAlignment="Left"/></DataTemplate>
-                                                    </GridViewColumn.HeaderTemplate>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="160">
-                                                    <GridViewColumn.HeaderTemplate>
-                                                        <DataTemplate><TextBlock Text="CATEGORY" HorizontalAlignment="Left"/></DataTemplate>
-                                                    </GridViewColumn.HeaderTemplate>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Category}" Foreground="#888888"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="140">
-                                                    <GridViewColumn.HeaderTemplate>
-                                                        <DataTemplate><TextBlock Text="VALUE" HorizontalAlignment="Right"/></DataTemplate>
-                                                    </GridViewColumn.HeaderTemplate>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Category Filter Dropdown -->
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                            <TextBlock Text="Filter by Category:" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11" FontWeight="SemiBold"/>
+                                            <ComboBox x:Name="EconomyCategoryComboBox" Width="180" Height="26" Style="{StaticResource DarkComboBox}" SelectionChanged="EconomyCategoryComboBox_SelectionChanged"/>
+                                        </StackPanel>
+
+                                        <ListView Grid.Row="1" x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" AlternationCount="2" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                            <ListView.ItemContainerStyle>
+                                                <Style TargetType="ListViewItem">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Margin" Value="0"/>
+                                                    <Setter Property="BorderThickness" Value="0"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListViewItem">
+                                                                <Border Background="{TemplateBinding Background}" Padding="8,7">
+                                                                    <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"/>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                                            <Setter Property="Background" Value="#202020"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#2A2A2A"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListView.ItemContainerStyle>
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridView.ColumnHeaderContainerStyle>
+                                                        <Style TargetType="GridViewColumnHeader">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Foreground" Value="#888888"/>
+                                                            <Setter Property="FontSize" Value="10"/>
+                                                            <Setter Property="FontWeight" Value="Bold"/>
+                                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                            <Setter Property="Padding" Value="8,0,8,8"/>
+                                                            <Setter Property="BorderBrush" Value="#2C2C2C"/>
+                                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="GridViewColumnHeader">
+                                                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Bottom"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </GridView.ColumnHeaderContainerStyle>
+                                                    <GridViewColumn Width="340">
+                                                        <GridViewColumn.HeaderTemplate>
+                                                            <DataTemplate><TextBlock Text="NAME" HorizontalAlignment="Left"/></DataTemplate>
+                                                        </GridViewColumn.HeaderTemplate>
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                    <GridViewColumn Width="160">
+                                                        <GridViewColumn.HeaderTemplate>
+                                                            <DataTemplate><TextBlock Text="CATEGORY" HorizontalAlignment="Left"/></DataTemplate>
+                                                        </GridViewColumn.HeaderTemplate>
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Category}" Foreground="#888888"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                    <GridViewColumn Width="140">
+                                                        <GridViewColumn.HeaderTemplate>
+                                                            <DataTemplate><TextBlock Text="VALUE" HorizontalAlignment="Right"/></DataTemplate>
+                                                        </GridViewColumn.HeaderTemplate>
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding DisplayValue}" Foreground="#E5B560" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </Grid>
                                 </TabItem>
 
                                 <!-- Tab 2: PoE2 trade site listings for build items -->
-                                <TabItem Header="Trade Market" Style="{StaticResource DarkTabItem}">
+                                <TabItem x:Name="TradeMarketTab" Header="Trade Market" Style="{StaticResource DarkTabItem}">
                                     <Grid Margin="0,10,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -503,10 +534,31 @@
                                         </Grid.RowDefinitions>
 
                                         <!-- Action bar -->
-                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                                            <Button x:Name="ConnectTradeButton" Style="{StaticResource DarkButton}" Content="Connect Trade Account" Margin="0,0,10,0" Click="ConnectTradeAccount_Click"/>
-                                            <Button x:Name="SearchTradeButton" Style="{StaticResource AccentButton}" Content="Search Trade Market" Click="SearchTradeMarket_Click"/>
-                                            <TextBlock x:Name="TradeStatusText" Text="Cheapest listings you can equip now." Foreground="#888888" FontWeight="Normal" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button x:Name="ConnectTradeButton" Style="{StaticResource DarkButton}" Content="Connect Trade Account" Margin="0,0,10,0" Click="ConnectTradeAccount_Click"/>
+                                                <Button x:Name="SearchTradeButton" Style="{StaticResource AccentButton}" Content="Search Trade Market" Click="SearchTradeMarket_Click"/>
+                                                <TextBlock Text="Min. matched affixes:" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="14,0,6,0"/>
+                                                <TextBox x:Name="MinAffixMatchBox" Text="2" Width="36" Height="24" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                                                         Background="#1C1C1C" Foreground="White" BorderBrush="#3A3A3A"
+                                                         ToolTip="A listing must match at least this many of the build's recommended affixes (0 = ignore affixes)."/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <TextBlock Text="Mode:" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <RadioButton x:Name="CheapestModeRadio" GroupName="TradeMode" Content="Cheapest (league start)" Foreground="#DDDDDD" VerticalAlignment="Center" IsChecked="True"
+                                                             Checked="TradeMode_Changed" ToolTip="Show the genuine cheapest listing that fills each slot."/>
+                                                <RadioButton x:Name="BestInSlotModeRadio" GroupName="TradeMode" Content="Best-in-slot (reroll)" Foreground="#DDDDDD" VerticalAlignment="Center" Margin="14,0,0,0"
+                                                             Checked="TradeMode_Changed" ToolTip="Within a per-item budget, show the best roll by per-slot affix weighting."/>
+                                                <StackPanel x:Name="BudgetPanel" Orientation="Horizontal" Visibility="Collapsed" Margin="16,0,0,0">
+                                                    <TextBlock Text="Budget / item (div):" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBox x:Name="BudgetDivineBox" Text="1" Width="50" Height="24" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                                                             Background="#1C1C1C" Foreground="White" BorderBrush="#3A3A3A"
+                                                             ToolTip="Maximum spend per item, in Divine Orbs. Listings above this are excluded in Best-in-slot mode."/>
+                                                    <TextBlock Text="site opens price-sorted — click Sum to match" Foreground="#888888" FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                               ToolTip="LootPulse ranks by weighted Sum, but the trade site's link opens sorted by price. Click the Sum column on the site to match this order."/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <TextBlock x:Name="TradeStatusText" Text="Cheapest listings you can equip now." Foreground="#888888" FontWeight="Normal" Margin="0,8,0,0"/>
                                         </StackPanel>
 
                                         <!-- Per-build-item groups, each with cheapest-5 -->
@@ -514,7 +566,20 @@
                                             <ItemsControl x:Name="TradeGroupsList">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Background="#232323" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                                                        <Border CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="#232323"/>
+                                                                    <Setter Property="BorderThickness" Value="0"/>
+                                                                    <Style.Triggers>
+                                                                        <!-- Build wants this item above the character's level: outline red (buy ahead). -->
+                                                                        <DataTrigger Binding="{Binding IsAboveCharacterLevel}" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#D9534F"/>
+                                                                            <Setter Property="BorderThickness" Value="2"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
                                                             <Grid>
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto"/>
@@ -538,13 +603,16 @@
                                                                         <DataTemplate>
                                                                             <Grid Margin="0,2">
                                                                                 <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="120"/>
+                                                                                    <ColumnDefinition Width="110"/>
+                                                                                    <ColumnDefinition Width="80"/>
                                                                                     <ColumnDefinition Width="*"/>
                                                                                     <ColumnDefinition Width="Auto"/>
                                                                                 </Grid.ColumnDefinitions>
                                                                                 <TextBlock Grid.Column="0" Text="{Binding PriceText}" Foreground="#E5B560" FontWeight="Bold"/>
-                                                                                <TextBlock Grid.Column="1" Text="{Binding ItemLabel}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
-                                                                                <TextBlock Grid.Column="2" Text="{Binding Seller}" Foreground="#777777" FontSize="11"/>
+                                                                                <TextBlock Grid.Column="1" Text="{Binding NormalizedText}" Foreground="#8A8A8A" FontSize="11" VerticalAlignment="Center"
+                                                                                           ToolTip="Approximate value in Exalted Orbs (Divine for larger values), used to rank cheapest across currencies."/>
+                                                                                <TextBlock Grid.Column="2" Text="{Binding ItemLabel}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
+                                                                                <TextBlock Grid.Column="3" Text="{Binding Seller}" Foreground="#777777" FontSize="11"/>
                                                                             </Grid>
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
@@ -559,6 +627,11 @@
                                             </ItemsControl>
                                         </ScrollViewer>
                                     </Grid>
+                                </TabItem>
+
+                                <!-- Tab 3: ground-drop appearance / style editor -->
+                                <TabItem x:Name="FilterStylesTab" Header="Filter Styles" Style="{StaticResource DarkTabItem}">
+                                    <ContentControl x:Name="FilterStylesHost"/>
                                 </TabItem>
                             </TabControl>
                         </Grid>
@@ -583,15 +656,6 @@
                                 <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
                             </Grid>
 
-                            <TextBlock Text="Base Filter (to merge)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="BaseFilterComboBox" Style="{StaticResource DarkComboBox}" SelectionChanged="BaseFilterComboBox_SelectionChanged" DisplayMemberPath="DisplayName"/>
-                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseBaseFilter_Click"/>
-                            </Grid>
 
                             <TextBlock Text="PoE2 Filter File Output Path" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,22">
@@ -603,23 +667,21 @@
                                 <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseFilter_Click"/>
                             </Grid>
 
-                            <!-- Economy Thresholds -->
-                            <TextBlock Text="ECONOMY THRESHOLDS" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <StackPanel Margin="0,0,20,0">
-                                    <TextBlock Text="Tier 1 Threshold (Divine Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier1Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
+                            <!-- Economy Thresholds (Disabled for now) -->
+                            <StackPanel Visibility="Collapsed">
+                                <TextBlock Text="ECONOMY THRESHOLDS" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <StackPanel Margin="0,0,20,0">
+                                        <TextBlock Text="Tier 1 Threshold (Divine Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="Tier1Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="Tier2Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
+                                    </StackPanel>
                                 </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="Tier 2 Threshold (Exalted Orbs)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="Tier2Box" Width="120" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" Text="1.0"/>
-                                </StackPanel>
+                                <CheckBox x:Name="EconomyHighlightsCheckBox" Content="Show Market Economy Highlights" Checked="EconomyHighlightsCheckBox_Changed" Unchecked="EconomyHighlightsCheckBox_Changed" Foreground="White" Margin="0,0,0,22"/>
                             </StackPanel>
-                            <CheckBox x:Name="EconomyHighlightsCheckBox" Content="Show Market Economy Highlights" Checked="EconomyHighlightsCheckBox_Changed" Unchecked="EconomyHighlightsCheckBox_Changed" Foreground="White" Margin="0,0,0,22"/>
-
-                            <!-- Appearance -->
-                            <TextBlock Text="APPEARANCE" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
-                            <Button Style="{StaticResource DarkButton}" Content="Customize Styles…" HorizontalAlignment="Left" Margin="0,0,0,22" Click="CustomizeStyles_Click"/>
 
                             <!-- HUD Overlay -->
                             <TextBlock Text="HUD OVERLAY" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
@@ -663,7 +725,10 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusText" Text="Ready" Foreground="#888888" FontSize="11" VerticalAlignment="Center"/>
                 <TextBlock x:Name="VersionText" Grid.Column="1" Text="LootPulse Overlay" Foreground="#555555" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Exit Application" FontSize="11" Padding="10,3" VerticalAlignment="Center" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource AccentButton}" Content="Save Settings" FontSize="11" Padding="10,3" Margin="0,0,8,0" Click="SaveSettings_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="Exit Application" FontSize="11" Padding="10,3" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
+                </StackPanel>
             </Grid>
         </Grid>
     </Border>

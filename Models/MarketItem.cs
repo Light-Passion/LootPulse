@@ -22,10 +22,6 @@ namespace LootPulse.Models
                 }
                 if (Name == "Mirror of Kalandra" || DivineValue >= 100.0)
                 {
-                    if (Name == "Mirror of Kalandra")
-                    {
-                        return "1.00 mir";
-                    }
                     return $"{DivineValue:F2} div";
                 }
                 if (DivineValue >= 1.0 || Name == "Divine Orb")

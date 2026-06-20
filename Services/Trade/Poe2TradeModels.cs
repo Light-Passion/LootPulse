@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LootPulse.Services.Trade
@@ -9,6 +10,7 @@ namespace LootPulse.Services.Trade
     [JsonSerializable(typeof(TradeSearchRequest))]
     [JsonSerializable(typeof(TradeSearchResponse))]
     [JsonSerializable(typeof(TradeFetchResponse))]
+    [JsonSerializable(typeof(TradeStatsDataResponse))]
     internal sealed partial class Poe2TradeJsonContext : JsonSerializerContext
     {
     }
@@ -34,14 +36,40 @@ namespace LootPulse.Services.Trade
         [property: JsonPropertyName("option")] string Option
     );
 
+    // A stats group. type "and" = match all; type "count" = match at least Value.Min of the Filters
+    // (used for the build's recommended affixes — the user picks the minimum number that must match).
     public record TradeStatGroup(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("filters")] IReadOnlyList<object> Filters
+        [property: JsonPropertyName("filters")] IReadOnlyList<TradeStatFilter> Filters,
+        [property: JsonPropertyName("value")] TradeMinMax? Value = null
+    );
+
+    // One stat in a group. We match on presence (id only) — a listing "matches" the affix if it has
+    // that mod at all; the count group's Value.Min then controls how many must be present.
+    public record TradeStatFilter(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("value")] TradeMinMax? Value = null
     );
 
     public record TradeFilters(
         [property: JsonPropertyName("type_filters")] TradeTypeFilters? TypeFilters = null,
-        [property: JsonPropertyName("req_filters")] TradeReqFilters? ReqFilters = null
+        [property: JsonPropertyName("req_filters")] TradeReqFilters? ReqFilters = null,
+        [property: JsonPropertyName("trade_filters")] TradeBuyoutFilters? BuyoutFilters = null
+    );
+
+    // Best-in-slot budget → the site's "Buyout Price" filter: { price: { max, option:"divine" } }.
+    public record TradeBuyoutFilters(
+        [property: JsonPropertyName("filters")] TradeBuyoutFilterValues Filters
+    );
+
+    public record TradeBuyoutFilterValues(
+        [property: JsonPropertyName("price")] TradePriceFilter Price
+    );
+
+    public record TradePriceFilter(
+        [property: JsonPropertyName("max")] double? Max = null,
+        [property: JsonPropertyName("option")] string? Option = null,
+        [property: JsonPropertyName("min")] double? Min = null
     );
 
     public record TradeTypeFilters(
@@ -66,11 +94,16 @@ namespace LootPulse.Services.Trade
 
     public record TradeMinMax(
         [property: JsonPropertyName("min")] int? Min = null,
-        [property: JsonPropertyName("max")] int? Max = null
+        [property: JsonPropertyName("max")] int? Max = null,
+        // Best-in-slot: a stat filter's weight inside a "weight"/"weight2" group.
+        [property: JsonPropertyName("weight")] double? Weight = null
     );
 
+    // Sort by price (Cheapest mode) or by the weighted stat group "statgroup.0" (Best-in-slot).
+    // WhenWritingNull keeps only the populated key, so the body carries exactly one sort field.
     public record TradeSort(
-        [property: JsonPropertyName("price")] string Price
+        [property: JsonPropertyName("price")] string? Price = null,
+        [property: JsonPropertyName("statgroup.0")] string? StatGroup0 = null
     );
 
     // ---- Search response: { "id": "...", "total": N, "result": ["hash", ...] } ----
@@ -109,6 +142,39 @@ namespace LootPulse.Services.Trade
     public record TradeFetchItem(
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("baseType")] string? BaseType,
-        [property: JsonPropertyName("typeLine")] string? TypeLine
+        [property: JsonPropertyName("typeLine")] string? TypeLine,
+        [property: JsonPropertyName("ilvl")] int? Ilvl = null,
+        [property: JsonPropertyName("requirements")] List<TradeRequirement>? Requirements = null,
+        // Verified live (trade2, 2026-06): GGG is INCONSISTENT — within one response explicitMods are
+        // objects ({description, hash, mods}) while implicitMods are plain strings. So we read each entry
+        // as a raw JsonElement and pull the text out in TradeModText.Read (handles both shapes).
+        [property: JsonPropertyName("explicitMods")] List<JsonElement>? ExplicitMods = null,
+        [property: JsonPropertyName("implicitMods")] List<JsonElement>? ImplicitMods = null
+    );
+
+    // requirements: [ { "name": "Level", "values": [ ["65", 0] ] }, ... ] — we read the "Level" entry.
+    public record TradeRequirement(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("values")] List<List<JsonElement>>? Values
+    );
+
+    // ---- Stats lookup table: GET /api/trade2/data/stats ----
+    // { "result": [ { "id":"explicit", "label":"Explicit", "entries":[
+    //     { "id":"explicit.stat_3299347043", "text":"#% increased Physical Damage", "type":"explicit" } ] } ] }
+    // Maps the build's human-readable affix text to the stat IDs the search "stats" filter requires.
+    public record TradeStatsDataResponse(
+        [property: JsonPropertyName("result")] List<TradeStatsCategory>? Result
+    );
+
+    public record TradeStatsCategory(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("entries")] List<TradeStatEntry>? Entries
+    );
+
+    public record TradeStatEntry(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("text")] string? Text,
+        [property: JsonPropertyName("type")] string? Type
     );
 }

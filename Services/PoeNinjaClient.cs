@@ -18,6 +18,30 @@ namespace LootPulse.Services
         private const string _baseUrl = "https://poe.ninja/poe2/api/economy";
         private const string _currencyLiteral = "Currency";
 
+        private static readonly Dictionary<string, (string finalType, bool isItem)> _typeMappings = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "SkillGem", ("UncutGems", false) },
+            { "SkillGems", ("UncutGems", false) },
+            { "UniqueWeapon", ("UniqueWeapons", true) },
+            { "UniqueWeapons", ("UniqueWeapons", true) },
+            { "UniqueArmour", ("UniqueArmours", true) },
+            { "UniqueArmours", ("UniqueArmours", true) },
+            { "UniqueAccessory", ("UniqueAccessories", true) },
+            { "UniqueAccessories", ("UniqueAccessories", true) },
+            { "UniqueFlask", ("UniqueFlasks", true) },
+            { "UniqueFlasks", ("UniqueFlasks", true) },
+            { "UniqueJewel", ("UniqueJewels", true) },
+            { "UniqueJewels", ("UniqueJewels", true) },
+            { "UniqueCharm", ("UniqueCharms", true) },
+            { "UniqueCharms", ("UniqueCharms", true) },
+            { "UniqueRelic", ("UniqueSanctumRelics", true) },
+            { "UniqueSanctumRelics", ("UniqueSanctumRelics", true) },
+            { "UniqueTablet", ("UniqueTablets", true) },
+            { "UniqueTablets", ("UniqueTablets", true) },
+            { "PrecursorTablet", ("PrecursorTablets", true) },
+            { "PrecursorTablets", ("PrecursorTablets", true) }
+        };
+
         private double _cachedExaltedRate = 200.0;
         private double _cachedChaosRate = 10.0;
 
@@ -37,7 +61,8 @@ namespace LootPulse.Services
 
         public async Task<List<MarketItem>> FetchCurrencyPricesAsync(string league)
         {
-            var raw = await FetchExchangeDataAsync(league, _currencyLiteral).ConfigureAwait(false);
+            var (baseUrl, finalType, _) = ResolveEndpointAndType(_currencyLiteral);
+            var raw = await FetchExchangeDataWithUrlAsync(baseUrl, league, finalType).ConfigureAwait(false);
             if (raw?.Lines == null) return [];
 
             ExtractRates(raw.Core);
@@ -57,21 +82,42 @@ namespace LootPulse.Services
 
         public async Task<List<MarketItem>> FetchItemPricesAsync(string league, string type, string categoryName)
         {
-            var raw = await FetchExchangeDataAsync(league, type).ConfigureAwait(false);
-            if (raw?.Lines == null) return [];
+            ArgumentNullException.ThrowIfNull(type);
+            var (baseUrl, finalType, isItemEndpoint) = ResolveEndpointAndType(type);
 
-            var itemMap = BuildItemMap(raw.Items);
-
-            var list = new List<MarketItem>();
-            foreach (var line in raw.Lines.Where(line => !string.IsNullOrEmpty(line.Id)))
+            if (isItemEndpoint)
             {
-                var item = MapItemLine(line, itemMap, categoryName);
-                if (item != null)
+                var raw = await FetchStashDataAsync(baseUrl, league, finalType).ConfigureAwait(false);
+                if (raw?.Lines == null) return [];
+
+                ExtractRates(raw.Core);
+
+                var list = new List<MarketItem>();
+                foreach (var line in raw.Lines.Where(line => !string.IsNullOrEmpty(line.Name)))
                 {
-                    list.Add(item);
+                    list.Add(MapStashLine(line, categoryName));
                 }
+                return list;
             }
-            return list;
+            else
+            {
+                var raw = await FetchExchangeDataWithUrlAsync(baseUrl, league, finalType).ConfigureAwait(false);
+                if (raw?.Lines == null) return [];
+
+                ExtractRates(raw.Core);
+                var itemMap = BuildItemMap(raw.Items);
+
+                var list = new List<MarketItem>();
+                foreach (var line in raw.Lines.Where(line => !string.IsNullOrEmpty(line.Id)))
+                {
+                    var item = MapItemLine(line, itemMap, categoryName);
+                    if (item != null)
+                    {
+                        list.Add(item);
+                    }
+                }
+                return list;
+            }
         }
 
         private void ExtractRates(NinjaExchangeCore? core)
@@ -164,23 +210,80 @@ namespace LootPulse.Services
             };
         }
 
-        private static async Task<NinjaExchangeResponse?> FetchExchangeDataAsync(string league, string type)
+        private MarketItem MapStashLine(NinjaStashLine line, string categoryName)
         {
-            var response = await FetchExchangeDataForLeagueAsync(league, type).ConfigureAwait(false);
+            double divineValue = line.PrimaryValue;
+            double exaltedValue = divineValue * _cachedExaltedRate;
+            double chaosValue = divineValue * _cachedChaosRate;
 
-            // Self-Healing Fallback: Retry with "Standard" if results are empty or query failed
-            if (response == null || response.Lines == null || response.Lines.Count == 0)
+            return new MarketItem
             {
-                System.Diagnostics.Debug.WriteLine($"Fetch failed or empty for league '{league}' and type '{type}'. Retrying with fallback league 'Standard'...");
-                response = await FetchExchangeDataForLeagueAsync("Standard", type).ConfigureAwait(false);
+                Name = line.Name,
+                BaseType = line.BaseType,
+                Category = categoryName,
+                DivineValue = divineValue,
+                ExaltedValue = exaltedValue,
+                ChaosValue = chaosValue,
+                LastUpdated = DateTime.UtcNow
+            };
+        }
+
+        private static (string url, string finalType, bool isItemEndpoint) ResolveEndpointAndType(string type)
+        {
+            string normalized = type.Trim();
+            if (_typeMappings.TryGetValue(normalized, out var mapping))
+            {
+                string path = mapping.isItem ? "stash/current/item/overview" : "exchange/current/overview";
+                return ($"{_baseUrl}/{path}", mapping.finalType, mapping.isItem);
             }
 
+            bool isItem = normalized.StartsWith("Unique", StringComparison.OrdinalIgnoreCase);
+            string endPath = isItem ? "stash/current/item/overview" : "exchange/current/overview";
+            return ($"{_baseUrl}/{endPath}", normalized, isItem);
+        }
+
+        private static async Task<NinjaStashResponse?> FetchStashDataAsync(string baseUrl, string league, string type)
+        {
+            var response = await FetchStashDataForLeagueAsync(baseUrl, league, type).ConfigureAwait(false);
+            if (response == null || response.Lines == null || response.Lines.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"Stash fetch failed or empty for league '{league}' and type '{type}'. Retrying with fallback league 'Standard'...");
+                response = await FetchStashDataForLeagueAsync(baseUrl, "Standard", type).ConfigureAwait(false);
+            }
             return response;
         }
 
-        private static async Task<NinjaExchangeResponse?> FetchExchangeDataForLeagueAsync(string league, string type)
+        private static async Task<NinjaStashResponse?> FetchStashDataForLeagueAsync(string baseUrl, string league, string type)
         {
-            var url = $"{_baseUrl}/exchange/current/overview?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
+            var url = $"{baseUrl}?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
+            try
+            {
+                var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(response)) return null;
+
+                return JsonSerializer.Deserialize(response, PoeNinjaJsonContext.Default.NinjaStashResponse);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error fetching poe.ninja PoE2 stash data for league '{league}', type '{type}': {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<NinjaExchangeResponse?> FetchExchangeDataWithUrlAsync(string baseUrl, string league, string type)
+        {
+            var response = await FetchExchangeDataForLeagueWithUrlAsync(baseUrl, league, type).ConfigureAwait(false);
+            if (response == null || response.Lines == null || response.Lines.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"Exchange fetch failed or empty for league '{league}' and type '{type}'. Retrying with fallback league 'Standard'...");
+                response = await FetchExchangeDataForLeagueWithUrlAsync(baseUrl, "Standard", type).ConfigureAwait(false);
+            }
+            return response;
+        }
+
+        private static async Task<NinjaExchangeResponse?> FetchExchangeDataForLeagueWithUrlAsync(string baseUrl, string league, string type)
+        {
+            var url = $"{baseUrl}?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
             try
             {
                 var response = await _httpClient.GetStringAsync(new Uri(url)).ConfigureAwait(false);
@@ -190,7 +293,7 @@ namespace LootPulse.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error fetching poe.ninja PoE2 data for league '{league}', type '{type}': {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error fetching poe.ninja PoE2 exchange data for league '{league}', type '{type}': {ex.Message}");
                 return null;
             }
         }
