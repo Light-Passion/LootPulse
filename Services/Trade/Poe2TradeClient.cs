@@ -219,19 +219,26 @@ namespace LootPulse.Services.Trade
 
         private static IEnumerable<string> CombineMods(TradeFetchItem? item)
         {
-            if (item?.ExplicitMods != null)
+            foreach (var text in ModTexts(item?.ExplicitMods)) yield return text;
+            foreach (var text in ModTexts(item?.ImplicitMods)) yield return text;
+        }
+
+        // A mod entry is either a plain string (implicitMods) or an object with a "description"
+        // (explicitMods) — GGG mixes both. Pull the display text out of whichever shape it is.
+        private static IEnumerable<string> ModTexts(List<JsonElement>? mods)
+        {
+            if (mods == null) yield break;
+            foreach (var el in mods)
             {
-                foreach (var m in item.ExplicitMods)
+                string? text = el.ValueKind switch
                 {
-                    if (m?.Description is { Length: > 0 } d) yield return d;
-                }
-            }
-            if (item?.ImplicitMods != null)
-            {
-                foreach (var m in item.ImplicitMods)
-                {
-                    if (m?.Description is { Length: > 0 } d) yield return d;
-                }
+                    JsonValueKind.String => el.GetString(),
+                    JsonValueKind.Object => el.TryGetProperty("description", out var d) && d.ValueKind == JsonValueKind.String
+                        ? d.GetString()
+                        : null,
+                    _ => null,
+                };
+                if (text is { Length: > 0 }) yield return text;
             }
         }
 

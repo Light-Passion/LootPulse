@@ -145,15 +145,11 @@ namespace LootPulse.Services.Trade
         [property: JsonPropertyName("typeLine")] string? TypeLine,
         [property: JsonPropertyName("ilvl")] int? Ilvl = null,
         [property: JsonPropertyName("requirements")] List<TradeRequirement>? Requirements = null,
-        [property: JsonPropertyName("explicitMods")] List<TradeMod>? ExplicitMods = null,
-        [property: JsonPropertyName("implicitMods")] List<TradeMod>? ImplicitMods = null
-    );
-
-    // Verified live (trade2, 2026-06): each mod is an object, NOT a plain string. We only need the
-    // display text; "description" carries GGG markup tags like "[Physical]" / "[ManaLeech|Leeches]"
-    // that must be stripped before matching (see TradeAffixText.Templatize).
-    public record TradeMod(
-        [property: JsonPropertyName("description")] string? Description
+        // Verified live (trade2, 2026-06): GGG is INCONSISTENT — within one response explicitMods are
+        // objects ({description, hash, mods}) while implicitMods are plain strings. So we read each entry
+        // as a raw JsonElement and pull the text out in TradeModText.Read (handles both shapes).
+        [property: JsonPropertyName("explicitMods")] List<JsonElement>? ExplicitMods = null,
+        [property: JsonPropertyName("implicitMods")] List<JsonElement>? ImplicitMods = null
     );
 
     // requirements: [ { "name": "Level", "values": [ ["65", 0] ] }, ... ] — we read the "Level" entry.
