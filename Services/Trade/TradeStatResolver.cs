@@ -10,7 +10,9 @@ using LootPulse.Models;
 namespace LootPulse.Services.Trade
 {
     /// <summary>A recommended build affix paired with the trade2 stat id it resolved to.</summary>
-    public sealed record ResolvedAffix(BuildAffix Affix, string StatId);
+    public sealed record ResolvedAffix(BuildAffix Affix, string StatId, string? GggText = null);
+
+    public sealed record StatInfo(string Id, string Text);
 
     /// <summary>
     /// Maps a build's human-readable recommended affix text (e.g. "253% increased Physical Damage")
@@ -26,9 +28,9 @@ namespace LootPulse.Services.Trade
         private readonly ITradeTransport _transport;
         private readonly TradeRateLimiter _rateLimiter;
 
-        // template text -> stat id. Cached once populated; an empty/failed fetch is retried next time
+        // template text -> stat info. Cached once populated; an empty/failed fetch is retried next time
         // (e.g. the first attempt happened before the trade session was connected).
-        private Dictionary<string, string>? _byTemplate;
+        private Dictionary<string, StatInfo>? _byTemplate;
 
         public TradeStatResolver(ITradeTransport transport, TradeRateLimiter rateLimiter)
         {
@@ -59,15 +61,15 @@ namespace LootPulse.Services.Trade
             var resolved = new List<ResolvedAffix>();
             foreach (var affix in affixes)
             {
-                if (table.TryGetValue(TradeAffixText.Templatize(affix.Text), out var id) && seen.Add(id))
+                if (table.TryGetValue(TradeAffixText.Templatize(affix.Text), out var info) && seen.Add(info.Id))
                 {
-                    resolved.Add(new ResolvedAffix(affix, id));
+                    resolved.Add(new ResolvedAffix(affix, info.Id, info.Text));
                 }
             }
             return resolved;
         }
 
-        private async Task<Dictionary<string, string>> EnsureTableAsync(CancellationToken ct)
+        private async Task<Dictionary<string, StatInfo>> EnsureTableAsync(CancellationToken ct)
         {
             // Searches resolve affixes sequentially (awaited in a loop), so a plain field cache is enough;
             // a concurrent race would at worst fetch the table twice, which is harmless. We only keep a
@@ -81,9 +83,9 @@ namespace LootPulse.Services.Trade
             return _byTemplate;
         }
 
-        private async Task<Dictionary<string, string>> FetchTableAsync(CancellationToken ct)
+        private async Task<Dictionary<string, StatInfo>> FetchTableAsync(CancellationToken ct)
         {
-            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            var map = new Dictionary<string, StatInfo>(StringComparer.Ordinal);
 
             // No point spending a rate-limit turn if we can't authenticate the request anyway.
             if (!_transport.IsConnected)
@@ -122,7 +124,7 @@ namespace LootPulse.Services.Trade
                         {
                             continue;
                         }
-                        map.TryAdd(TradeAffixText.Templatize(entry.Text), entry.Id);
+                        map.TryAdd(TradeAffixText.Templatize(entry.Text), new StatInfo(entry.Id, entry.Text));
                     }
                 }
             }

@@ -93,8 +93,8 @@ namespace LootPulse.Services.Trade
     );
 
     public record TradeMinMax(
-        [property: JsonPropertyName("min")] int? Min = null,
-        [property: JsonPropertyName("max")] int? Max = null,
+        [property: JsonPropertyName("min")] double? Min = null,
+        [property: JsonPropertyName("max")] double? Max = null,
         // Best-in-slot: a stat filter's weight inside a "weight"/"weight2" group.
         [property: JsonPropertyName("weight")] double? Weight = null
     );

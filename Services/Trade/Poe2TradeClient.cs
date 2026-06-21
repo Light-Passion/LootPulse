@@ -26,13 +26,26 @@ namespace LootPulse.Services.Trade
     /// filter, sorts cheapest-first, and fetches the top listings. All requests pass through a shared
     /// <see cref="TradeRateLimiter"/> so we stay within GGG's limits.
     /// </summary>
+    public sealed record TradeSearchOptions(
+        TradeSearchMode Mode = TradeSearchMode.Cheapest,
+        int MinMatchedAffixes = 0,
+        double? BudgetDivine = null,
+        int Take = 5
+    );
+
+    /// <summary>
+    /// Talks to GGG's official PoE2 trade API (pathofexile.com/api/trade2) through an
+    /// <see cref="ITradeTransport"/>. Builds the search body, applies the character-level requirement
+    /// filter, sorts cheapest-first, and fetches the top listings. All requests pass through a shared
+    /// <see cref="TradeRateLimiter"/> so we stay within GGG's limits.
+    /// </summary>
     public sealed class Poe2TradeClient
     {
-        private const string Host = "https://www.pathofexile.com";
+        private const string _host = "https://www.pathofexile.com";
 
         // Fetch a few more than we show so cross-currency normalization can pick the true cheapest
         // (a single fetch call covers up to 10 hashes).
-        private const int CandidatePoolSize = 10;
+        private const int _candidatePoolSize = 10;
 
         private readonly ITradeTransport _transport;
         private readonly TradeRateLimiter _rateLimiter;
@@ -49,54 +62,42 @@ namespace LootPulse.Services.Trade
         /// Search the trade site for one build item and return a populated group, plus a browser deep link.
         /// Searches at the character's level first; if the recommended affixes push every listing out of
         /// reach, it retries a few levels higher (graduated overshoot) so the player can buy ahead.
-        /// <paramref name="mode"/> selects Cheapest (price-ranked) or BestInSlot (weighted, within budget).
+        /// </summary>
+        private sealed record SearchContext(
+            string League,
+            TradeItemQuery Item,
+            int CharacterLevel,
+            TradeSearchOptions Options,
+            CancellationToken Ct
+        );
+
+        private sealed record FetchOutcome(
+            IReadOnlyList<TradeListingRow> Listings,
+            string? Error = null
+        );
+
+        /// <summary>
+        /// Search the trade site for one build item and return a populated group, plus a browser deep link.
+        /// Searches at the character's level first; if the recommended affixes push every listing out of
+        /// reach, it retries a few levels higher (graduated overshoot) so the player can buy ahead.
         /// </summary>
         public async Task<TradeItemGroup> SearchAsync(
             string league, TradeItemQuery item, int characterLevel, CurrencyRates rates,
-            TradeSearchMode mode = TradeSearchMode.Cheapest,
-            int minMatchedAffixes = 0, double? budgetDivine = null, int take = 5,
-            CancellationToken ct = default)
+            TradeSearchOptions options, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(item);
+            ArgumentNullException.ThrowIfNull(options);
             rates ??= CurrencyRates.Default;
 
             var group = new TradeItemGroup { ItemLabel = item.Label, MaxLevel = characterLevel };
+            var context = new SearchContext(league, item, characterLevel, options, ct);
 
-            // Resolve the build's recommended affixes to trade2 stat IDs. Needed for the Cheapest "count"
-            // filter (≥N present) and for the Best-in-slot "weight2" group (rank by per-slot weighting).
-            bool needAffixes = item.Affixes.Count > 0 && (mode == TradeSearchMode.BestInSlot || minMatchedAffixes > 0);
-            IReadOnlyList<ResolvedAffix> resolved = needAffixes
-                ? await _statResolver.ResolveDetailedAsync(item.Affixes, ct).ConfigureAwait(false)
-                : Array.Empty<ResolvedAffix>();
+            var resolved = await ResolveAffixesForSearchAsync(item, options, ct).ConfigureAwait(false);
+            (TradeStatGroup statGroup, TradeSort sort, bool constrains) = BuildStatGroupAndSort(item, options.Mode, resolved, options.MinMatchedAffixes);
 
-            (TradeStatGroup statGroup, TradeSort sort, bool constrains) = BuildStatGroupAndSort(item, mode, resolved, minMatchedAffixes);
+            var (search, usedCap) = await ExecuteSearchWithRetryAsync(context, statGroup, sort, constrains).ConfigureAwait(false);
 
-            // Best-in-slot budget → the server-side "Buyout Price" filter (in Divine), so the trade-site
-            // deep link and the in-app results agree. Cheapest mode is unbudgeted.
-            double? buyoutDivine = mode == TradeSearchMode.BestInSlot ? budgetDivine : null;
-
-            // Primary search at the character's level — naturally limits results to affix tiers the
-            // character can already equip.
-            var search = await RunSearchAsync(league, item, characterLevel, statGroup, sort, buyoutDivine, ct).ConfigureAwait(false);
-            int usedCap = characterLevel;
-
-            // Fallback: if requiring those affixes left nothing equippable now, raise the cap a little
-            // (levels come fast early, slow late) so the player can pre-buy something usable soon.
-            if (search.NoResults && constrains)
-            {
-                int overshootCap = characterLevel + LevelOvershoot(characterLevel);
-                if (overshootCap > characterLevel)
-                {
-                    var retry = await RunSearchAsync(league, item, overshootCap, statGroup, sort, buyoutDivine, ct).ConfigureAwait(false);
-                    if (!retry.NoResults)
-                    {
-                        search = retry;
-                        usedCap = overshootCap;
-                    }
-                }
-            }
-
-            group.MaxLevel = usedCap;
+            group.MaxLevel = usedCap ?? characterLevel;
 
             if (search.Error != null)
             {
@@ -105,48 +106,33 @@ namespace LootPulse.Services.Trade
             }
             if (search.NoResults)
             {
-                group.StatusText = buyoutDivine is { } b
-                    ? $"no listings within budget ({b:0.##} div)"
-                    : usedCap > characterLevel ? $"no listings ≤ Lv {usedCap}" : "no listings found";
+                double? buyoutDivine = options.Mode == TradeSearchMode.BestInSlot ? options.BudgetDivine : null;
+                if (buyoutDivine is { } b)
+                {
+                    group.StatusText = $"no listings within budget ({b:0.##} div)";
+                }
+                else if (usedCap.HasValue && usedCap.Value > characterLevel)
+                {
+                    group.StatusText = $"no listings ≤ Lv {usedCap.Value}";
+                }
+                else
+                {
+                    group.StatusText = "no listings found";
+                }
                 return group;
             }
 
-            group.BrowserUrl = $"{Host}/trade2/search/poe2/{Uri.EscapeDataString(league)}/{search.QueryId}";
+            group.BrowserUrl = $"{_host}/trade2/search/poe2/{Uri.EscapeDataString(league)}/{search.QueryId}";
 
-            // --- FETCH a candidate pool (larger than `take`) so we can re-rank locally. ---
-            var ids = search.Hashes!.Take(CandidatePoolSize).ToList();
-            await _rateLimiter.WaitTurnAsync(ct).ConfigureAwait(false);
-            var fetchUrl = $"{Host}/api/trade2/fetch/{string.Join(",", ids)}?query={search.QueryId}";
-            var fetchResp = await _transport.SendAsync(HttpMethod.Get, fetchUrl, null, ct).ConfigureAwait(false);
-            _rateLimiter.Observe(fetchResp);
+            var fetchResult = await FetchAndRankListingsAsync(context, search.QueryId!, search.Hashes ?? [], rates, constrains).ConfigureAwait(false);
 
-            if (!fetchResp.IsSuccess)
+            if (fetchResult.Error != null)
             {
-                group.StatusText = DescribeError(fetchResp);
+                group.StatusText = fetchResult.Error;
                 return group;
             }
 
-            var fetched = Deserialize<TradeFetchResponse>(fetchResp.Body, Poe2TradeJsonContext.Default.TradeFetchResponse);
-            var rows = BuildRows(fetched, item, rates);
-
-            IEnumerable<TradeListingRow> ranked;
-            if (mode == TradeSearchMode.BestInSlot && constrains)
-            {
-                // Best-in-slot: the server already filtered to within budget and ranked by the
-                // weighted-sum (weight2) group, so keep that order as-is.
-                ranked = rows;
-            }
-            else
-            {
-                // Cheapest (or BIS with nothing to weight): genuine cheapest across currencies
-                // (unvalued currencies sort last). Budget, if any, was already applied server-side.
-                ranked = rows.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
-            }
-
-            foreach (var row in ranked.Take(take))
-            {
-                group.Listings.Add(row);
-            }
+            group.Listings.AddRange(fetchResult.Listings.Take(options.Take));
 
             if (group.Listings.Count == 0)
             {
@@ -154,16 +140,98 @@ namespace LootPulse.Services.Trade
             }
             else
             {
-                // Buy-ahead outline: the shown listings can't be equipped at the character's current level.
                 int? minReq = group.Listings.Where(r => r.RequiredLevel.HasValue).Min(r => r.RequiredLevel);
                 group.IsAboveCharacterLevel = minReq is { } req && req > characterLevel;
+                if (!usedCap.HasValue && minReq.HasValue)
+                {
+                    group.MaxLevel = minReq.Value;
+                }
             }
+
             return group;
+        }
+
+        private async Task<IReadOnlyList<ResolvedAffix>> ResolveAffixesForSearchAsync(
+            TradeItemQuery item, TradeSearchOptions options, CancellationToken ct)
+        {
+            bool needAffixes = item.Affixes.Count > 0 && (options.Mode == TradeSearchMode.BestInSlot || options.MinMatchedAffixes > 0);
+            if (!needAffixes)
+            {
+                return [];
+            }
+            return await _statResolver.ResolveDetailedAsync(item.Affixes, ct).ConfigureAwait(false);
+        }
+
+        private async Task<(SearchOutcome Search, int? UsedCap)> ExecuteSearchWithRetryAsync(
+            SearchContext context, TradeStatGroup statGroup, TradeSort sort, bool constrains)
+        {
+            double? buyoutDivine = context.Options.Mode == TradeSearchMode.BestInSlot ? context.Options.BudgetDivine : null;
+            var search = await RunSearchAsync(context.League, context.Item, context.CharacterLevel, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+            int? usedCap = context.CharacterLevel;
+
+            if (search.NoResults)
+            {
+                if (constrains)
+                {
+                    int overshootCap = context.CharacterLevel + LevelOvershoot(context.CharacterLevel);
+                    if (overshootCap > context.CharacterLevel)
+                    {
+                        var retry = await RunSearchAsync(context.League, context.Item, overshootCap, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+                        if (!retry.NoResults)
+                        {
+                            search = retry;
+                            usedCap = overshootCap;
+                        }
+                    }
+                }
+
+                if (search.NoResults)
+                {
+                    var retryNoCap = await RunSearchAsync(context.League, context.Item, null, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+                    if (!retryNoCap.NoResults)
+                    {
+                        search = retryNoCap;
+                        usedCap = null;
+                    }
+                }
+            }
+
+            return (search, usedCap);
+        }
+
+        private async Task<FetchOutcome> FetchAndRankListingsAsync(
+            SearchContext context, string queryId, IReadOnlyList<string> resultHashes,
+            CurrencyRates rates, bool constrains)
+        {
+            var ids = resultHashes.Take(_candidatePoolSize).ToList();
+            if (ids.Count == 0)
+            {
+                return new FetchOutcome([]);
+            }
+
+            await _rateLimiter.WaitTurnAsync(context.Ct).ConfigureAwait(false);
+            var fetchUrl = $"{_host}/api/trade2/fetch/{string.Join(",", ids)}?query={queryId}";
+            var fetchResp = await _transport.SendAsync(HttpMethod.Get, fetchUrl, null, context.Ct).ConfigureAwait(false);
+            _rateLimiter.Observe(fetchResp);
+
+            if (!fetchResp.IsSuccess)
+            {
+                return new FetchOutcome([], DescribeError(fetchResp));
+            }
+
+            var fetched = Deserialize<TradeFetchResponse>(fetchResp.Body, Poe2TradeJsonContext.Default.TradeFetchResponse);
+            var rows = BuildRows(fetched, context.Item, rates);
+
+            IEnumerable<TradeListingRow> ranked = (context.Options.Mode == TradeSearchMode.BestInSlot && constrains)
+                ? rows
+                : rows.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
+
+            return new FetchOutcome(ranked.ToList());
         }
 
         // One search request at a given level cap; returns the query id + result hashes (or an error).
         private async Task<SearchOutcome> RunSearchAsync(
-            string league, TradeItemQuery item, int levelCap,
+            string league, TradeItemQuery item, int? levelCap,
             TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine, CancellationToken ct)
         {
             var requestBody = BuildSearchBody(item, levelCap, statGroup, sort, buyoutDivine);
@@ -171,7 +239,7 @@ namespace LootPulse.Services.Trade
 
             // The API path has NO realm segment: "trade2" (vs PoE1 "trade") is what selects PoE2.
             await _rateLimiter.WaitTurnAsync(ct).ConfigureAwait(false);
-            var searchUrl = $"{Host}/api/trade2/search/{Uri.EscapeDataString(league)}";
+            var searchUrl = $"{_host}/api/trade2/search/{Uri.EscapeDataString(league)}";
             var resp = await _transport.SendAsync(HttpMethod.Post, searchUrl, json, ct).ConfigureAwait(false);
             _rateLimiter.Observe(resp);
 
@@ -190,7 +258,7 @@ namespace LootPulse.Services.Trade
 
         private static List<TradeListingRow> BuildRows(TradeFetchResponse? fetched, TradeItemQuery item, CurrencyRates rates)
         {
-            var rows = new List<TradeListingRow>();
+            List<TradeListingRow> rows = [];
             if (fetched?.Result == null)
             {
                 return rows;
@@ -260,8 +328,12 @@ namespace LootPulse.Services.Trade
         }
 
         // Levels come fast early and slowly late, so allow more overshoot when low-level.
-        private static int LevelOvershoot(int characterLevel) =>
-            characterLevel <= 70 ? 3 : characterLevel <= 85 ? 2 : 1;
+        private static int LevelOvershoot(int characterLevel)
+        {
+            if (characterLevel <= 70) return 3;
+            if (characterLevel <= 85) return 2;
+            return 1;
+        }
 
         private sealed class SearchOutcome
         {
@@ -281,9 +353,15 @@ namespace LootPulse.Services.Trade
                 // Weight each recommended affix's stat by its per-slot priority, and let GGG rank by the
                 // normalized weighted sum (weight2). value.min = 1 → must carry at least one of them.
                 var weighted = resolved
-                    .Select(r => new TradeStatFilter(
-                        r.StatId,
-                        new TradeMinMax(Weight: BisWeighting.Weight(item.SlotId, BisWeighting.Categorize(r.Affix.Text)))))
+                    .Select(r => {
+                        var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
+                        return new TradeStatFilter(
+                            r.StatId,
+                            new TradeMinMax(
+                                Min: minVal,
+                                Weight: BisWeighting.Weight(item.SlotId, BisWeighting.Categorize(r.Affix.Text))
+                            ));
+                    })
                     .ToArray();
                 var group = new TradeStatGroup("weight2", weighted, new TradeMinMax(Min: 1));
                 return (group, new TradeSort(StatGroup0: "desc"), true);
@@ -292,13 +370,20 @@ namespace LootPulse.Services.Trade
             // Cheapest (or BIS with nothing resolved): require ≥N recommended affixes present, sort price.
             int matchMin = Math.Min(minMatchedAffixes, resolved.Count);
             TradeStatGroup countGroup = matchMin > 0
-                ? new TradeStatGroup("count", resolved.Select(r => new TradeStatFilter(r.StatId)).ToArray(), new TradeMinMax(Min: matchMin))
-                : new TradeStatGroup("and", Array.Empty<TradeStatFilter>());
+                ? new TradeStatGroup(
+                    "count",
+                    resolved.Select(r => {
+                        var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
+                        var val = minVal.HasValue ? new TradeMinMax(Min: minVal) : null;
+                        return new TradeStatFilter(r.StatId, val);
+                    }).ToArray(),
+                    new TradeMinMax(Min: matchMin))
+                : new TradeStatGroup("and", []);
             return (countGroup, new TradeSort(Price: "asc"), matchMin > 0);
         }
 
         private static TradeSearchRequest BuildSearchBody(
-            TradeItemQuery item, int maxLevel, TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine)
+            TradeItemQuery item, int? maxLevel, TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine)
         {
             // Base-type searches must exclude uniques (which share base-type names with rares/normals)
             // via the "Any Non-Unique" rarity filter. Unique-name searches stay unfiltered.
@@ -312,15 +397,18 @@ namespace LootPulse.Services.Trade
                 ? new TradeBuyoutFilters(new TradeBuyoutFilterValues(new TradePriceFilter(Max: b, Option: "divine")))
                 : null;
 
+            TradeReqFilters? reqFilters = maxLevel.HasValue
+                ? new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel.Value)))
+                : null;
+
             var query = new TradeQuery(
                 // "securable" = Instant Buyout listings (auto-purchasable; seller needn't be online),
                 // which is what we want to surface — not "online" (In Person). Verified live on trade2.
                 Status: new TradeStatus("securable"),
-                Stats: new[] { statGroup },
+                Stats: [statGroup],
                 Filters: new TradeFilters(
                     TypeFilters: typeFilters,
-                    // Only items the character can equip at this cap (raised a little for buy-ahead).
-                    ReqFilters: new TradeReqFilters(new TradeReqFilterValues(new TradeMinMax(Max: maxLevel))),
+                    ReqFilters: reqFilters,
                     BuyoutFilters: buyoutFilters),
                 Name: string.IsNullOrWhiteSpace(item.Name) ? null : item.Name,
                 Type: string.IsNullOrWhiteSpace(item.BaseType) ? null : item.BaseType
@@ -331,7 +419,7 @@ namespace LootPulse.Services.Trade
         private static string FormatPrice(TradePrice price)
         {
             // Trade amounts can be fractional (e.g. 0.5 divine).
-            string amount = price.Amount % 1 == 0
+            string amount = Math.Abs(price.Amount % 1) < 1e-9
                 ? price.Amount.ToString("0", CultureInfo.InvariantCulture)
                 : price.Amount.ToString("0.##", CultureInfo.InvariantCulture);
             return string.IsNullOrEmpty(price.Currency) ? amount : $"{amount} {price.Currency}";

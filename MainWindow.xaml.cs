@@ -69,6 +69,15 @@ namespace LootPulse
         private const string _darkMenuItemStyleKey = "DarkMenuItem";
         private const string _darkContextMenuStyleKey = "DarkContextMenu";
 
+        private const string _classMercenary = "Mercenary";
+        private const string _classMonk = "Monk";
+        private const string _classWitch = "Witch";
+        private const string _classSorceress = "Sorceress";
+        private const string _classDruid = "Druid";
+        private const string _classRanger = "Ranger";
+        private const string _classHuntress = "Huntress";
+        private const string _classWarrior = "Warrior";
+
         private readonly HudWindow? _hudWindow;
         private readonly AppSettings _appSettings = new();
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
@@ -549,12 +558,16 @@ namespace LootPulse
             }
         }
 
-        // Show the per-item budget input only in Best-in-slot mode.
+        // Show the per-item budget input only in Best-in-slot mode, and min matched affixes only in Cheapest mode.
         private void TradeMode_Changed(object sender, RoutedEventArgs e)
         {
             if (BudgetPanel != null && BestInSlotModeRadio != null)
             {
                 BudgetPanel.Visibility = BestInSlotModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (MinMatchedPanel != null && BestInSlotModeRadio != null)
+            {
+                MinMatchedPanel.Visibility = BestInSlotModeRadio.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
             }
         }
 
@@ -621,9 +634,9 @@ namespace LootPulse
             {
                 for (int i = 0; i < queries.Count; i++)
                 {
-                    TradeStatusText.Text = $"Searching {i + 1}/{queries.Count}: {queries[i].Label}…";
+                    var options = new TradeSearchOptions(mode, minAffixMatches, budgetDivine);
                     TradeItemGroup group = await _tradeClient.SearchAsync(
-                        league, queries[i], maxLevel, rates, mode, minAffixMatches, budgetDivine);
+                        league, queries[i], maxLevel, rates, options);
                     _tradeGroups.Add(group);
                     RefreshTradeGroups();
                 }
@@ -763,95 +776,123 @@ namespace LootPulse
             return null;
         }
 
+        private string? DetectClassFromAscendancy()
+        {
+            if (!string.IsNullOrEmpty(_activeBuild?.Ascendancy))
+            {
+                return _activeBuild.Ascendancy;
+            }
+            return null;
+        }
+
+        private string? DetectClassFromPassives()
+        {
+            if (_activeBuild?.Passives == null)
+            {
+                return null;
+            }
+
+            foreach (var id in _activeBuild.Passives.Select(p => p.Id))
+            {
+                if (string.IsNullOrEmpty(id)) continue;
+                string? className = MapPassiveIdToClass(id);
+                if (className != null) return className;
+            }
+
+            return null;
+        }
+
+        private static string? MapPassiveIdToClass(string id)
+        {
+            if (id.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) return _classMercenary;
+            if (id.Contains("monk", StringComparison.OrdinalIgnoreCase) || id.Contains("martial_artist", StringComparison.OrdinalIgnoreCase) || id.Contains("martialartist", StringComparison.OrdinalIgnoreCase)) return _classMonk;
+            if (id.Contains("witch", StringComparison.OrdinalIgnoreCase)) return _classWitch;
+            if (id.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) return _classSorceress;
+            if (id.Contains("druid", StringComparison.OrdinalIgnoreCase)) return _classDruid;
+            if (id.Contains("ranger", StringComparison.OrdinalIgnoreCase)) return _classRanger;
+            if (id.Contains("huntress", StringComparison.OrdinalIgnoreCase)) return _classHuntress;
+            if (id.Contains("warrior", StringComparison.OrdinalIgnoreCase)) return _classWarrior;
+            return null;
+        }
+
+        private string? DetectClassFromBuildName()
+        {
+            if (string.IsNullOrEmpty(_activeBuild?.Name))
+            {
+                return null;
+            }
+
+            string name = _activeBuild.Name;
+            if (name.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) return _classMercenary;
+            if (name.Contains("monk", StringComparison.OrdinalIgnoreCase)) return _classMonk;
+            if (name.Contains("witch", StringComparison.OrdinalIgnoreCase)) return _classWitch;
+            if (name.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) return _classSorceress;
+            if (name.Contains("druid", StringComparison.OrdinalIgnoreCase)) return _classDruid;
+            if (name.Contains("ranger", StringComparison.OrdinalIgnoreCase)) return _classRanger;
+            if (name.Contains("huntress", StringComparison.OrdinalIgnoreCase)) return _classHuntress;
+            if (name.Contains("warrior", StringComparison.OrdinalIgnoreCase)) return _classWarrior;
+
+            return null;
+        }
+
+        private static string[]? GetSynonymsForClass(string? buildClass)
+        {
+            if (string.IsNullOrEmpty(buildClass)) return null;
+
+            buildClass = buildClass.Trim();
+            if (string.Equals(buildClass, _classMonk, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Martial Artist", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "MartialArtist", StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classMonk, "Martial Artist", "Acolyte of Chayula"];
+            }
+            if (string.Equals(buildClass, _classMercenary, StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classMercenary];
+            }
+            if (string.Equals(buildClass, _classWarrior, StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classWarrior];
+            }
+            if (string.Equals(buildClass, _classSorceress, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Stormweaver", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Disciple of Varashta", StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classSorceress, "Stormweaver", "Disciple of Varashta"];
+            }
+            if (string.Equals(buildClass, _classDruid, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Shaman", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Oracle", StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classDruid, "Shaman", "Oracle"];
+            }
+            if (string.Equals(buildClass, _classWitch, StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classWitch];
+            }
+            if (string.Equals(buildClass, _classRanger, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Deadeye", StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classRanger, "Deadeye"];
+            }
+            if (string.Equals(buildClass, _classHuntress, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Amazon", StringComparison.OrdinalIgnoreCase))
+            {
+                return [_classHuntress, "Amazon"];
+            }
+
+            return [buildClass];
+        }
+
         private string[]? GetActiveBuildClassSynonyms()
         {
             if (_activeBuild == null) return null;
 
-            string? buildClass = null;
+            string? buildClass = DetectClassFromAscendancy()
+                ?? DetectClassFromPassives()
+                ?? DetectClassFromBuildName();
 
-            // Check explicit Ascendancy property
-            if (!string.IsNullOrEmpty(_activeBuild.Ascendancy))
-            {
-                buildClass = _activeBuild.Ascendancy;
-            }
-
-            // Look at passive node IDs
-            if (string.IsNullOrEmpty(buildClass) && _activeBuild.Passives != null)
-            {
-                foreach (var p in _activeBuild.Passives)
-                {
-                    if (string.IsNullOrEmpty(p.Id)) continue;
-                    string id = p.Id;
-                    if (id.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) { buildClass = "Mercenary"; break; }
-                    if (id.Contains("monk", StringComparison.OrdinalIgnoreCase) || id.Contains("martial_artist", StringComparison.OrdinalIgnoreCase) || id.Contains("martialartist", StringComparison.OrdinalIgnoreCase)) { buildClass = "Monk"; break; }
-                    if (id.Contains("witch", StringComparison.OrdinalIgnoreCase)) { buildClass = "Witch"; break; }
-                    if (id.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) { buildClass = "Sorceress"; break; }
-                    if (id.Contains("druid", StringComparison.OrdinalIgnoreCase)) { buildClass = "Druid"; break; }
-                    if (id.Contains("ranger", StringComparison.OrdinalIgnoreCase)) { buildClass = "Ranger"; break; }
-                    if (id.Contains("huntress", StringComparison.OrdinalIgnoreCase)) { buildClass = "Huntress"; break; }
-                    if (id.Contains("warrior", StringComparison.OrdinalIgnoreCase)) { buildClass = "Warrior"; break; }
-                }
-            }
-
-            // Look at build name as a fallback
-            if (string.IsNullOrEmpty(buildClass) && !string.IsNullOrEmpty(_activeBuild.Name))
-            {
-                string name = _activeBuild.Name;
-                if (name.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) buildClass = "Mercenary";
-                else if (name.Contains("monk", StringComparison.OrdinalIgnoreCase)) buildClass = "Monk";
-                else if (name.Contains("witch", StringComparison.OrdinalIgnoreCase)) buildClass = "Witch";
-                else if (name.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) buildClass = "Sorceress";
-                else if (name.Contains("druid", StringComparison.OrdinalIgnoreCase)) buildClass = "Druid";
-                else if (name.Contains("ranger", StringComparison.OrdinalIgnoreCase)) buildClass = "Ranger";
-                else if (name.Contains("huntress", StringComparison.OrdinalIgnoreCase)) buildClass = "Huntress";
-                else if (name.Contains("warrior", StringComparison.OrdinalIgnoreCase)) buildClass = "Warrior";
-            }
-
-            if (string.IsNullOrEmpty(buildClass)) return null;
-
-            buildClass = buildClass.Trim();
-            if (string.Equals(buildClass, "Monk", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Martial Artist", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "MartialArtist", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Monk", "Martial Artist", "Acolyte of Chayula" };
-            }
-            if (string.Equals(buildClass, "Mercenary", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Mercenary" };
-            }
-            if (string.Equals(buildClass, "Warrior", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Warrior" };
-            }
-            if (string.Equals(buildClass, "Sorceress", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Stormweaver", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Disciple of Varashta", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Sorceress", "Stormweaver", "Disciple of Varashta" };
-            }
-            if (string.Equals(buildClass, "Druid", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Shaman", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Oracle", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Druid", "Shaman", "Oracle" };
-            }
-            if (string.Equals(buildClass, "Witch", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Witch" };
-            }
-            if (string.Equals(buildClass, "Ranger", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Deadeye", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Ranger", "Deadeye" };
-            }
-            if (string.Equals(buildClass, "Huntress", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(buildClass, "Amazon", StringComparison.OrdinalIgnoreCase))
-            {
-                return new[] { "Huntress", "Amazon" };
-            }
-
-            return new[] { buildClass };
+            return GetSynonymsForClass(buildClass);
         }
 
         private async Task AutoLoadLastBuildAsync()
