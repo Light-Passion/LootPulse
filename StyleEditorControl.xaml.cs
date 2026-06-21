@@ -43,11 +43,12 @@ namespace LootPulse
         private readonly string _presetsFilePath;
         private string _currentCategory = _uniquesCategory;
         private bool _isSynchronizing;
-        private bool _isInitializing = true;
+        private readonly bool _isInitializing;
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         public StyleEditorControl(FilterTheme currentTheme)
         {
+            _isInitializing = true;
             InitializeComponent();
 
             // Deep clone theme to work on
