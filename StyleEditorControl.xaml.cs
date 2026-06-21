@@ -38,6 +38,7 @@ namespace LootPulse
         public Action<FilterTheme>? ThemeApplied { get; set; }
 
         public FilterTheme WorkingTheme { get; private set; }
+        internal string? TestSelectedPresetName => PresetComboBox?.SelectedItem as string;
         private readonly Dictionary<string, FilterTheme> _presets = [];
         private readonly string _presetsFilePath;
         private string _currentCategory = _uniquesCategory;
