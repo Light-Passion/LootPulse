@@ -112,7 +112,10 @@ namespace LootPulse
             // Initialize Services
             _ninjaClient = new PoeNinjaClient();
             _buildParser = new BuildProfileParser();
-            _logMonitor = new ClientLogMonitor();
+            _logMonitor = new ClientLogMonitor
+            {
+                ActiveBuildClassSynonymsProvider = GetActiveBuildClassSynonyms
+            };
             _filterBuilder = new FilterBuilder();
 
             // Trade Market services (WebView2 session-backed; init deferred until first Connect)
@@ -760,6 +763,97 @@ namespace LootPulse
             return null;
         }
 
+        private string[]? GetActiveBuildClassSynonyms()
+        {
+            if (_activeBuild == null) return null;
+
+            string? buildClass = null;
+
+            // Check explicit Ascendancy property
+            if (!string.IsNullOrEmpty(_activeBuild.Ascendancy))
+            {
+                buildClass = _activeBuild.Ascendancy;
+            }
+
+            // Look at passive node IDs
+            if (string.IsNullOrEmpty(buildClass) && _activeBuild.Passives != null)
+            {
+                foreach (var p in _activeBuild.Passives)
+                {
+                    if (string.IsNullOrEmpty(p.Id)) continue;
+                    string id = p.Id;
+                    if (id.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) { buildClass = "Mercenary"; break; }
+                    if (id.Contains("monk", StringComparison.OrdinalIgnoreCase) || id.Contains("martial_artist", StringComparison.OrdinalIgnoreCase) || id.Contains("martialartist", StringComparison.OrdinalIgnoreCase)) { buildClass = "Monk"; break; }
+                    if (id.Contains("witch", StringComparison.OrdinalIgnoreCase)) { buildClass = "Witch"; break; }
+                    if (id.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) { buildClass = "Sorceress"; break; }
+                    if (id.Contains("druid", StringComparison.OrdinalIgnoreCase)) { buildClass = "Druid"; break; }
+                    if (id.Contains("ranger", StringComparison.OrdinalIgnoreCase)) { buildClass = "Ranger"; break; }
+                    if (id.Contains("huntress", StringComparison.OrdinalIgnoreCase)) { buildClass = "Huntress"; break; }
+                    if (id.Contains("warrior", StringComparison.OrdinalIgnoreCase)) { buildClass = "Warrior"; break; }
+                }
+            }
+
+            // Look at build name as a fallback
+            if (string.IsNullOrEmpty(buildClass) && !string.IsNullOrEmpty(_activeBuild.Name))
+            {
+                string name = _activeBuild.Name;
+                if (name.Contains("mercenary", StringComparison.OrdinalIgnoreCase)) buildClass = "Mercenary";
+                else if (name.Contains("monk", StringComparison.OrdinalIgnoreCase)) buildClass = "Monk";
+                else if (name.Contains("witch", StringComparison.OrdinalIgnoreCase)) buildClass = "Witch";
+                else if (name.Contains("sorceress", StringComparison.OrdinalIgnoreCase)) buildClass = "Sorceress";
+                else if (name.Contains("druid", StringComparison.OrdinalIgnoreCase)) buildClass = "Druid";
+                else if (name.Contains("ranger", StringComparison.OrdinalIgnoreCase)) buildClass = "Ranger";
+                else if (name.Contains("huntress", StringComparison.OrdinalIgnoreCase)) buildClass = "Huntress";
+                else if (name.Contains("warrior", StringComparison.OrdinalIgnoreCase)) buildClass = "Warrior";
+            }
+
+            if (string.IsNullOrEmpty(buildClass)) return null;
+
+            buildClass = buildClass.Trim();
+            if (string.Equals(buildClass, "Monk", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Martial Artist", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "MartialArtist", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Monk", "Martial Artist", "Acolyte of Chayula" };
+            }
+            if (string.Equals(buildClass, "Mercenary", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Mercenary" };
+            }
+            if (string.Equals(buildClass, "Warrior", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Warrior" };
+            }
+            if (string.Equals(buildClass, "Sorceress", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Stormweaver", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Disciple of Varashta", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Sorceress", "Stormweaver", "Disciple of Varashta" };
+            }
+            if (string.Equals(buildClass, "Druid", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Shaman", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Oracle", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Druid", "Shaman", "Oracle" };
+            }
+            if (string.Equals(buildClass, "Witch", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Witch" };
+            }
+            if (string.Equals(buildClass, "Ranger", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Deadeye", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Ranger", "Deadeye" };
+            }
+            if (string.Equals(buildClass, "Huntress", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(buildClass, "Amazon", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[] { "Huntress", "Amazon" };
+            }
+
+            return new[] { buildClass };
+        }
+
         private async Task AutoLoadLastBuildAsync()
         {
             string buildFilePath = _appSettings.BuildFilePath;
@@ -777,6 +871,7 @@ namespace LootPulse
             _activeBuild = build;
             BuildNameText.Text = build.Name;
             StatusText.Text = $"Loaded last used build: {build.Name}";
+            _logMonitor.TriggerHistoryScan();
             await LoadBuildUniquePricesAsync(build);
         }
 
@@ -816,6 +911,7 @@ namespace LootPulse
                             SaveSettings();
                         }
 
+                        _logMonitor.TriggerHistoryScan();
                         await LoadBuildUniquePricesAsync(build);
                         TriggerFilterRegeneration();
                         return;
@@ -845,6 +941,7 @@ namespace LootPulse
                     StatusText.Text = $"Loaded .build file: {build.Name}";
                     _appSettings.BuildFilePath = ofd.FileName;
                     SaveSettings();
+                    _logMonitor.TriggerHistoryScan();
                     await LoadBuildUniquePricesAsync(build);
                     TriggerFilterRegeneration();
                 }
