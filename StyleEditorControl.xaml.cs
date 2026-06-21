@@ -42,6 +42,7 @@ namespace LootPulse
         private readonly string _presetsFilePath;
         private string _currentCategory = _uniquesCategory;
         private bool _isSynchronizing;
+        private bool _isInitializing = true;
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         public StyleEditorControl(FilterTheme currentTheme)
@@ -70,6 +71,8 @@ namespace LootPulse
 
             // Load category
             LoadCategoryState(_currentCategory);
+
+            _isInitializing = false;
         }
 
         private void SaveApply_Click(object sender, RoutedEventArgs e)
@@ -1056,7 +1059,19 @@ namespace LootPulse
 
             // Bind to ComboBox
             PresetComboBox.ItemsSource = _presets.Keys.ToList();
-            PresetComboBox.SelectedItem = "Default LootPulse";
+
+            if (_isInitializing)
+            {
+                string initialThemeName = WorkingTheme?.ThemeName ?? _defaultThemeName;
+                if (_presets.ContainsKey(initialThemeName))
+                {
+                    PresetComboBox.SelectedItem = initialThemeName;
+                }
+                else
+                {
+                    PresetComboBox.SelectedItem = _defaultThemeName;
+                }
+            }
         }
 
         private void PresetComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1065,9 +1080,12 @@ namespace LootPulse
 
             if (PresetComboBox.SelectedItem is string presetName && _presets.TryGetValue(presetName, out var theme))
             {
-                // Deep clone selected theme to WorkingTheme
-                string json = JsonSerializer.Serialize(theme);
-                WorkingTheme = JsonSerializer.Deserialize<FilterTheme>(json) ?? new FilterTheme();
+                if (!_isInitializing)
+                {
+                    // Deep clone selected theme to WorkingTheme
+                    string json = JsonSerializer.Serialize(theme);
+                    WorkingTheme = JsonSerializer.Deserialize<FilterTheme>(json) ?? new FilterTheme();
+                }
 
                 PresetNameTextBox.Text = presetName;
 
