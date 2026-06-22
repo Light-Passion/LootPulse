@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace LootPulse.Models
 {
     public class AppSettings
@@ -17,5 +19,7 @@ namespace LootPulse.Models
         public bool IsHudVisible { get; set; } = true;
         public bool ShowEconomyHighlights { get; set; } = true;
         public string League { get; set; } = "Runes of Aldur";
+
+        public Dictionary<string, Dictionary<string, AffixImportance>> BuildCustomWeights { get; set; } = [];
     }
 }

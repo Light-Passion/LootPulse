@@ -93,9 +93,9 @@ namespace LootPulse.Services.Trade
             var context = new SearchContext(league, item, characterLevel, options, ct);
 
             var resolved = await ResolveAffixesForSearchAsync(item, options, ct).ConfigureAwait(false);
-            (TradeStatGroup statGroup, TradeSort sort, bool constrains) = BuildStatGroupAndSort(item, options.Mode, resolved, options.MinMatchedAffixes);
+            (var statGroups, var sort, var constrains) = BuildStatGroupsAndSort(options.Mode, resolved, options.MinMatchedAffixes);
 
-            var (search, usedCap) = await ExecuteSearchWithRetryAsync(context, statGroup, sort, constrains).ConfigureAwait(false);
+            var (search, usedCap) = await ExecuteSearchWithRetryAsync(context, statGroups, sort, constrains).ConfigureAwait(false);
 
             group.MaxLevel = usedCap ?? characterLevel;
 
@@ -106,19 +106,7 @@ namespace LootPulse.Services.Trade
             }
             if (search.NoResults)
             {
-                double? buyoutDivine = options.Mode == TradeSearchMode.BestInSlot ? options.BudgetDivine : null;
-                if (buyoutDivine is { } b)
-                {
-                    group.StatusText = $"no listings within budget ({b:0.##} div)";
-                }
-                else if (usedCap.HasValue && usedCap.Value > characterLevel)
-                {
-                    group.StatusText = $"no listings ≤ Lv {usedCap.Value}";
-                }
-                else
-                {
-                    group.StatusText = "no listings found";
-                }
+                group.StatusText = GetNoResultsStatusText(options, usedCap, characterLevel);
                 return group;
             }
 
@@ -132,7 +120,29 @@ namespace LootPulse.Services.Trade
                 return group;
             }
 
-            group.Listings.AddRange(fetchResult.Listings.Take(options.Take));
+            UpdateGroupListingsAndStatus(group, fetchResult.Listings, characterLevel, usedCap, options.Take);
+
+            return group;
+        }
+
+        private static string GetNoResultsStatusText(TradeSearchOptions options, int? usedCap, int characterLevel)
+        {
+            double? buyoutDivine = options.Mode == TradeSearchMode.BestInSlot ? options.BudgetDivine : null;
+            if (buyoutDivine is { } b)
+            {
+                return $"no listings within budget ({b:0.##} div)";
+            }
+            if (usedCap > characterLevel)
+            {
+                return $"no listings ≤ Lv {usedCap.Value}";
+            }
+            return "no listings found";
+        }
+
+        private static void UpdateGroupListingsAndStatus(
+            TradeItemGroup group, IReadOnlyList<TradeListingRow> listings, int characterLevel, int? usedCap, int take)
+        {
+            group.Listings.AddRange(listings.Take(take));
 
             if (group.Listings.Count == 0)
             {
@@ -147,8 +157,6 @@ namespace LootPulse.Services.Trade
                     group.MaxLevel = minReq.Value;
                 }
             }
-
-            return group;
         }
 
         private async Task<IReadOnlyList<ResolvedAffix>> ResolveAffixesForSearchAsync(
@@ -163,40 +171,35 @@ namespace LootPulse.Services.Trade
         }
 
         private async Task<(SearchOutcome Search, int? UsedCap)> ExecuteSearchWithRetryAsync(
-            SearchContext context, TradeStatGroup statGroup, TradeSort sort, bool constrains)
+            SearchContext context, IReadOnlyList<TradeStatGroup> statGroups, TradeSort sort, bool constrains)
         {
             double? buyoutDivine = context.Options.Mode == TradeSearchMode.BestInSlot ? context.Options.BudgetDivine : null;
-            var search = await RunSearchAsync(context.League, context.Item, context.CharacterLevel, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
-            int? usedCap = context.CharacterLevel;
-
-            if (search.NoResults)
+            var search = await RunSearchAsync(context.League, context.Item, context.CharacterLevel, statGroups, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+            if (!search.NoResults)
             {
-                if (constrains)
-                {
-                    int overshootCap = context.CharacterLevel + LevelOvershoot(context.CharacterLevel);
-                    if (overshootCap > context.CharacterLevel)
-                    {
-                        var retry = await RunSearchAsync(context.League, context.Item, overshootCap, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
-                        if (!retry.NoResults)
-                        {
-                            search = retry;
-                            usedCap = overshootCap;
-                        }
-                    }
-                }
+                return (search, context.CharacterLevel);
+            }
 
-                if (search.NoResults)
+            if (constrains)
+            {
+                int overshootCap = context.CharacterLevel + LevelOvershoot(context.CharacterLevel);
+                if (overshootCap > context.CharacterLevel)
                 {
-                    var retryNoCap = await RunSearchAsync(context.League, context.Item, null, statGroup, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
-                    if (!retryNoCap.NoResults)
+                    var retry = await RunSearchAsync(context.League, context.Item, overshootCap, statGroups, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+                    if (!retry.NoResults)
                     {
-                        search = retryNoCap;
-                        usedCap = null;
+                        return (retry, overshootCap);
                     }
                 }
             }
 
-            return (search, usedCap);
+            var retryNoCap = await RunSearchAsync(context.League, context.Item, null, statGroups, sort, buyoutDivine, context.Ct).ConfigureAwait(false);
+            if (!retryNoCap.NoResults)
+            {
+                return (retryNoCap, null);
+            }
+
+            return (search, context.CharacterLevel);
         }
 
         private async Task<FetchOutcome> FetchAndRankListingsAsync(
@@ -226,15 +229,15 @@ namespace LootPulse.Services.Trade
                 ? rows
                 : rows.OrderBy(r => r.NormalizedExalted ?? double.MaxValue);
 
-            return new FetchOutcome(ranked.ToList());
+            return new FetchOutcome([.. ranked]);
         }
 
         // One search request at a given level cap; returns the query id + result hashes (or an error).
         private async Task<SearchOutcome> RunSearchAsync(
             string league, TradeItemQuery item, int? levelCap,
-            TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine, CancellationToken ct)
+            IReadOnlyList<TradeStatGroup> statGroups, TradeSort sort, double? buyoutDivine, CancellationToken ct)
         {
-            var requestBody = BuildSearchBody(item, levelCap, statGroup, sort, buyoutDivine);
+            var requestBody = BuildSearchBody(item, levelCap, statGroups, sort, buyoutDivine);
             string json = JsonSerializer.Serialize(requestBody, Poe2TradeJsonContext.Default.TradeSearchRequest);
 
             // The API path has NO realm segment: "trade2" (vs PoE1 "trade") is what selects PoE2.
@@ -345,45 +348,84 @@ namespace LootPulse.Services.Trade
 
         // Choose the stats group + sort for the request based on mode. Returns whether the group
         // constrains results (so the caller knows an empty result is worth a level-overshoot retry).
-        private static (TradeStatGroup Group, TradeSort Sort, bool Constrains) BuildStatGroupAndSort(
-            TradeItemQuery item, TradeSearchMode mode, IReadOnlyList<ResolvedAffix> resolved, int minMatchedAffixes)
+        internal static (IReadOnlyList<TradeStatGroup> Groups, TradeSort Sort, bool Constrains) BuildStatGroupsAndSort(
+            TradeSearchMode mode, IReadOnlyList<ResolvedAffix> resolved, int minMatchedAffixes)
         {
             if (mode == TradeSearchMode.BestInSlot && resolved.Count > 0)
             {
-                // Weight each recommended affix's stat by its per-slot priority, and let GGG rank by the
-                // normalized weighted sum (weight2). value.min = 1 → must carry at least one of them.
-                var weighted = resolved
-                    .Select(r => {
-                        var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
-                        return new TradeStatFilter(
-                            r.StatId,
-                            new TradeMinMax(
-                                Min: minVal,
-                                Weight: BisWeighting.Weight(item.SlotId, BisWeighting.Categorize(r.Affix.Text))
-                            ));
-                    })
-                    .ToArray();
-                var group = new TradeStatGroup("weight2", weighted, new TradeMinMax(Min: 1));
-                return (group, new TradeSort(StatGroup0: "desc"), true);
+                return BuildBestInSlotStatGroups(resolved);
             }
 
+            return BuildCheapestStatGroups(resolved, minMatchedAffixes);
+        }
+
+        private static (IReadOnlyList<TradeStatGroup> Groups, TradeSort Sort, bool Constrains) BuildBestInSlotStatGroups(
+            IReadOnlyList<ResolvedAffix> resolved)
+        {
+            var groups = new List<TradeStatGroup>();
+
+            // 1. "Required" affixes -> "and" group
+            var requiredFilters = resolved
+                .Where(r => r.Affix.Importance == AffixImportance.Required)
+                .Select(r => {
+                    var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
+                    var val = minVal.HasValue ? new TradeMinMax(Min: minVal) : null;
+                    return new TradeStatFilter(r.StatId, val);
+                })
+                .ToArray();
+
+            if (requiredFilters.Length > 0)
+            {
+                groups.Add(new TradeStatGroup("and", requiredFilters));
+            }
+
+            // 2. Weighted affixes -> "weight2" group
+            var weightedFilters = resolved
+                .Where(r => r.Affix.Importance != AffixImportance.Required)
+                .Select(r => {
+                    var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
+                    double weight = r.Affix.Importance switch
+                    {
+                        AffixImportance.VeryImportant => 1000,
+                        AffixImportance.Important => 100,
+                        _ => 10 // Wanted / default
+                    };
+                    return new TradeStatFilter(
+                        r.StatId,
+                        new TradeMinMax(Min: minVal, Weight: weight)
+                    );
+                })
+                .ToArray();
+
+            if (weightedFilters.Length > 0)
+            {
+                groups.Add(new TradeStatGroup("weight2", weightedFilters, new TradeMinMax(Min: 1)));
+            }
+
+            bool constrains = requiredFilters.Length > 0 || weightedFilters.Length > 0;
+            return (groups, new TradeSort(StatGroup0: "desc"), constrains);
+        }
+
+        private static (IReadOnlyList<TradeStatGroup> Groups, TradeSort Sort, bool Constrains) BuildCheapestStatGroups(
+            IReadOnlyList<ResolvedAffix> resolved, int minMatchedAffixes)
+        {
             // Cheapest (or BIS with nothing resolved): require ≥N recommended affixes present, sort price.
             int matchMin = Math.Min(minMatchedAffixes, resolved.Count);
             TradeStatGroup countGroup = matchMin > 0
                 ? new TradeStatGroup(
                     "count",
-                    resolved.Select(r => {
+                    [.. resolved.Select(r => {
                         var minVal = TradeAffixText.ExtractMinConstraint(r.Affix.Text, r.GggText);
                         var val = minVal.HasValue ? new TradeMinMax(Min: minVal) : null;
                         return new TradeStatFilter(r.StatId, val);
-                    }).ToArray(),
+                    })],
                     new TradeMinMax(Min: matchMin))
                 : new TradeStatGroup("and", []);
-            return (countGroup, new TradeSort(Price: "asc"), matchMin > 0);
+            return ([countGroup], new TradeSort(Price: "asc"), matchMin > 0);
         }
 
         private static TradeSearchRequest BuildSearchBody(
-            TradeItemQuery item, int? maxLevel, TradeStatGroup statGroup, TradeSort sort, double? buyoutDivine)
+            TradeItemQuery item, int? maxLevel, IReadOnlyList<TradeStatGroup> statGroups, TradeSort sort, double? buyoutDivine)
         {
             // Base-type searches must exclude uniques (which share base-type names with rares/normals)
             // via the "Any Non-Unique" rarity filter. Unique-name searches stay unfiltered.
@@ -405,7 +447,7 @@ namespace LootPulse.Services.Trade
                 // "securable" = Instant Buyout listings (auto-purchasable; seller needn't be online),
                 // which is what we want to surface — not "online" (In Person). Verified live on trade2.
                 Status: new TradeStatus("securable"),
-                Stats: [statGroup],
+                Stats: statGroups,
                 Filters: new TradeFilters(
                     TypeFilters: typeFilters,
                     ReqFilters: reqFilters,
