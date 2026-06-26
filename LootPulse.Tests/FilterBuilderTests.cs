@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using LootPulse.Models;
 using LootPulse.Services;
 using Xunit;
 
@@ -76,6 +81,168 @@ namespace LootPulse.Tests
         {
             var result = FilterBuilder.ParseHexToRgbaString("#ffAa00");
             Assert.Equal("255 170 0 255", result);
+        }
+
+        [Fact]
+        public async Task GenerateFilterFileAsync_ValidInput_GeneratesFile()
+        {
+            // Arrange
+            var builder = new FilterBuilder();
+            var outputPath = GetTempFilePath();
+            var build = CreateTestBuild();
+            var items = CreateTestMarketItems();
+
+            try
+            {
+                // Act
+                bool result = await builder.GenerateFilterFileAsync(
+                    outputPath,
+                    null,
+                    items,
+                    build,
+                    20, 20, 1.0, 1.0);
+
+                // Assert
+                Assert.True(result);
+                Assert.True(File.Exists(outputPath));
+
+                var content = await File.ReadAllTextAsync(outputPath);
+                Assert.Contains("# Active Build Unique Items", content);
+                Assert.Contains("\"Stellar Amulet\"", content);
+                Assert.Contains("\"Uncut Skill Gem\"", content);
+            }
+            finally
+            {
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+            }
+        }
+
+        [Fact]
+        public async Task GenerateFilterFileAsync_NullBuild_GeneratesFallback()
+        {
+            // Arrange
+            var builder = new FilterBuilder();
+            var outputPath = GetTempFilePath();
+
+            try
+            {
+                // Act
+                bool result = await builder.GenerateFilterFileAsync(
+                    outputPath,
+                    null,
+                    new List<MarketItem>(),
+                    null,
+                    1, 1, 1.0, 1.0);
+
+                // Assert
+                Assert.True(result);
+                Assert.True(File.Exists(outputPath));
+
+                var content = await File.ReadAllTextAsync(outputPath);
+                Assert.Contains("# Fallback basic catch-all rules", content);
+                Assert.Contains("Class \"Currency\"", content);
+            }
+            finally
+            {
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+            }
+        }
+
+        [Fact]
+        public async Task GenerateFilterFileAsync_WithBaseFilter_Deduplicates()
+        {
+            // Arrange
+            var builder = new FilterBuilder();
+            var outputPath = GetTempFilePath();
+            var baseFilterPath = GetTempFilePath();
+            var build = CreateTestBuild(); // Contains Astramentis -> Stellar Amulet
+
+            string baseFilterContent = "Show\n    BaseType \"Stellar Amulet\"\n    SetFontSize 42";
+            await File.WriteAllTextAsync(baseFilterPath, baseFilterContent);
+
+            try
+            {
+                // Act
+                bool result = await builder.GenerateFilterFileAsync(
+                    outputPath,
+                    baseFilterPath,
+                    CreateTestMarketItems(),
+                    build,
+                    20, 20, 1.0, 1.0);
+
+                // Assert
+                Assert.True(result);
+                var content = await File.ReadAllTextAsync(outputPath);
+
+                Assert.Contains("# APPENDED BASE FILTER RULES", content);
+                // The deduplication should strip the "Stellar Amulet" block from the base filter portion
+                // because it's already highlighted in the build section.
+                // We check that the specific block from base filter (with SetFontSize 42) is NOT there.
+                // Note: StripDuplicateBaseTypeRules drops the whole block if no conditions remain.
+                Assert.DoesNotContain("SetFontSize 42", content);
+            }
+            finally
+            {
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+                if (File.Exists(baseFilterPath)) File.Delete(baseFilterPath);
+            }
+        }
+
+        [Fact]
+        public async Task GenerateFilterFileAsync_InvalidPath_ReturnsFalse()
+        {
+            // Arrange
+            var builder = new FilterBuilder();
+            // Using a path that is likely invalid or restricted
+            var invalidPath = "/invalid/path/that/does/not/exist/filter.filter";
+
+            // Act
+            bool result = await builder.GenerateFilterFileAsync(
+                invalidPath,
+                null,
+                new List<MarketItem>(),
+                null,
+                1, 1, 1.0, 1.0);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        private static PoeBuild CreateTestBuild()
+        {
+            return new PoeBuild
+            {
+                Name = "Test Spark Build",
+                InventorySlots = new List<BuildInventorySlot>
+                {
+                    new BuildInventorySlot
+                    {
+                        InventoryId = "Amulet",
+                        UniqueName = "Astramentis"
+                    }
+                },
+                Skills = new List<BuildSkill>
+                {
+                    new BuildSkill
+                    {
+                        Name = "Spark"
+                    }
+                }
+            };
+        }
+
+        private static List<MarketItem> CreateTestMarketItems()
+        {
+            return new List<MarketItem>
+            {
+                new MarketItem { Name = "Divine Orb", Category = "Currency", ChaosValue = 200 },
+                new MarketItem { Name = "Exalted Orb", Category = "Currency", ChaosValue = 20 }
+            };
+        }
+
+        private static string GetTempFilePath()
+        {
+            return Path.Combine(Path.GetTempPath(), "LootPulse_Test_" + Guid.NewGuid().ToString("N") + ".filter");
         }
     }
 }
