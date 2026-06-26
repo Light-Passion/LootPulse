@@ -352,12 +352,12 @@ namespace LootPulse
             });
         }
 
-        private void TriggerFilterRegeneration()
+        private async void TriggerFilterRegeneration()
         {
             _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
             _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
-            bool success = _filterBuilder.GenerateFilterFile(
+            bool success = await _filterBuilder.GenerateFilterFileAsync(
                 FilterPathBox.Text,
                 _selectedBaseFilterPath,
                 _marketItems,
