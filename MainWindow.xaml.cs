@@ -44,6 +44,7 @@ namespace LootPulse
         private PoeBuild? _activeBuild;
         public FilterTheme ActiveTheme { get; set; } = new();
         private List<MarketItem> _marketItems = [];
+        private readonly HashSet<string> _marketItemNames = new(StringComparer.OrdinalIgnoreCase);
         private readonly PlayerState _playerState = new();
         private bool _isClickThroughEnabled;
         private string? _selectedBaseFilterPath;
@@ -471,6 +472,11 @@ namespace LootPulse
 
                 _marketItems.Clear();
                 _marketItems.AddRange(allItems);
+                _marketItemNames.Clear();
+                foreach (var item in allItems)
+                {
+                    _marketItemNames.Add(item.Name);
+                }
 
                 NormalizeMarketValues(_marketItems);
                 AddPinnedExchangeRateItem();
@@ -1100,6 +1106,11 @@ namespace LootPulse
                 new() { Name = _mirrorName, Category = _currencyCategory, ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             ];
+            _marketItemNames.Clear();
+            foreach (var item in _marketItems)
+            {
+                _marketItemNames.Add(item.Name);
+            }
             NormalizeMarketValues(_marketItems);
             AddPinnedExchangeRateItem();
             UpdateCategoryDropdown();
@@ -2119,6 +2130,7 @@ namespace LootPulse
         private void AddPinnedExchangeRateItem()
         {
             _marketItems.RemoveAll(i => i.Category == _exchangeRateCategory);
+            _marketItemNames.Remove(_divineOrbName);
 
             // Rank every other commodity highest-to-lowest in Divine terms, so the pinned
             // reference item inserted below always sits above a sensibly ordered list.
@@ -2148,6 +2160,7 @@ namespace LootPulse
                 LastUpdated = DateTime.UtcNow
             };
             _marketItems.Insert(0, exchangeRateItem);
+            _marketItemNames.Add(_divineOrbName);
         }
 
         private void UpdateCategoryDropdown()
@@ -2212,11 +2225,10 @@ namespace LootPulse
                 activeLeague = "Runes of Aldur";
             }
             var categoriesToFetch = new HashSet<(string type, string name)>();
-            var existingNames = new HashSet<string>(_marketItems.Select(i => i.Name), StringComparer.OrdinalIgnoreCase);
 
             var missingUniques = build.InventorySlots
                 .Where(slot => !string.IsNullOrEmpty(slot.UniqueName) &&
-                               !existingNames.Contains(slot.UniqueName!));
+                               !_marketItemNames.Contains(slot.UniqueName!));
 
             foreach (var slot in missingUniques)
             {
@@ -2235,13 +2247,13 @@ namespace LootPulse
                     var items = await _ninjaClient.FetchItemPricesAsync(activeLeague, type, name).ConfigureAwait(true);
                     if (items?.Count > 0)
                     {
-                        var newItems = items.Where(item => !existingNames.Contains(item.Name)).ToList();
+                        var newItems = items.Where(item => !_marketItemNames.Contains(item.Name)).ToList();
                         if (newItems.Count > 0)
                         {
                             _marketItems.AddRange(newItems);
                             foreach (var ni in newItems)
                             {
-                                existingNames.Add(ni.Name);
+                                _marketItemNames.Add(ni.Name);
                             }
                             addedAny = true;
                         }
