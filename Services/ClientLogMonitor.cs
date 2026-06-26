@@ -306,11 +306,10 @@ namespace LootPulse.Services
 
         private (string? Name, int Level) MatchCharacterByClassSynonyms(string[] synonyms)
         {
-            string escapedSynonyms = string.Join("|", Array.ConvertAll(synonyms, Regex.Escape));
-            var classLevelRegex = new Regex(@"] : (\S+) \((?:" + escapedSynonyms + @")\) is now level (\d+)", RegexOptions.Compiled);
+            var synonymSet = new System.Collections.Generic.HashSet<string>(synonyms, StringComparer.OrdinalIgnoreCase);
 
-            var match = FindLatestLineMatch(classLevelRegex);
-            if (match != null && int.TryParse(match.Groups[2].Value, out int lvl))
+            var match = FindLatestLineMatch(AnyLevelRegex(), m => synonymSet.Contains(m.Groups[2].Value));
+            if (match != null && int.TryParse(match.Groups[3].Value, out int lvl))
             {
                 string name = match.Groups[1].Value.Trim();
                 System.Diagnostics.Debug.WriteLine($"Found active character matching build class synonyms ({string.Join(",", synonyms)}): {name} level {lvl}");
@@ -371,9 +370,8 @@ namespace LootPulse.Services
         {
             string baseName = StripClass(characterName);
             // e.g. "Light_Fisted (Martial Artist) is now level 94" — class part is optional.
-            var regex = new Regex(Regex.Escape(baseName) + @"(?: \([^)]*\))? is now level (\d+)", RegexOptions.Compiled);
-            var match = FindLatestLineMatch(regex);
-            if (match != null && int.TryParse(match.Groups[1].Value, out int level))
+            var match = FindLatestLineMatch(CharLevelRegex(), m => string.Equals(StripClass(m.Groups[1].Value.Trim()), baseName, StringComparison.Ordinal));
+            if (match != null && int.TryParse(match.Groups[2].Value, out int level))
             {
                 return level;
             }
@@ -385,7 +383,7 @@ namespace LootPulse.Services
         /// given regex (or null). Stops as soon as a match is found, so it is cheap when the
         /// target line is recent even in a multi-hundred-MB log.
         /// </summary>
-        private Match? FindLatestLineMatch(Regex regex)
+        private Match? FindLatestLineMatch(Regex regex, Func<Match, bool>? predicate = null)
         {
             using var stream = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
@@ -414,7 +412,13 @@ namespace LootPulse.Services
                 var matches = regex.Matches(text);
                 if (matches.Count > 0)
                 {
-                    return matches[^1]; // last match = most recent in this chunk
+                    for (int i = matches.Count - 1; i >= 0; i--)
+                    {
+                        if (predicate == null || predicate(matches[i]))
+                        {
+                            return matches[i];
+                        }
+                    }
                 }
 
                 // Carry this chunk's incomplete first line to the next (earlier) chunk.
