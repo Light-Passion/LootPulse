@@ -2046,32 +2046,30 @@ namespace LootPulse
 
         private static bool IsPoE2Running()
         {
-            var processes = Process.GetProcesses();
-            try
+            // We use targeted GetProcessesByName instead of iterating all processes to reduce CPU overhead.
+            // These are the two common executable names for Path of Exile 2.
+            string[] targetNames = ["PathOfExile2", "PathOfExile_x64"];
+
+            foreach (string name in targetNames)
             {
-                return processes.Any(p =>
+                var processes = Process.GetProcessesByName(name);
+                try
                 {
-                    try
+                    if (processes.Length > 0)
                     {
-                        string name = p.ProcessName;
-                        return name.Contains("PathOfExile2", StringComparison.OrdinalIgnoreCase) ||
-                               name.Contains("PathOfExile_x64", StringComparison.OrdinalIgnoreCase);
+                        return true;
                     }
-                    catch (Exception ex)
-                    {
-                        // Ignore process property access errors for processes that might be protected or have exited
-                        System.Diagnostics.Debug.WriteLine($"Failed to access process name: {ex.Message}");
-                        return false;
-                    }
-                });
-            }
-            finally
-            {
-                foreach (var p in processes)
+                }
+                finally
                 {
-                    p.Dispose();
+                    foreach (var p in processes)
+                    {
+                        p.Dispose();
+                    }
                 }
             }
+
+            return false;
         }
 
         private static void NormalizeMarketValues(List<MarketItem> items)
