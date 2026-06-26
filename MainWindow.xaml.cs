@@ -2186,10 +2186,11 @@ namespace LootPulse
                 activeLeague = "Runes of Aldur";
             }
             var categoriesToFetch = new HashSet<(string type, string name)>();
+            var existingNames = new HashSet<string>(_marketItems.Select(i => i.Name), StringComparer.OrdinalIgnoreCase);
 
             var missingUniques = build.InventorySlots
                 .Where(slot => !string.IsNullOrEmpty(slot.UniqueName) &&
-                               !_marketItems.Exists(i => i.Name.Equals(slot.UniqueName, StringComparison.OrdinalIgnoreCase)));
+                               !existingNames.Contains(slot.UniqueName!));
 
             foreach (var slot in missingUniques)
             {
@@ -2208,10 +2209,14 @@ namespace LootPulse
                     var items = await _ninjaClient.FetchItemPricesAsync(activeLeague, type, name).ConfigureAwait(true);
                     if (items?.Count > 0)
                     {
-                        var newItems = items.Where(item => !_marketItems.Exists(m => m.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+                        var newItems = items.Where(item => !existingNames.Contains(item.Name)).ToList();
                         if (newItems.Count > 0)
                         {
                             _marketItems.AddRange(newItems);
+                            foreach (var ni in newItems)
+                            {
+                                existingNames.Add(ni.Name);
+                            }
                             addedAny = true;
                         }
                     }
