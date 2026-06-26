@@ -14,10 +14,16 @@ namespace LootPulse.Services.Trade
     public sealed class TradeRateLimiter : IDisposable
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
-        private DateTime _nextAllowedUtc = DateTime.MinValue;
+        private readonly TimeProvider _timeProvider;
+        private DateTimeOffset _nextAllowedUtc = DateTimeOffset.MinValue;
 
         // Conservative default: 1 request every 5 seconds.
         private TimeSpan _minInterval = TimeSpan.FromSeconds(5);
+
+        public TradeRateLimiter(TimeProvider? timeProvider = null)
+        {
+            _timeProvider = timeProvider ?? TimeProvider.System;
+        }
 
         /// <summary>Wait until the next request is allowed. Call before each API request.</summary>
         public async Task WaitTurnAsync(CancellationToken ct = default)
@@ -25,13 +31,13 @@ namespace LootPulse.Services.Trade
             await _gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                var now = DateTime.UtcNow;
+                var now = _timeProvider.GetUtcNow();
                 if (now < _nextAllowedUtc)
                 {
                     var delay = _nextAllowedUtc - now;
-                    await Task.Delay(delay, ct).ConfigureAwait(false);
+                    await Task.Delay(delay, _timeProvider, ct).ConfigureAwait(false);
                 }
-                _nextAllowedUtc = DateTime.UtcNow + _minInterval;
+                _nextAllowedUtc = _timeProvider.GetUtcNow() + _minInterval;
             }
             finally
             {
@@ -75,7 +81,7 @@ namespace LootPulse.Services.Trade
                 {
                     retrySeconds = ra;
                 }
-                _nextAllowedUtc = DateTime.UtcNow + TimeSpan.FromSeconds(retrySeconds);
+                _nextAllowedUtc = _timeProvider.GetUtcNow() + TimeSpan.FromSeconds(retrySeconds);
             }
         }
 
