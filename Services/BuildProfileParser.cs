@@ -96,7 +96,8 @@ namespace LootPulse.Services
                 using var ms = new MemoryStream(data, 2, data.Length - 2);
                 using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
                 using var reader = new StreamReader(deflate, Encoding.UTF8);
-                return reader.ReadToEnd();
+                string result = reader.ReadToEnd();
+                return string.IsNullOrEmpty(result) ? null : result;
             }
             catch (Exception ex)
             {
