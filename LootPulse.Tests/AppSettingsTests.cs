@@ -7,7 +7,7 @@ namespace LootPulse.Tests;
 public class AppSettingsTests
 {
     [Fact]
-    public void AppSettings_Defaults_AreCorrect()
+    public void AppSettings_DefaultValues_ShouldBeCorrect()
     {
         // Arrange & Act
         var settings = new AppSettings();
@@ -31,33 +31,31 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void AppSettings_RoundTrip_Serialization_Works()
+    public void AppSettings_ShouldSerializeAndDeserializeCorrectly()
     {
         // Arrange
         var settings = new AppSettings
         {
-            LogPath = "C:\\Path\\To\\Log.txt",
-            FilterOutputPath = "C:\\Path\\To\\Filter.filter",
-            SelectedBaseFilterPath = "Base.filter",
-            BuildFilePath = "Build.build",
-            Tier1Threshold = 5.5,
-            Tier2Threshold = 2.0,
+            LogPath = "C:\\path\\to\\log",
+            FilterOutputPath = "C:\\path\\to\\filter",
+            SelectedBaseFilterPath = "C:\\path\\to\\base",
+            BuildFilePath = "C:\\path\\to\\build",
+            Tier1Threshold = 2.5,
+            Tier2Threshold = 1.5,
             HudWidth = 300,
             HudHeight = 150,
             HudXPercent = 0.5,
-            HudYPercent = 0.1,
+            HudYPercent = 0.5,
             EditModeOpacity = 0.9,
-            HudModeOpacity = 0.5,
+            HudModeOpacity = 0.4,
             IsHudVisible = false,
             ShowEconomyHighlights = false,
             League = "Standard"
         };
 
-        var options = new JsonSerializerOptions { WriteIndented = true };
-
         // Act
-        string json = JsonSerializer.Serialize(settings, options);
-        var deserialized = JsonSerializer.Deserialize<AppSettings>(json, options);
+        var json = JsonSerializer.Serialize(settings);
+        var deserialized = JsonSerializer.Deserialize<AppSettings>(json);
 
         // Assert
         Assert.NotNull(deserialized);
@@ -79,20 +77,19 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void AppSettings_Deserialize_PartialJson_UsesDefaultsForMissingProperties()
+    public void AppSettings_DeserializePartialJson_ShouldUseDefaultValues()
     {
         // Arrange
-        var json = "{\"LogPath\": \"custom/path\"}";
+        var json = "{\"League\": \"New League\"}";
 
         // Act
-        var settings = JsonSerializer.Deserialize<AppSettings>(json);
+        var deserialized = JsonSerializer.Deserialize<AppSettings>(json);
 
         // Assert
-        Assert.NotNull(settings);
-        Assert.Equal("custom/path", settings.LogPath);
-        // Should have default values for others
-        Assert.Equal(1.0, settings.Tier1Threshold);
-        Assert.True(settings.IsHudVisible);
-        Assert.Equal("Runes of Aldur", settings.League);
+        Assert.NotNull(deserialized);
+        Assert.Equal("New League", deserialized.League);
+        Assert.Equal(string.Empty, deserialized.LogPath); // Default
+        Assert.Equal(1.0, deserialized.Tier1Threshold); // Default
+        Assert.True(deserialized.IsHudVisible); // Default
     }
 }
