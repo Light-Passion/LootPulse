@@ -109,23 +109,18 @@ namespace LootPulse.Services.Trade
                     return map;
                 }
 
-                foreach (var category in data.Result)
+                var allEntries = data.Result
+                    .Where(c => c?.Entries != null)
+                    .SelectMany(c => c!.Entries!)
+                    .OrderBy(e => e?.Type == "explicit" ? 0 : 1);
+
+                foreach (var entry in allEntries)
                 {
-                    if (category?.Entries == null)
+                    if (entry?.Id == null || string.IsNullOrWhiteSpace(entry.Text))
                     {
                         continue;
                     }
-                    // Prefer "explicit" mods: a recommended build affix is almost always an explicit roll,
-                    // and several categories (implicit/rune) can share the same text. First write wins per
-                    // template, and we iterate explicit-first to make that the winner.
-                    foreach (var entry in category.Entries.OrderBy(e => e?.Type == "explicit" ? 0 : 1))
-                    {
-                        if (entry?.Id == null || string.IsNullOrWhiteSpace(entry.Text))
-                        {
-                            continue;
-                        }
-                        map.TryAdd(TradeAffixText.Templatize(entry.Text), new StatInfo(entry.Id, entry.Text));
-                    }
+                    map.TryAdd(TradeAffixText.Templatize(entry.Text), new StatInfo(entry.Id, entry.Text));
                 }
             }
             catch (Exception ex) when (ex is JsonException or HttpRequestException or InvalidOperationException)
