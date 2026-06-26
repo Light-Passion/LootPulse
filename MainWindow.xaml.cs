@@ -862,7 +862,7 @@ namespace LootPulse
                 return;
             }
 
-            var build = _buildParser.ParseBuildFile(buildFilePath);
+            var build = await _buildParser.ParseBuildFileAsync(buildFilePath);
             if (build == null)
             {
                 return;
@@ -905,7 +905,7 @@ namespace LootPulse
                         // Cache the imported build to a .build file and remember it, so it auto-loads
                         // next launch (PoB imports have no source file path of their own).
                         string cachePath = GetCachedBuildPath();
-                        if (_buildParser.SaveBuildFile(build, cachePath))
+                        if (await _buildParser.SaveBuildFileAsync(build, cachePath))
                         {
                             _appSettings.BuildFilePath = cachePath;
                             await SaveSettingsAsync();
@@ -933,7 +933,7 @@ namespace LootPulse
 
             if (ofd.ShowDialog() == true)
             {
-                var build = _buildParser.ParseBuildFile(ofd.FileName);
+                var build = await _buildParser.ParseBuildFileAsync(ofd.FileName);
                 if (build != null)
                 {
                     _activeBuild = build;
