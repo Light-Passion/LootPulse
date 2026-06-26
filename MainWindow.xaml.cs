@@ -48,6 +48,7 @@ namespace LootPulse
         private readonly PlayerState _playerState = new();
         private bool _isClickThroughEnabled;
         private string? _selectedBaseFilterPath;
+        private string? _selectedBaseFilterDisplayName;
         private FileSystemWatcher? _baseFilterWatcher;
         private bool _isBaseFilterMissingOnStartup;
         private bool _isUiInitialized;
@@ -1508,18 +1509,7 @@ namespace LootPulse
             }
             else
             {
-                string displayName = "Unknown Filter";
-                if (BaseFilterButton.ContextMenu != null)
-                {
-                    foreach (var obj in BaseFilterButton.ContextMenu.Items)
-                    {
-                        if (obj is MenuItem mi && mi.IsChecked)
-                        {
-                            displayName = mi.Header.ToString() ?? Path.GetFileName(_selectedBaseFilterPath);
-                            break;
-                        }
-                    }
-                }
+                string displayName = _selectedBaseFilterDisplayName ?? "Unknown Filter";
 
                 if (displayName == "Unknown Filter")
                 {
@@ -1540,6 +1530,7 @@ namespace LootPulse
                 Style = (Style)FindResource(_darkMenuItemStyleKey),
                 IsChecked = string.IsNullOrEmpty(_selectedBaseFilterPath)
             };
+            if (noneMenuItem.IsChecked) _selectedBaseFilterDisplayName = noneMenuItem.Header.ToString();
             noneMenuItem.Click += (s, e) => SelectBaseFilterOption(string.Empty, noneMenuItem);
             contextMenu.Items.Add(noneMenuItem);
 
@@ -1565,6 +1556,7 @@ namespace LootPulse
                             Style = (Style)FindResource(_darkMenuItemStyleKey),
                             IsChecked = isSelected
                         };
+                        if (isSelected) _selectedBaseFilterDisplayName = item.Header.ToString();
                         item.Click += (s, e) => SelectBaseFilterOption(file, item);
                         contextMenu.Items.Add(item);
                     }
@@ -1585,6 +1577,7 @@ namespace LootPulse
                         Style = (Style)FindResource(_darkMenuItemStyleKey),
                         IsChecked = true
                     };
+                    _selectedBaseFilterDisplayName = item.Header.ToString();
                     item.Click += (s, e) => SelectBaseFilterOption(_selectedBaseFilterPath, item);
                     contextMenu.Items.Add(item);
                 }
@@ -1627,6 +1620,7 @@ namespace LootPulse
                 else
                 {
                     _selectedBaseFilterPath = string.Empty;
+                    _selectedBaseFilterDisplayName = "None (LootPulse Highlights Only)";
                     _appSettings.SelectedBaseFilterPath = string.Empty;
                     await SaveSettingsAsync(force: true);
                     await UpdateOutputFilterPathAsync();
@@ -1750,6 +1744,7 @@ namespace LootPulse
         private async void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
         {
             _selectedBaseFilterPath = filePath;
+            _selectedBaseFilterDisplayName = selectedItem.Header.ToString();
             SetupBaseFilterWatcher(_selectedBaseFilterPath);
             await UpdateOutputFilterPathAsync();
             await TriggerFilterRegenerationAsync();
