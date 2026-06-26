@@ -47,9 +47,6 @@ namespace LootPulse.Services
         [GeneratedRegex(@"] : (\S+) \(([^)]+)\) is now level (\d+)")]
         private static partial Regex AnyLevelRegex();
 
-        [GeneratedRegex(@"\bLevel\s+(\d+)")]
-        private static partial Regex LevelInNameRegex();
-
         private const string _nullSceneSource = "(null)";
         private int _lastGeneratedLevel = 1;
         private string? _currentCharacterName;
@@ -237,7 +234,7 @@ namespace LootPulse.Services
             int level = _lastGeneratedLevel;
             if (level <= 1)
             {
-                level = GetZoneLevelFromName(zoneName);
+                level = ZoneLookup.GetZoneLevelFromName(zoneName);
             }
             System.Diagnostics.Debug.WriteLine($"Detected zone transition: {zoneName} (Level {level})");
             ZoneChanged?.Invoke(this, new ZoneChangedEventArgs(zoneName, level));
@@ -347,7 +344,7 @@ namespace LootPulse.Services
                     if (zoneMatch.Success && !string.Equals(zoneMatch.Groups[1].Value, _nullSceneSource, StringComparison.Ordinal))
                     {
                         lastZoneName = zoneMatch.Groups[1].Value.Trim();
-                        lastZoneLevel = lastAreaLevel > 1 ? lastAreaLevel : GetZoneLevelFromName(lastZoneName);
+                        lastZoneLevel = lastAreaLevel > 1 ? lastAreaLevel : ZoneLookup.GetZoneLevelFromName(lastZoneName);
                         lastAreaLevel = 1; // Reset for next zone
                     }
                 }
@@ -431,45 +428,6 @@ namespace LootPulse.Services
             if (string.IsNullOrEmpty(name)) return name;
             int paren = name.IndexOf(" (", StringComparison.Ordinal);
             return paren > 0 ? name[..paren] : name;
-        }
-
-        private static readonly (string Substring, int Level)[] _zoneLevels = [
-            ("oakhaven", 1),
-            ("lioneye's watch", 1),
-            ("the coast", 2),
-            ("mud flats", 3),
-            ("the grotto", 4),
-            ("the ridge", 5),
-            ("great forest", 6),
-            ("hooded copse", 7),
-            ("riverways", 8),
-            ("oasis", 10),
-            ("forest encampment", 16),
-            ("fields", 16),
-            ("ruins", 18),
-            ("sarn encampment", 33),
-            ("slums", 33)
-        ];
-
-        public static int GetZoneLevelFromName(string zoneName)
-        {
-            if (string.IsNullOrWhiteSpace(zoneName)) return 1;
-
-            foreach (var (sub, zoneLvl) in _zoneLevels)
-            {
-                if (zoneName.Contains(sub, StringComparison.OrdinalIgnoreCase))
-                {
-                    return zoneLvl;
-                }
-            }
-
-            var levelInNameMatch = LevelInNameRegex().Match(zoneName);
-            if (levelInNameMatch.Success && int.TryParse(levelInNameMatch.Groups[1].Value, out int lvl))
-            {
-                return lvl;
-            }
-
-            return 1;
         }
 
         public void Dispose()
