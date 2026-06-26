@@ -44,6 +44,7 @@ namespace LootPulse
         private PoeBuild? _activeBuild;
         public FilterTheme ActiveTheme { get; set; } = new();
         private List<MarketItem> _marketItems = [];
+        private readonly HashSet<string> _marketItemNames = new(StringComparer.OrdinalIgnoreCase);
         private readonly PlayerState _playerState = new();
         private bool _isClickThroughEnabled;
         private string? _selectedBaseFilterPath;
@@ -326,7 +327,7 @@ namespace LootPulse
             {
                 StatusText.Text = "Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Filter Merged");
-                await SaveSettingsAsync();
+                _ = SaveSettingsAsync();
             }
             else
             {
@@ -471,6 +472,11 @@ namespace LootPulse
 
                 _marketItems.Clear();
                 _marketItems.AddRange(allItems);
+                _marketItemNames.Clear();
+                foreach (var item in allItems)
+                {
+                    _marketItemNames.Add(item.Name);
+                }
 
                 NormalizeMarketValues(_marketItems);
                 AddPinnedExchangeRateItem();
@@ -1100,6 +1106,11 @@ namespace LootPulse
                 new() { Name = _mirrorName, Category = _currencyCategory, ChaosValue = 100000.0, LastUpdated = DateTime.UtcNow },
                 new() { Name = "Uncut Skill Gem (Level 19)", Category = "Gems", ChaosValue = 45.0, LastUpdated = DateTime.UtcNow }
             ];
+            _marketItemNames.Clear();
+            foreach (var item in _marketItems)
+            {
+                _marketItemNames.Add(item.Name);
+            }
             NormalizeMarketValues(_marketItems);
             AddPinnedExchangeRateItem();
             UpdateCategoryDropdown();
@@ -1145,7 +1156,7 @@ namespace LootPulse
         private async void StyleEditor_ThemeApplied(FilterTheme theme)
         {
             ActiveTheme = theme;
-            await SaveActiveThemeAsync();
+            _ = SaveActiveThemeAsync();
             await TriggerFilterRegenerationAsync();
         }
 
@@ -1723,7 +1734,7 @@ namespace LootPulse
             }
 
             FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
         }
 
         private async void BaseFilterButton_Click(object sender, RoutedEventArgs e)
@@ -1783,7 +1794,7 @@ namespace LootPulse
             _appSettings.HudHeight = updatedSettings.HudHeight;
             _appSettings.HudXPercent = updatedSettings.HudXPercent;
             _appSettings.HudYPercent = updatedSettings.HudYPercent;
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
         }
 
         private async Task ToggleHudVisibilityAsync()
@@ -1797,7 +1808,7 @@ namespace LootPulse
             HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
             HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
 
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
 
             if (_appSettings.IsHudVisible)
             {
@@ -1817,7 +1828,7 @@ namespace LootPulse
             if (_appSettings == null) return;
 
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -1844,7 +1855,7 @@ namespace LootPulse
 
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
 
             // Dashboard Opacity fades the whole dashboard (panels + content), not just the border.
             if (MainWindowBorder != null)
@@ -1862,7 +1873,7 @@ namespace LootPulse
             _appSettings.HudHeight = 120;
             _appSettings.HudXPercent = 0.80;
             _appSettings.HudYPercent = 0.05;
-            await SaveSettingsAsync();
+            _ = SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -2024,7 +2035,7 @@ namespace LootPulse
             else
             {
                 _appSettings.IsHudVisible = true;
-                await SaveSettingsAsync();
+                _ = SaveSettingsAsync();
                 if (_hudWindow != null)
                 {
                     _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
@@ -2119,6 +2130,7 @@ namespace LootPulse
         private void AddPinnedExchangeRateItem()
         {
             _marketItems.RemoveAll(i => i.Category == _exchangeRateCategory);
+            _marketItemNames.Remove(_divineOrbName);
 
             // Rank every other commodity highest-to-lowest in Divine terms, so the pinned
             // reference item inserted below always sits above a sensibly ordered list.
@@ -2148,6 +2160,7 @@ namespace LootPulse
                 LastUpdated = DateTime.UtcNow
             };
             _marketItems.Insert(0, exchangeRateItem);
+            _marketItemNames.Add(_divineOrbName);
         }
 
         private void UpdateCategoryDropdown()
@@ -2212,11 +2225,10 @@ namespace LootPulse
                 activeLeague = "Runes of Aldur";
             }
             var categoriesToFetch = new HashSet<(string type, string name)>();
-            var existingNames = new HashSet<string>(_marketItems.Select(i => i.Name), StringComparer.OrdinalIgnoreCase);
 
             var missingUniques = build.InventorySlots
                 .Where(slot => !string.IsNullOrEmpty(slot.UniqueName) &&
-                               !existingNames.Contains(slot.UniqueName!));
+                               !_marketItemNames.Contains(slot.UniqueName!));
 
             foreach (var slot in missingUniques)
             {
@@ -2235,13 +2247,13 @@ namespace LootPulse
                     var items = await _ninjaClient.FetchItemPricesAsync(activeLeague, type, name).ConfigureAwait(true);
                     if (items?.Count > 0)
                     {
-                        var newItems = items.Where(item => !existingNames.Contains(item.Name)).ToList();
+                        var newItems = items.Where(item => !_marketItemNames.Contains(item.Name)).ToList();
                         if (newItems.Count > 0)
                         {
                             _marketItems.AddRange(newItems);
                             foreach (var ni in newItems)
                             {
-                                existingNames.Add(ni.Name);
+                                _marketItemNames.Add(ni.Name);
                             }
                             addedAny = true;
                         }
