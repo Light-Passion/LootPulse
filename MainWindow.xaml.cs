@@ -108,6 +108,7 @@ namespace LootPulse
 
         private IntPtr _hwnd;
         private HwndSource? _hwndSource;
+        private readonly TaskCompletionSource<bool> _sourceInitializedTcs = new();
 
         public MainWindow()
         {
@@ -137,13 +138,11 @@ namespace LootPulse
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
             _logMonitor.PlayerLevelChanged += LogMonitor_PlayerLevelChanged;
 
-            // Mock list view items until sync
-            // Populate base filter options
-            LoadBaseFilterOptions();
-            LoadMockItems();
+            // Initialize application asynchronously
+            _ = InitializeAppAsync();
         }
 
-        protected override async void OnSourceInitialized(EventArgs e)
+        protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
 
@@ -153,36 +152,14 @@ namespace LootPulse
             _hwndSource = HwndSource.FromHwnd(_hwnd);
             _hwndSource.AddHook(HwndHook);
 
-            // 1. Load Settings, Theme, and Build Data FIRST
-            await InitializeStartupDataAsync();
-
-            // 2. Register Hotkeys AFTER settings might have changed them (if applicable in future)
+            // Register Hotkeys
             RegisterHotKey(_hwnd, _hotkeyId, 0x0006, 0x4F); // Ctrl + Shift + O
             RegisterHotKey(_hwnd, _hotkeyHudId, 0x0006, 0x48); // Ctrl + Shift + H
 
-            // 3. Initialize monitoring now that we have the correct LogPath
-            if (File.Exists(_appSettings.LogPath))
-            {
-                _logMonitor.StartMonitoring(_appSettings.LogPath);
-            }
-
-            // 4. Apply opacity now that we have loaded the settings
-            if (MainWindowBorder != null)
-            {
-                MainWindowBorder.Opacity = _appSettings.EditModeOpacity;
-            }
-
-            // 5. Initialize Tray Icon and Process Detection
-            InitializeTrayIcon();
-            _processCheckCts = new CancellationTokenSource();
-            _ = StartProcessDetectionAsync(_processCheckCts.Token);
-
-            // 6. Check if base filter was missing on load (flag is set in LoadSettingsAsync)
-            await CheckMissingBaseFilterAsync();
-
-            // 7. Defer setting _isUiInitialized to true until the UI is fully loaded and idle
-            _ = Dispatcher.BeginInvoke(new Action(() => _isUiInitialized = true), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // Signal that the window handle is ready
+            _sourceInitializedTcs.SetResult(true);
         }
+
         protected override void OnClosed(EventArgs e)
         {
             _logMonitor.StopMonitoring();
@@ -332,7 +309,7 @@ namespace LootPulse
             _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
             _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
-            bool success = _filterBuilder.GenerateFilterFile(
+            bool success = await _filterBuilder.GenerateFilterFileAsync(
                 FilterPathBox.Text,
                 _selectedBaseFilterPath,
                 _marketItems,
@@ -375,7 +352,7 @@ namespace LootPulse
             Close();
         }
 
-        private async void LoadBuildButton_Click(object sender, RoutedEventArgs e)
+        private void LoadBuildButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
             {
@@ -630,7 +607,7 @@ namespace LootPulse
             }
         }
 
-        private async void OpenTradeSearch_Click(object sender, RoutedEventArgs e)
+        private void OpenTradeSearch_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement fe || fe.Tag is not string url || string.IsNullOrEmpty(url))
             {
@@ -885,7 +862,7 @@ namespace LootPulse
                 return;
             }
 
-            var build = _buildParser.ParseBuildFile(buildFilePath);
+            var build = await _buildParser.ParseBuildFileAsync(buildFilePath);
             if (build == null)
             {
                 return;
@@ -900,24 +877,6 @@ namespace LootPulse
 
         private async Task InitializeStartupDataAsync()
         {
-            // 1. Load Settings and Theme asynchronously
-            await LoadSettingsAsync();
-            await LoadActiveThemeAsync();
-
-            // 2. Initialize UI components that depend on settings/theme
-            _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
-            if (_appSettings.IsHudVisible)
-                _hudWindow.Show();
-
-            SetupBaseFilterWatcher(_selectedBaseFilterPath);
-
-            var styleEditor = new StyleEditorControl(ActiveTheme)
-            {
-                ThemeApplied = StyleEditor_ThemeApplied
-            };
-            FilterStylesHost.Content = styleEditor;
-
-            // 3. Load build and economy data
             await AutoLoadLastBuildAsync();
             await SyncEconomyDataAsync();
         }
@@ -946,7 +905,7 @@ namespace LootPulse
                         // Cache the imported build to a .build file and remember it, so it auto-loads
                         // next launch (PoB imports have no source file path of their own).
                         string cachePath = GetCachedBuildPath();
-                        if (_buildParser.SaveBuildFile(build, cachePath))
+                        if (await _buildParser.SaveBuildFileAsync(build, cachePath))
                         {
                             _appSettings.BuildFilePath = cachePath;
                             await SaveSettingsAsync();
@@ -974,7 +933,7 @@ namespace LootPulse
 
             if (ofd.ShowDialog() == true)
             {
-                var build = _buildParser.ParseBuildFile(ofd.FileName);
+                var build = await _buildParser.ParseBuildFileAsync(ofd.FileName);
                 if (build != null)
                 {
                     _activeBuild = build;
@@ -1068,6 +1027,67 @@ namespace LootPulse
                 FilterPathBox.Text = sfd.FileName;
                 await SaveSettingsAsync();
             }
+        }
+
+        private async Task InitializeAppAsync()
+        {
+            // Load saved settings (or defaults)
+            await LoadSettingsAsync();
+
+            // Create HUD Window
+            _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
+            if (_appSettings.IsHudVisible)
+                _hudWindow.Show();
+
+            // Populate base filter options
+            LoadBaseFilterOptions();
+
+            // Initialize FileSystemWatcher for the loaded base filter
+            SetupBaseFilterWatcher(_selectedBaseFilterPath);
+
+            // Load Saved Theme
+            await LoadActiveThemeAsync();
+
+            // Host the loot-filter style editor in the "Filter Styles" dashboard tab.
+            var styleEditor = new StyleEditorControl(ActiveTheme)
+            {
+                ThemeApplied = StyleEditor_ThemeApplied
+            };
+            FilterStylesHost.Content = styleEditor;
+
+            // Mock list view items until sync
+            LoadMockItems();
+
+            // Wait for Window Handle to be initialized (OnSourceInitialized)
+            await _sourceInitializedTcs.Task;
+
+            // Initialize monitoring if log file exists
+            if (File.Exists(LogPathBox.Text))
+            {
+                _logMonitor.StartMonitoring(LogPathBox.Text);
+            }
+
+            // Apply opacity immediately to MainWindow (whole dashboard, not just the border)
+            if (MainWindowBorder != null && _appSettings != null)
+            {
+                MainWindowBorder.Opacity = _appSettings.EditModeOpacity;
+            }
+
+            // Initialize Tray Icon
+            InitializeTrayIcon();
+
+            // Start process detection for Path of Exile 2
+            _processCheckCts = new CancellationTokenSource();
+            _ = StartProcessDetectionAsync(_processCheckCts.Token);
+
+            // Check if base filter was missing on load
+            await CheckMissingBaseFilterAsync();
+
+            // Restore the last used .build file and refresh economy data automatically
+            await InitializeStartupDataAsync();
+
+            // Defer setting _isUiInitialized to true until the UI is fully loaded and idle
+            Dispatcher.BeginInvoke(new Action(() => _isUiInitialized = true), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         private void LoadMockItems()
@@ -1422,11 +1442,17 @@ namespace LootPulse
                     Directory.CreateDirectory(directory);
                 }
 
-                _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
-                _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
+                // Capture UI property values before the first await to ensure thread safety
+                string tier1Text = Tier1Box.Text;
+                string tier2Text = Tier2Box.Text;
+                string logPathText = LogPathBox.Text;
+                string filterPathText = FilterPathBox.Text;
 
-                _appSettings.LogPath = LogPathBox.Text;
-                _appSettings.FilterOutputPath = FilterPathBox.Text;
+                _ = double.TryParse(tier1Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
+                _ = double.TryParse(tier2Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
+
+                _appSettings.LogPath = logPathText;
+                _appSettings.FilterOutputPath = filterPathText;
                 _appSettings.SelectedBaseFilterPath = _selectedBaseFilterPath ?? string.Empty;
                 _appSettings.Tier1Threshold = t1 > 0 ? t1 : 1.0;
                 _appSettings.Tier2Threshold = t2 > 0 ? t2 : 1.0;
@@ -2171,7 +2197,7 @@ namespace LootPulse
             }
         }
 
-        private async void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             ApplyCategoryFilter();
         }

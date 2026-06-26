@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <OutputType Condition="'$(TargetFramework)' == 'net9.0-windows'">WinExe</OutputType>
+    <TargetFrameworks>net9.0-windows;net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF Condition="'$(TargetFramework)' == 'net9.0-windows'">true</UseWPF>
+    <UseWindowsForms Condition="'$(TargetFramework)' == 'net9.0-windows'">true</UseWindowsForms>
     <ApplicationIcon>lootpulse.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
@@ -33,12 +33,24 @@
 
   <ItemGroup>
     <!-- Embedded browser used to authenticate to the pathofexile.com trade2 API (Trade Market tab) -->
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" Condition="'$(TargetFramework)' == 'net9.0-windows'" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows'">
+    <Compile Remove="**/*.xaml.cs" />
+    <Compile Remove="App.xaml.cs" />
+    <Compile Remove="MainWindow.xaml.cs" />
+    <Compile Remove="HudWindow.xaml.cs" />
+    <Compile Remove="PobImportWindow.xaml.cs" />
+    <Compile Remove="StyleEditorControl.xaml.cs" />
+    <Compile Remove="AssemblyInfo.cs" />
+    <Compile Remove="Converters/**/*.cs" />
+    <Compile Remove="Services/Trade/WebView2TradeTransport.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using LootPulse.Models;
 
 namespace LootPulse.Services
@@ -26,7 +27,7 @@ namespace LootPulse.Services
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Top-level generation method must catch all exceptions to prevent overlay UI crash and return false indicating failure.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance method to support future dependency injection, mockability, and extension.")]
-        public bool GenerateFilterFile(
+        public async Task<bool> GenerateFilterFileAsync(
             string outputPath,
             string? baseFilterPath,
             List<MarketItem> marketItems,
@@ -76,7 +77,7 @@ namespace LootPulse.Services
                 highlightedNames.UnionWith(tier1Items.Select(i => i.Name));
                 highlightedNames.UnionWith(tier2Items.Select(i => i.Name));
 
-                AppendFallbackOrBaseRules(sb, baseFilterPath, highlightedNames);
+                await AppendFallbackOrBaseRulesAsync(sb, baseFilterPath, highlightedNames);
 
                 // Write out the filter file
                 var directory = Path.GetDirectoryName(outputPath);
@@ -85,7 +86,7 @@ namespace LootPulse.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllText(outputPath, sb.ToString(), Encoding.UTF8);
+                await File.WriteAllTextAsync(outputPath, sb.ToString(), Encoding.UTF8);
                 return true;
             }
             catch (Exception ex)
@@ -347,14 +348,14 @@ namespace LootPulse.Services
             }
         }
 
-        private static void AppendFallbackOrBaseRules(StringBuilder sb, string? baseFilterPath, HashSet<string> highlightedNames)
+        private static async Task AppendFallbackOrBaseRulesAsync(StringBuilder sb, string? baseFilterPath, HashSet<string> highlightedNames)
         {
             if (!string.IsNullOrEmpty(baseFilterPath) && File.Exists(baseFilterPath))
             {
                 sb.AppendLine(_sectionSeparator);
                 sb.AppendLine("# APPENDED BASE FILTER RULES");
                 sb.AppendLine(_sectionSeparator);
-                var baseFilterContent = File.ReadAllText(baseFilterPath);
+                var baseFilterContent = await File.ReadAllTextAsync(baseFilterPath);
                 var cleanedContent = StripDuplicateBaseTypeRules(baseFilterContent, highlightedNames);
                 sb.AppendLine(cleanedContent);
             }
@@ -988,7 +989,7 @@ namespace LootPulse.Services
 
         public static string ParseHexToRgbaString(string hex)
         {
-            if (string.IsNullOrWhiteSpace(hex)) return "";
+            if (string.IsNullOrWhiteSpace(hex)) return "255 255 255 255";
 
             // Trim leading '#' if present
             hex = hex.Trim().TrimStart('#');
@@ -997,6 +998,10 @@ namespace LootPulse.Services
             if (hex.Length == 3)
             {
                 hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+            }
+            else if (hex.Length == 4)
+            {
+                hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}{hex[3]}{hex[3]}";
             }
 
             byte r, g, b, a;
