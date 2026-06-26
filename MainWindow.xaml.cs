@@ -78,7 +78,7 @@ namespace LootPulse
         private const string _classHuntress = "Huntress";
         private const string _classWarrior = "Warrior";
 
-        private readonly HudWindow? _hudWindow;
+        private HudWindow? _hudWindow;
         private readonly AppSettings _appSettings = new();
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
@@ -137,35 +137,13 @@ namespace LootPulse
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
             _logMonitor.PlayerLevelChanged += LogMonitor_PlayerLevelChanged;
 
-            // Load saved settings (or defaults)
-            LoadSettings();
-
-            // Create HUD Window
-            _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
-            if (_appSettings.IsHudVisible)
-                _hudWindow.Show();
-
+            // Mock list view items until sync
             // Populate base filter options
             LoadBaseFilterOptions();
-
-            // Initialize FileSystemWatcher for the loaded base filter
-            SetupBaseFilterWatcher(_selectedBaseFilterPath);
-
-            // Load Saved Theme
-            LoadActiveTheme();
-
-            // Host the loot-filter style editor in the "Filter Styles" dashboard tab.
-            var styleEditor = new StyleEditorControl(ActiveTheme)
-            {
-                ThemeApplied = StyleEditor_ThemeApplied
-            };
-            FilterStylesHost.Content = styleEditor;
-
-            // Mock list view items until sync
             LoadMockItems();
         }
 
-        protected override void OnSourceInitialized(EventArgs e)
+        protected override async void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
 
@@ -175,39 +153,36 @@ namespace LootPulse
             _hwndSource = HwndSource.FromHwnd(_hwnd);
             _hwndSource.AddHook(HwndHook);
 
-            // Register Hotkeys
+            // 1. Load Settings, Theme, and Build Data FIRST
+            await InitializeStartupDataAsync();
+
+            // 2. Register Hotkeys AFTER settings might have changed them (if applicable in future)
             RegisterHotKey(_hwnd, _hotkeyId, 0x0006, 0x4F); // Ctrl + Shift + O
             RegisterHotKey(_hwnd, _hotkeyHudId, 0x0006, 0x48); // Ctrl + Shift + H
 
-            // Initialize monitoring if log file exists
-            if (File.Exists(LogPathBox.Text))
+            // 3. Initialize monitoring now that we have the correct LogPath
+            if (File.Exists(_appSettings.LogPath))
             {
-                _logMonitor.StartMonitoring(LogPathBox.Text);
+                _logMonitor.StartMonitoring(_appSettings.LogPath);
             }
 
-            // Apply opacity immediately to MainWindow (whole dashboard, not just the border)
-            if (MainWindowBorder != null && _appSettings != null)
+            // 4. Apply opacity now that we have loaded the settings
+            if (MainWindowBorder != null)
             {
                 MainWindowBorder.Opacity = _appSettings.EditModeOpacity;
             }
 
-            // Initialize Tray Icon
+            // 5. Initialize Tray Icon and Process Detection
             InitializeTrayIcon();
-
-            // Start process detection for Path of Exile 2
             _processCheckCts = new CancellationTokenSource();
             _ = StartProcessDetectionAsync(_processCheckCts.Token);
 
-            // Check if base filter was missing on load
-            CheckMissingBaseFilter();
+            // 6. Check if base filter was missing on load (flag is set in LoadSettingsAsync)
+            await CheckMissingBaseFilterAsync();
 
-            // Restore the last used .build file and refresh economy data automatically
-            _ = InitializeStartupDataAsync();
-
-            // Defer setting _isUiInitialized to true until the UI is fully loaded and idle
-            Dispatcher.BeginInvoke(new Action(() => _isUiInitialized = true), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // 7. Defer setting _isUiInitialized to true until the UI is fully loaded and idle
+            _ = Dispatcher.BeginInvoke(new Action(() => _isUiInitialized = true), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
-
         protected override void OnClosed(EventArgs e)
         {
             _logMonitor.StopMonitoring();
@@ -267,7 +242,7 @@ namespace LootPulse
                 }
                 else if (id == _hotkeyHudId)
                 {
-                    ToggleHudVisibility();
+                    _ = ToggleHudVisibilityAsync();
                     handled = true;
                 }
             }
@@ -307,10 +282,10 @@ namespace LootPulse
             }
         }
 
-        private void LogMonitor_ZoneChanged(object? sender, ZoneChangedEventArgs e)
+        private async void LogMonitor_ZoneChanged(object? sender, ZoneChangedEventArgs e)
         {
             // Invoke on the UI thread to update controls
-            Dispatcher.Invoke(() =>
+            await Dispatcher.InvokeAsync(async () =>
             {
                 _playerState.CurrentZone = e.ZoneName;
                 _playerState.ZoneLevel = e.ZoneLevel;
@@ -321,13 +296,13 @@ namespace LootPulse
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, e.ZoneName, e.ZoneLevel, "Zone Changed");
 
                 // Dynamic regeneration based on zone transition
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
             });
         }
 
-        private void LogMonitor_PlayerLevelChanged(object? sender, PlayerLevelChangedEventArgs e)
+        private async void LogMonitor_PlayerLevelChanged(object? sender, PlayerLevelChangedEventArgs e)
         {
-            Dispatcher.Invoke(() =>
+            await Dispatcher.InvokeAsync(async () =>
             {
                 _playerState.CharacterName = e.CharacterName;
                 CharNameText.Text = e.CharacterName;
@@ -348,11 +323,11 @@ namespace LootPulse
                 _hudWindow?.UpdateDisplay(e.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Level Up!");
 
                 // Regenerate filter with updated level
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
             });
         }
 
-        private void TriggerFilterRegeneration()
+        private async Task TriggerFilterRegenerationAsync()
         {
             _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
             _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
@@ -374,7 +349,7 @@ namespace LootPulse
             {
                 StatusText.Text = "Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Filter Merged");
-                SaveSettings();
+                await SaveSettingsAsync();
             }
             else
             {
@@ -400,7 +375,7 @@ namespace LootPulse
             Close();
         }
 
-        private void LoadBuildButton_Click(object sender, RoutedEventArgs e)
+        private async void LoadBuildButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
             {
@@ -525,7 +500,7 @@ namespace LootPulse
                 UpdateCategoryDropdown();
                 ApplyCategoryFilter();
 
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
                 StatusText.Text = "Sync complete. All economy categories updated.";
             }
             catch (Exception ex)
@@ -559,7 +534,7 @@ namespace LootPulse
         }
 
         // Show the per-item budget input only in Best-in-slot mode, and min matched affixes only in Cheapest mode.
-        private void TradeMode_Changed(object sender, RoutedEventArgs e)
+        private async void TradeMode_Changed(object sender, RoutedEventArgs e)
         {
             if (BudgetPanel != null && BestInSlotModeRadio != null)
             {
@@ -571,10 +546,10 @@ namespace LootPulse
             }
         }
 
-        private void TradeTransport_ConnectionChanged(object? sender, TradeConnectionChangedEventArgs e)
+        private async void TradeTransport_ConnectionChanged(object? sender, TradeConnectionChangedEventArgs e)
         {
             bool connected = e.IsConnected;
-            Dispatcher.Invoke(() =>
+            await Dispatcher.InvokeAsync(async () =>
             {
                 ConnectTradeButton.IsEnabled = !connected;
                 ConnectTradeButton.Content = connected ? "Trade Account Connected" : "Connect Trade Account";
@@ -655,7 +630,7 @@ namespace LootPulse
             }
         }
 
-        private void OpenTradeSearch_Click(object sender, RoutedEventArgs e)
+        private async void OpenTradeSearch_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement fe || fe.Tag is not string url || string.IsNullOrEmpty(url))
             {
@@ -925,6 +900,24 @@ namespace LootPulse
 
         private async Task InitializeStartupDataAsync()
         {
+            // 1. Load Settings and Theme asynchronously
+            await LoadSettingsAsync();
+            await LoadActiveThemeAsync();
+
+            // 2. Initialize UI components that depend on settings/theme
+            _hudWindow = new HudWindow(_appSettings, OnHudPositionChanged);
+            if (_appSettings.IsHudVisible)
+                _hudWindow.Show();
+
+            SetupBaseFilterWatcher(_selectedBaseFilterPath);
+
+            var styleEditor = new StyleEditorControl(ActiveTheme)
+            {
+                ThemeApplied = StyleEditor_ThemeApplied
+            };
+            FilterStylesHost.Content = styleEditor;
+
+            // 3. Load build and economy data
             await AutoLoadLastBuildAsync();
             await SyncEconomyDataAsync();
         }
@@ -956,12 +949,12 @@ namespace LootPulse
                         if (_buildParser.SaveBuildFile(build, cachePath))
                         {
                             _appSettings.BuildFilePath = cachePath;
-                            SaveSettings();
+                            await SaveSettingsAsync();
                         }
 
                         _logMonitor.TriggerHistoryScan();
                         await LoadBuildUniquePricesAsync(build);
-                        TriggerFilterRegeneration();
+                        await TriggerFilterRegenerationAsync();
                         return;
                     }
                 }
@@ -988,10 +981,10 @@ namespace LootPulse
                     BuildNameText.Text = build.Name;
                     StatusText.Text = $"Loaded .build file: {build.Name}";
                     _appSettings.BuildFilePath = ofd.FileName;
-                    SaveSettings();
+                    await SaveSettingsAsync();
                     _logMonitor.TriggerHistoryScan();
                     await LoadBuildUniquePricesAsync(build);
-                    TriggerFilterRegeneration();
+                    await TriggerFilterRegenerationAsync();
                 }
                 else
                 {
@@ -1000,7 +993,7 @@ namespace LootPulse
             }
         }
 
-        private void BrowseLog_Click(object sender, RoutedEventArgs e)
+        private async void BrowseLog_Click(object sender, RoutedEventArgs e)
         {
             string logFolder = string.Empty;
             try
@@ -1031,11 +1024,11 @@ namespace LootPulse
                 LogPathBox.Text = ofd.FileName;
                 _logMonitor.StopMonitoring();
                 _logMonitor.StartMonitoring(ofd.FileName);
-                SaveSettings();
+                await SaveSettingsAsync();
             }
         }
 
-        private void BrowseFilter_Click(object sender, RoutedEventArgs e)
+        private async void BrowseFilter_Click(object sender, RoutedEventArgs e)
         {
             string filterFolder = string.Empty;
             try
@@ -1073,7 +1066,7 @@ namespace LootPulse
             if (sfd.ShowDialog() == true)
             {
                 FilterPathBox.Text = sfd.FileName;
-                SaveSettings();
+                await SaveSettingsAsync();
             }
         }
 
@@ -1093,14 +1086,14 @@ namespace LootPulse
             ApplyCategoryFilter();
         }
 
-        private void LoadActiveTheme()
+        private async Task LoadActiveThemeAsync()
         {
             string themePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "args", "active_theme.json");
             if (File.Exists(themePath))
             {
                 try
                 {
-                    string json = File.ReadAllText(themePath);
+                    string json = await File.ReadAllTextAsync(themePath);
                     var theme = JsonSerializer.Deserialize<FilterTheme>(json);
                     if (theme != null)
                     {
@@ -1114,13 +1107,13 @@ namespace LootPulse
             }
         }
 
-        private void SaveActiveTheme()
+        private async Task SaveActiveThemeAsync()
         {
             string themePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "args", "active_theme.json");
             try
             {
                 string json = JsonSerializer.Serialize(ActiveTheme, _jsonOptions);
-                File.WriteAllText(themePath, json);
+                await File.WriteAllTextAsync(themePath, json);
             }
             catch (Exception ex)
             {
@@ -1129,11 +1122,11 @@ namespace LootPulse
         }
 
         // The "Filter Styles" tab invokes this when the user clicks Save & Apply.
-        private void StyleEditor_ThemeApplied(FilterTheme theme)
+        private async void StyleEditor_ThemeApplied(FilterTheme theme)
         {
             ActiveTheme = theme;
-            SaveActiveTheme();
-            TriggerFilterRegeneration();
+            await SaveActiveThemeAsync();
+            await TriggerFilterRegenerationAsync();
         }
 
         // --- Settings & Base Filter Merging Methods ---
@@ -1153,7 +1146,7 @@ namespace LootPulse
             return Path.Combine(dir, "last_build.build");
         }
 
-        private void LoadSettings()
+        private async Task LoadSettingsAsync()
         {
             string settingsFile = GetSettingsFilePath();
             string loadedLogPath = string.Empty;
@@ -1165,7 +1158,7 @@ namespace LootPulse
             {
                 try
                 {
-                    string json = File.ReadAllText(settingsFile);
+                    string json = await File.ReadAllTextAsync(settingsFile);
                     settings = JsonSerializer.Deserialize<AppSettings>(json);
                     if (settings != null)
                     {
@@ -1223,7 +1216,7 @@ namespace LootPulse
 
             if (resolvedLogPath != loadedLogPath || resolvedFilterPath != loadedFilterPath)
             {
-                SaveSettings(force: true);
+                await SaveSettingsAsync(force: true);
             }
         }
 
@@ -1417,7 +1410,7 @@ namespace LootPulse
             return Path.Combine(defaultDir, "LootPulse_Only.filter");
         }
 
-        private void SaveSettings(bool force = false)
+        private async Task SaveSettingsAsync(bool force = false)
         {
             if (!_isUiInitialized && !force) return;
             try
@@ -1439,7 +1432,7 @@ namespace LootPulse
                 _appSettings.Tier2Threshold = t2 > 0 ? t2 : 1.0;
 
                 string json = JsonSerializer.Serialize(_appSettings, _jsonOptions);
-                File.WriteAllText(settingsFile, json);
+                await File.WriteAllTextAsync(settingsFile, json);
             }
             catch (Exception ex)
             {
@@ -1579,7 +1572,7 @@ namespace LootPulse
             UpdateSelectedFilterDisplayText();
         }
 
-        private void CheckMissingBaseFilter()
+        private async Task CheckMissingBaseFilterAsync()
         {
             if (_isBaseFilterMissingOnStartup)
             {
@@ -1598,9 +1591,9 @@ namespace LootPulse
                 {
                     _selectedBaseFilterPath = string.Empty;
                     _appSettings.SelectedBaseFilterPath = string.Empty;
-                    SaveSettings(force: true);
-                    UpdateOutputFilterPath();
-                    TriggerFilterRegeneration();
+                    await SaveSettingsAsync(force: true);
+                    await UpdateOutputFilterPathAsync();
+                    await TriggerFilterRegenerationAsync();
                 }
             }
         }
@@ -1640,14 +1633,14 @@ namespace LootPulse
             }
         }
 
-        private void BaseFilter_Changed(object sender, FileSystemEventArgs e)
+        private async void BaseFilter_Changed(object sender, FileSystemEventArgs e)
         {
-            Dispatcher.Invoke(async () =>
+            await Dispatcher.InvokeAsync(async () =>
             {
                 // Debounce briefly for GGG client to release file lock
                 await Task.Delay(500);
                 StatusText.Text = "Subscribed base filter update detected. Re-merging filter...";
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
                 FlashBorderAndPlaySound();
             });
         }
@@ -1682,7 +1675,7 @@ namespace LootPulse
             flashBrush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
         }
 
-        private void UpdateOutputFilterPath()
+        private async Task UpdateOutputFilterPathAsync()
         {
             string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string folder = Path.Combine(myDocs, @"My Games\Path of Exile 2");
@@ -1704,10 +1697,10 @@ namespace LootPulse
             }
 
             FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
-            SaveSettings();
+            await SaveSettingsAsync();
         }
 
-        private void BaseFilterButton_Click(object sender, RoutedEventArgs e)
+        private async void BaseFilterButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.ContextMenu != null)
             {
@@ -1717,12 +1710,12 @@ namespace LootPulse
             }
         }
 
-        private void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
+        private async void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
         {
             _selectedBaseFilterPath = filePath;
             SetupBaseFilterWatcher(_selectedBaseFilterPath);
-            UpdateOutputFilterPath();
-            TriggerFilterRegeneration();
+            await UpdateOutputFilterPathAsync();
+            await TriggerFilterRegenerationAsync();
 
             if (BaseFilterButton.ContextMenu != null)
             {
@@ -1738,7 +1731,7 @@ namespace LootPulse
             UpdateSelectedFilterDisplayText();
         }
 
-        private void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
+        private async void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
             {
@@ -1750,24 +1743,24 @@ namespace LootPulse
             {
                 _selectedBaseFilterPath = ofd.FileName;
                 SetupBaseFilterWatcher(_selectedBaseFilterPath);
-                UpdateOutputFilterPath();
-                TriggerFilterRegeneration();
+                await UpdateOutputFilterPathAsync();
+                await TriggerFilterRegenerationAsync();
 
                 LoadBaseFilterOptions();
             }
         }
 
-        private void OnHudPositionChanged(AppSettings updatedSettings)
+        private async void OnHudPositionChanged(AppSettings updatedSettings)
         {
             if (!_isUiInitialized) return;
             _appSettings.HudWidth = updatedSettings.HudWidth;
             _appSettings.HudHeight = updatedSettings.HudHeight;
             _appSettings.HudXPercent = updatedSettings.HudXPercent;
             _appSettings.HudYPercent = updatedSettings.HudYPercent;
-            SaveSettings();
+            await SaveSettingsAsync();
         }
 
-        private void ToggleHudVisibility()
+        private async Task ToggleHudVisibilityAsync()
         {
             _appSettings.IsHudVisible = !_appSettings.IsHudVisible;
 
@@ -1778,7 +1771,7 @@ namespace LootPulse
             HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
             HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
 
-            SaveSettings();
+            await SaveSettingsAsync();
 
             if (_appSettings.IsHudVisible)
             {
@@ -1792,13 +1785,13 @@ namespace LootPulse
             }
         }
 
-        private void HudVisibleCheckBox_Changed(object sender, RoutedEventArgs e)
+        private async void HudVisibleCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isUiInitialized) return;
             if (_appSettings == null) return;
 
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
-            SaveSettings();
+            await SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -1809,23 +1802,23 @@ namespace LootPulse
             }
         }
 
-        private void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
+        private async void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isUiInitialized) return;
             if (_appSettings == null) return;
 
             _appSettings.ShowEconomyHighlights = EconomyHighlightsCheckBox.IsChecked == true;
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
         }
 
-        private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private async void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (!_isUiInitialized) return;
             if (_appSettings == null || EditOpacitySlider == null || HudOpacitySlider == null) return;
 
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
-            SaveSettings();
+            await SaveSettingsAsync();
 
             // Dashboard Opacity fades the whole dashboard (panels + content), not just the border.
             if (MainWindowBorder != null)
@@ -1837,13 +1830,13 @@ namespace LootPulse
             _hudWindow?.SetClickThrough(_isClickThroughEnabled, _appSettings.HudModeOpacity);
         }
 
-        private void ResetHudPosition_Click(object sender, RoutedEventArgs e)
+        private async void ResetHudPosition_Click(object sender, RoutedEventArgs e)
         {
             _appSettings.HudWidth = 250;
             _appSettings.HudHeight = 120;
             _appSettings.HudXPercent = 0.80;
             _appSettings.HudYPercent = 0.05;
-            SaveSettings();
+            await SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -1854,12 +1847,12 @@ namespace LootPulse
             StatusText.Text = "HUD size and position reset to defaults.";
         }
 
-        private void SaveSettings_Click(object sender, RoutedEventArgs e)
+        private async void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
             string oldLogPath = _appSettings.LogPath;
             string oldBaseFilter = _appSettings.SelectedBaseFilterPath;
 
-            SaveSettings(force: true);
+            await SaveSettingsAsync(force: true);
 
             // Restart log monitor if path changed
             if (LogPathBox.Text != oldLogPath && File.Exists(LogPathBox.Text))
@@ -1874,7 +1867,7 @@ namespace LootPulse
                 SetupBaseFilterWatcher(_selectedBaseFilterPath);
             }
 
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
             StatusText.Text = "Settings saved successfully.";
         }
 
@@ -1971,7 +1964,7 @@ namespace LootPulse
                     bool isRunning = IsPoE2Running();
                     if (isRunning && !_wasGameRunning)
                     {
-                        await Dispatcher.InvokeAsync(OnGameLaunchDetected);
+                        await Dispatcher.InvokeAsync(OnGameLaunchDetectedAsync);
                     }
                     _wasGameRunning = isRunning;
                 }
@@ -1995,7 +1988,7 @@ namespace LootPulse
             }
         }
 
-        private void OnGameLaunchDetected()
+        private async Task OnGameLaunchDetectedAsync()
         {
             StatusText.Text = "Path of Exile 2 launch detected! Activating HUD overlay...";
             if (!_isClickThroughEnabled)
@@ -2005,7 +1998,7 @@ namespace LootPulse
             else
             {
                 _appSettings.IsHudVisible = true;
-                SaveSettings();
+                await SaveSettingsAsync();
                 if (_hudWindow != null)
                 {
                     _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
@@ -2178,7 +2171,7 @@ namespace LootPulse
             }
         }
 
-        private void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             ApplyCategoryFilter();
         }
