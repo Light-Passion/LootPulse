@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading.Tasks;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,7 +27,7 @@ namespace LootPulse.Services
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Top-level generation method must catch all exceptions to prevent overlay UI crash and return false indicating failure.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance method to support future dependency injection, mockability, and extension.")]
-        public bool GenerateFilterFile(
+        public async Task<bool> GenerateFilterFileAsync(
             string outputPath,
             string? baseFilterPath,
             List<MarketItem> marketItems,
@@ -85,7 +86,7 @@ namespace LootPulse.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllText(outputPath, sb.ToString(), Encoding.UTF8);
+                await File.WriteAllTextAsync(outputPath, sb.ToString(), Encoding.UTF8).ConfigureAwait(false);
                 return true;
             }
             catch (Exception ex)

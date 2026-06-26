@@ -310,7 +310,7 @@ namespace LootPulse
         private void LogMonitor_ZoneChanged(object? sender, ZoneChangedEventArgs e)
         {
             // Invoke on the UI thread to update controls
-            Dispatcher.Invoke(() =>
+            _ = Dispatcher.InvokeAsync(async () =>
             {
                 _playerState.CurrentZone = e.ZoneName;
                 _playerState.ZoneLevel = e.ZoneLevel;
@@ -321,13 +321,13 @@ namespace LootPulse
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, e.ZoneName, e.ZoneLevel, "Zone Changed");
 
                 // Dynamic regeneration based on zone transition
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
             });
         }
 
         private void LogMonitor_PlayerLevelChanged(object? sender, PlayerLevelChangedEventArgs e)
         {
-            Dispatcher.Invoke(() =>
+            _ = Dispatcher.InvokeAsync(async () =>
             {
                 _playerState.CharacterName = e.CharacterName;
                 CharNameText.Text = e.CharacterName;
@@ -348,16 +348,16 @@ namespace LootPulse
                 _hudWindow?.UpdateDisplay(e.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Level Up!");
 
                 // Regenerate filter with updated level
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
             });
         }
 
-        private void TriggerFilterRegeneration()
+        private async Task TriggerFilterRegenerationAsync()
         {
             _ = double.TryParse(Tier1Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t1);
             _ = double.TryParse(Tier2Box.Text, System.Globalization.CultureInfo.InvariantCulture, out double t2);
 
-            bool success = _filterBuilder.GenerateFilterFile(
+            bool success = await _filterBuilder.GenerateFilterFileAsync(
                 FilterPathBox.Text,
                 _selectedBaseFilterPath,
                 _marketItems,
@@ -525,7 +525,7 @@ namespace LootPulse
                 UpdateCategoryDropdown();
                 ApplyCategoryFilter();
 
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
                 StatusText.Text = "Sync complete. All economy categories updated.";
             }
             catch (Exception ex)
@@ -961,7 +961,7 @@ namespace LootPulse
 
                         _logMonitor.TriggerHistoryScan();
                         await LoadBuildUniquePricesAsync(build);
-                        TriggerFilterRegeneration();
+                        await TriggerFilterRegenerationAsync();
                         return;
                     }
                 }
@@ -991,7 +991,7 @@ namespace LootPulse
                     SaveSettings();
                     _logMonitor.TriggerHistoryScan();
                     await LoadBuildUniquePricesAsync(build);
-                    TriggerFilterRegeneration();
+                    await TriggerFilterRegenerationAsync();
                 }
                 else
                 {
@@ -1129,11 +1129,11 @@ namespace LootPulse
         }
 
         // The "Filter Styles" tab invokes this when the user clicks Save & Apply.
-        private void StyleEditor_ThemeApplied(FilterTheme theme)
+        private async void StyleEditor_ThemeApplied(FilterTheme theme)
         {
             ActiveTheme = theme;
             SaveActiveTheme();
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
         }
 
         // --- Settings & Base Filter Merging Methods ---
@@ -1579,7 +1579,7 @@ namespace LootPulse
             UpdateSelectedFilterDisplayText();
         }
 
-        private void CheckMissingBaseFilter()
+        private async void CheckMissingBaseFilter()
         {
             if (_isBaseFilterMissingOnStartup)
             {
@@ -1600,7 +1600,7 @@ namespace LootPulse
                     _appSettings.SelectedBaseFilterPath = string.Empty;
                     SaveSettings(force: true);
                     UpdateOutputFilterPath();
-                    TriggerFilterRegeneration();
+                    await TriggerFilterRegenerationAsync();
                 }
             }
         }
@@ -1647,7 +1647,7 @@ namespace LootPulse
                 // Debounce briefly for GGG client to release file lock
                 await Task.Delay(500);
                 StatusText.Text = "Subscribed base filter update detected. Re-merging filter...";
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
                 FlashBorderAndPlaySound();
             });
         }
@@ -1717,12 +1717,12 @@ namespace LootPulse
             }
         }
 
-        private void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
+        private async void SelectBaseFilterOption(string filePath, MenuItem selectedItem)
         {
             _selectedBaseFilterPath = filePath;
             SetupBaseFilterWatcher(_selectedBaseFilterPath);
             UpdateOutputFilterPath();
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
 
             if (BaseFilterButton.ContextMenu != null)
             {
@@ -1738,7 +1738,7 @@ namespace LootPulse
             UpdateSelectedFilterDisplayText();
         }
 
-        private void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
+        private async void BrowseBaseFilter_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
             {
@@ -1751,7 +1751,7 @@ namespace LootPulse
                 _selectedBaseFilterPath = ofd.FileName;
                 SetupBaseFilterWatcher(_selectedBaseFilterPath);
                 UpdateOutputFilterPath();
-                TriggerFilterRegeneration();
+                await TriggerFilterRegenerationAsync();
 
                 LoadBaseFilterOptions();
             }
@@ -1809,13 +1809,13 @@ namespace LootPulse
             }
         }
 
-        private void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
+        private async void EconomyHighlightsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isUiInitialized) return;
             if (_appSettings == null) return;
 
             _appSettings.ShowEconomyHighlights = EconomyHighlightsCheckBox.IsChecked == true;
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
         }
 
         private void OpacitySliders_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1854,7 +1854,7 @@ namespace LootPulse
             StatusText.Text = "HUD size and position reset to defaults.";
         }
 
-        private void SaveSettings_Click(object sender, RoutedEventArgs e)
+        private async void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
             string oldLogPath = _appSettings.LogPath;
             string oldBaseFilter = _appSettings.SelectedBaseFilterPath;
@@ -1874,7 +1874,7 @@ namespace LootPulse
                 SetupBaseFilterWatcher(_selectedBaseFilterPath);
             }
 
-            TriggerFilterRegeneration();
+            await TriggerFilterRegenerationAsync();
             StatusText.Text = "Settings saved successfully.";
         }
 
