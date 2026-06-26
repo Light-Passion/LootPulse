@@ -14,7 +14,7 @@ namespace LootPulse.Services
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075:URIs should not be hardcoded", Justification = "poe.ninja endpoint URL is fixed by the service provider.")]
     public class PoeNinjaClient
     {
-        private static readonly HttpClient _httpClient = CreateHttpClient();
+        private readonly HttpClient _httpClient;
         private const string _baseUrl = "https://poe.ninja/poe2/api/economy";
         private const string _currencyLiteral = "Currency";
 
@@ -57,6 +57,12 @@ namespace LootPulse.Services
 
         public PoeNinjaClient()
         {
+            _httpClient = CreateHttpClient();
+        }
+
+        public PoeNinjaClient(HttpClient httpClient)
+        {
+            _httpClient = httpClient;
         }
 
         public async Task<List<MarketItem>> FetchCurrencyPricesAsync(string league)
@@ -242,7 +248,7 @@ namespace LootPulse.Services
             return ($"{_baseUrl}/{endPath}", normalized, isItem);
         }
 
-        private static async Task<NinjaStashResponse?> FetchStashDataAsync(string baseUrl, string league, string type)
+        private async Task<NinjaStashResponse?> FetchStashDataAsync(string baseUrl, string league, string type)
         {
             var response = await FetchStashDataForLeagueAsync(baseUrl, league, type).ConfigureAwait(false);
             if (response == null || response.Lines == null || response.Lines.Count == 0)
@@ -253,7 +259,7 @@ namespace LootPulse.Services
             return response;
         }
 
-        private static async Task<NinjaStashResponse?> FetchStashDataForLeagueAsync(string baseUrl, string league, string type)
+        private async Task<NinjaStashResponse?> FetchStashDataForLeagueAsync(string baseUrl, string league, string type)
         {
             var url = $"{baseUrl}?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
             try
@@ -270,7 +276,7 @@ namespace LootPulse.Services
             }
         }
 
-        private static async Task<NinjaExchangeResponse?> FetchExchangeDataWithUrlAsync(string baseUrl, string league, string type)
+        private async Task<NinjaExchangeResponse?> FetchExchangeDataWithUrlAsync(string baseUrl, string league, string type)
         {
             var response = await FetchExchangeDataForLeagueWithUrlAsync(baseUrl, league, type).ConfigureAwait(false);
             if (response == null || response.Lines == null || response.Lines.Count == 0)
@@ -281,7 +287,7 @@ namespace LootPulse.Services
             return response;
         }
 
-        private static async Task<NinjaExchangeResponse?> FetchExchangeDataForLeagueWithUrlAsync(string baseUrl, string league, string type)
+        private async Task<NinjaExchangeResponse?> FetchExchangeDataForLeagueWithUrlAsync(string baseUrl, string league, string type)
         {
             var url = $"{baseUrl}?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
             try
