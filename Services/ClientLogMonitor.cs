@@ -55,6 +55,9 @@ namespace LootPulse.Services
         private string? _currentCharacterName;
         private bool _pendingLoginScreen;
 
+        private string? _cachedSynonymsKey;
+        private Regex? _cachedClassLevelRegex;
+
         public void StartMonitoring(string logFilePath)
         {
             if (string.IsNullOrWhiteSpace(logFilePath) || !File.Exists(logFilePath))
@@ -307,9 +310,14 @@ namespace LootPulse.Services
         private (string? Name, int Level) MatchCharacterByClassSynonyms(string[] synonyms)
         {
             string escapedSynonyms = string.Join("|", Array.ConvertAll(synonyms, Regex.Escape));
-            var classLevelRegex = new Regex(@"] : (\S+) \((?:" + escapedSynonyms + @")\) is now level (\d+)", RegexOptions.Compiled);
 
-            var match = FindLatestLineMatch(classLevelRegex);
+            if (!string.Equals(escapedSynonyms, _cachedSynonymsKey, StringComparison.Ordinal))
+            {
+                _cachedSynonymsKey = escapedSynonyms;
+                _cachedClassLevelRegex = new Regex(@"] : (\S+) \((?:" + escapedSynonyms + @")\) is now level (\d+)", RegexOptions.Compiled);
+            }
+
+            var match = FindLatestLineMatch(_cachedClassLevelRegex!);
             if (match != null && int.TryParse(match.Groups[2].Value, out int lvl))
             {
                 string name = match.Groups[1].Value.Trim();
