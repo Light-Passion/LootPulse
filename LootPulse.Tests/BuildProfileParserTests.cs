@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using LootPulse.Models;
 using LootPulse.Services;
 using Xunit;
@@ -27,17 +28,17 @@ public class BuildProfileParserTests : IDisposable
     }
 
     [Fact]
-    public void ParseBuildFile_FileDoesNotExist_ReturnsNull()
+    public async Task ParseBuildFile_FileDoesNotExist_ReturnsNull()
     {
         // Act
-        var result = _parser.ParseBuildFile("non_existent_file.build");
+        var result = await _parser.ParseBuildFileAsync("non_existent_file.build");
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void ParseBuildFile_ValidJson_ReturnsPoeBuild()
+    public async Task ParseBuildFile_ValidJson_ReturnsPoeBuild()
     {
         // Arrange
         var filePath = Path.Combine(_testTempDir, "valid.build");
@@ -45,7 +46,7 @@ public class BuildProfileParserTests : IDisposable
         File.WriteAllText(filePath, json);
 
         // Act
-        var result = _parser.ParseBuildFile(filePath);
+        var result = await _parser.ParseBuildFileAsync(filePath);
 
         // Assert
         Assert.NotNull(result);
@@ -54,7 +55,7 @@ public class BuildProfileParserTests : IDisposable
     }
 
     [Fact]
-    public void ParseBuildFile_InvalidJson_ReturnsNull()
+    public async Task ParseBuildFile_InvalidJson_ReturnsNull()
     {
         // Arrange
         var filePath = Path.Combine(_testTempDir, "invalid.build");
@@ -62,21 +63,21 @@ public class BuildProfileParserTests : IDisposable
         File.WriteAllText(filePath, json);
 
         // Act
-        var result = _parser.ParseBuildFile(filePath);
+        var result = await _parser.ParseBuildFileAsync(filePath);
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void ParseBuildFile_EmptyFile_ReturnsNull()
+    public async Task ParseBuildFile_EmptyFile_ReturnsNull()
     {
         // Arrange
         var filePath = Path.Combine(_testTempDir, "empty.build");
         File.WriteAllText(filePath, "");
 
         // Act
-        var result = _parser.ParseBuildFile(filePath);
+        var result = await _parser.ParseBuildFileAsync(filePath);
 
         // Assert
         Assert.Null(result);
