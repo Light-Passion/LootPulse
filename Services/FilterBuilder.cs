@@ -49,11 +49,16 @@ namespace LootPulse.Services
 
                 EnsureMarketValuesNormalized(marketItems);
 
+                var marketUniqueBasetypes = marketItems
+                    .Where(i => !string.IsNullOrEmpty(i.Name) && !string.IsNullOrEmpty(i.BaseType))
+                    .GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().BaseType, StringComparer.OrdinalIgnoreCase);
+
                 var sb = new StringBuilder();
 
                 AppendHeader(sb, playerLevel, zoneLevel, baseFilterPath);
 
-                var buildUniqueItems = GetBuildUniqueItemNames(activeBuild, playerLevel, marketItems);
+                var buildUniqueItems = GetBuildUniqueItemNames(activeBuild, playerLevel, marketUniqueBasetypes);
                 AppendUniqueHighlights(sb, activeBuild, playerLevel, buildUniqueItems, activeTheme);
 
                 var progressionBases = GetBuildProgressionBaseNames(activeBuild, playerLevel, zoneLevel);
@@ -155,7 +160,7 @@ namespace LootPulse.Services
             sb.AppendLine("# ==========================================================================\n");
         }
 
-        private static List<string> GetBuildUniqueItemNames(PoeBuild? activeBuild, int playerLevel, List<MarketItem> marketItems)
+        private static List<string> GetBuildUniqueItemNames(PoeBuild? activeBuild, int playerLevel, Dictionary<string, string> marketUniqueBasetypes)
         {
             if (activeBuild == null) return [];
 
@@ -165,7 +170,7 @@ namespace LootPulse.Services
                     if (slot.LevelInterval == null || slot.LevelInterval.Count < 2) return true;
                     return playerLevel >= slot.LevelInterval[0] && playerLevel <= slot.LevelInterval[1];
                 })
-                .Select(slot => GetUniqueBaseType(slot.ItemName, marketItems))
+                .Select(slot => GetUniqueBaseType(slot.ItemName, marketUniqueBasetypes))
                 .Where(baseType => !string.IsNullOrEmpty(baseType))
                 .Distinct()];
         }
@@ -1032,6 +1037,8 @@ namespace LootPulse.Services
             }
         }
 
+        private static readonly HashSet<string> _allBaseItemNames = new(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
+
         private static readonly Dictionary<string, string> _knownUniqueBaseTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             { "Myris Uxor", "Covert Hood" },
@@ -1047,12 +1054,12 @@ namespace LootPulse.Services
             { "Time-Lost Diamond", "Time-Lost Diamond" }
         };
 
-        private static string GetUniqueBaseType(string uniqueName, List<MarketItem> marketItems)
+        private static string GetUniqueBaseType(string uniqueName, Dictionary<string, string> marketUniqueBasetypes)
         {
             if (string.IsNullOrWhiteSpace(uniqueName)) return uniqueName;
 
             // 1. Check if the name itself is already a known base type
-            if (_archetypes.Values.Any(list => list.Any(b => b.Name.Equals(uniqueName, StringComparison.OrdinalIgnoreCase))))
+            if (_allBaseItemNames.Contains(uniqueName))
             {
                 return uniqueName;
             }
@@ -1064,13 +1071,9 @@ namespace LootPulse.Services
             }
 
             // 3. Try dynamic lookup from synced marketItems
-            if (marketItems != null)
+            if (marketUniqueBasetypes.TryGetValue(uniqueName, out var baseType))
             {
-                var matched = marketItems.Find(i => i.Name.Equals(uniqueName, StringComparison.OrdinalIgnoreCase));
-                if (matched != null && !string.IsNullOrEmpty(matched.BaseType))
-                {
-                    return matched.BaseType;
-                }
+                return baseType;
             }
 
             return string.Empty;
