@@ -663,6 +663,13 @@ namespace LootPulse
                 return;
             }
 
+            // Security: Validate that the URL is a legitimate web link to prevent command injection.
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                TradeStatusText.Text = "Invalid trade search URL.";
+                return;
+            }
+
             try
             {
                 Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
