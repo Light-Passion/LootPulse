@@ -327,7 +327,7 @@ namespace LootPulse
             {
                 StatusText.Text = "Filter updated! Remember to reload in PoE2 Settings (Options -> Game -> Item Filter -> Reload).";
                 _hudWindow?.UpdateDisplay(_playerState.CharacterName, _playerState.Level, _playerState.CurrentZone, _playerState.ZoneLevel, "Filter Merged");
-                _ = SaveSettingsAsync();
+                await SaveSettingsAsync();
             }
             else
             {
@@ -1156,7 +1156,7 @@ namespace LootPulse
         private async void StyleEditor_ThemeApplied(FilterTheme theme)
         {
             ActiveTheme = theme;
-            _ = SaveActiveThemeAsync();
+            await SaveActiveThemeAsync();
             await TriggerFilterRegenerationAsync();
         }
 
@@ -1734,7 +1734,7 @@ namespace LootPulse
             }
 
             FilterPathBox.Text = Path.Combine(folder, $"{namePart}.filter");
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
         }
 
         private async void BaseFilterButton_Click(object sender, RoutedEventArgs e)
@@ -1794,7 +1794,7 @@ namespace LootPulse
             _appSettings.HudHeight = updatedSettings.HudHeight;
             _appSettings.HudXPercent = updatedSettings.HudXPercent;
             _appSettings.HudYPercent = updatedSettings.HudYPercent;
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
         }
 
         private async Task ToggleHudVisibilityAsync()
@@ -1808,7 +1808,7 @@ namespace LootPulse
             HudVisibleCheckBox.Checked += HudVisibleCheckBox_Changed;
             HudVisibleCheckBox.Unchecked += HudVisibleCheckBox_Changed;
 
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
 
             if (_appSettings.IsHudVisible)
             {
@@ -1828,7 +1828,7 @@ namespace LootPulse
             if (_appSettings == null) return;
 
             _appSettings.IsHudVisible = HudVisibleCheckBox.IsChecked == true;
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -1855,7 +1855,7 @@ namespace LootPulse
 
             _appSettings.EditModeOpacity = EditOpacitySlider.Value;
             _appSettings.HudModeOpacity = HudOpacitySlider.Value;
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
 
             // Dashboard Opacity fades the whole dashboard (panels + content), not just the border.
             if (MainWindowBorder != null)
@@ -1873,7 +1873,7 @@ namespace LootPulse
             _appSettings.HudHeight = 120;
             _appSettings.HudXPercent = 0.80;
             _appSettings.HudYPercent = 0.05;
-            _ = SaveSettingsAsync();
+            await SaveSettingsAsync();
 
             if (_hudWindow != null)
             {
@@ -2035,7 +2035,7 @@ namespace LootPulse
             else
             {
                 _appSettings.IsHudVisible = true;
-                _ = SaveSettingsAsync();
+                await SaveSettingsAsync();
                 if (_hudWindow != null)
                 {
                     _hudWindow.SetClickThrough(true, _appSettings.HudModeOpacity);
