@@ -22,15 +22,15 @@ namespace LootPulse.Services
         /// <summary>
         /// Parses a native Path of Exile 2 in-game build planner JSON file (.build).
         /// </summary>
-        public PoeBuild? ParseBuildFile(string filePath)
+        public async Task<PoeBuild?> ParseBuildFileAsync(string filePath)
         {
             try
             {
                 if (!File.Exists(filePath))
                     return null;
 
-                var json = File.ReadAllText(filePath);
-                var build = JsonSerializer.Deserialize<PoeBuild>(json, _jsonOptions);
+                using var stream = File.OpenRead(filePath);
+                var build = await JsonSerializer.DeserializeAsync<PoeBuild>(stream, _jsonOptions).ConfigureAwait(false);
 
                 return build;
             }
@@ -49,15 +49,15 @@ namespace LootPulse.Services
         };
 
         /// <summary>
-        /// Serializes a build back to a native .build JSON file (round-trips with <see cref="ParseBuildFile"/>).
+        /// Serializes a build back to a native .build JSON file (round-trips with <see cref="ParseBuildFileAsync"/>).
         /// Used to cache a PoB-imported build so it can be auto-loaded on the next launch.
         /// </summary>
-        public bool SaveBuildFile(PoeBuild build, string filePath)
+        public async Task<bool> SaveBuildFileAsync(PoeBuild build, string filePath)
         {
             try
             {
-                string json = JsonSerializer.Serialize(build, _writeOptions);
-                File.WriteAllText(filePath, json);
+                using var stream = File.Create(filePath);
+                await JsonSerializer.SerializeAsync(stream, build, _writeOptions).ConfigureAwait(false);
                 return true;
             }
             catch (Exception ex)
