@@ -287,8 +287,7 @@ namespace LootPulse.Services.Trade
 
         private static IEnumerable<string> CombineMods(TradeFetchItem? item)
         {
-            foreach (var text in ModTexts(item?.ExplicitMods)) yield return text;
-            foreach (var text in ModTexts(item?.ImplicitMods)) yield return text;
+            return ModTexts(item?.ExplicitMods).Concat(ModTexts(item?.ImplicitMods));
         }
 
         // A mod entry is either a plain string (implicitMods) or an object with a "description"
