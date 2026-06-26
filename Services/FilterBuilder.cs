@@ -989,7 +989,7 @@ namespace LootPulse.Services
 
         public static string ParseHexToRgbaString(string hex)
         {
-            if (string.IsNullOrWhiteSpace(hex)) return "";
+            if (string.IsNullOrWhiteSpace(hex)) return "255 255 255 255";
 
             // Trim leading '#' if present
             hex = hex.Trim().TrimStart('#');
@@ -998,6 +998,10 @@ namespace LootPulse.Services
             if (hex.Length == 3)
             {
                 hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+            }
+            else if (hex.Length == 4)
+            {
+                hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}{hex[3]}{hex[3]}";
             }
 
             byte r, g, b, a;
