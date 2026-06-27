@@ -46,7 +46,7 @@
                     <Ellipse Width="10" Height="10" Fill="#FF6124" Margin="0,0,10,0"/>
                     <TextBlock Text="LOOTPULSE" Foreground="White" FontSize="14" FontWeight="Bold"/>
                     <!-- Market Pulse Graph — live EKG heartbeat line (inline) -->
-                    <Canvas x:Name="EkgCanvas" Width="200" Height="24" Margin="12,0,12,0" VerticalAlignment="Center" Background="#18FF6124" ClipToBounds="True">
+                    <Canvas x:Name="EkgCanvas" Width="200" Height="24" Margin="12,0,12,0" VerticalAlignment="Center" ClipToBounds="True">
                         <Path x:Name="EkgGlowPath"
                               Stroke="#FF6124"
                               StrokeThickness="3"
