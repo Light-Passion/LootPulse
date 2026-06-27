@@ -79,8 +79,8 @@ namespace LootPulse
         private const string _clientLogFile = "Client.txt";
         private const string _steamappsFolder = "steamapps";
         private const string _commonFolder = "common";
-        private const string _darkMenuItemStyleKey = "DarkMenuItem";
-        private const string _darkContextMenuStyleKey = "DarkContextMenu";
+        private const string _darkMenuItemStyleKey = "LootMenuItem";
+        private const string _darkContextMenuStyleKey = "LootContextMenu";
 
         private const string _classMercenary = "Mercenary";
         private const string _classMonk = "Monk";
@@ -1662,7 +1662,7 @@ namespace LootPulse
                 }
             }
 
-            contextMenu.Items.Add(new Separator { Style = (Style)FindResource("DarkMenuSeparator") });
+            contextMenu.Items.Add(new Separator { Style = (Style)FindResource("LootMenuSeparator") });
 
             var browseItem = new MenuItem
             {
@@ -1754,7 +1754,7 @@ namespace LootPulse
 
             if (contextMenu.Items.Count > 0)
             {
-                contextMenu.Items.Add(new Separator { Style = (Style)FindResource("DarkMenuSeparator") });
+                contextMenu.Items.Add(new Separator { Style = (Style)FindResource("LootMenuSeparator") });
             }
 
             var importItem = new MenuItem
@@ -2545,7 +2545,7 @@ namespace LootPulse
         public string FilePath { get; set; } = string.Empty;
         public bool IsSubscribed { get; set; }
 
-        // The custom DarkComboBox template renders the closed selection box from SelectionBoxItem,
+        // The custom LootComboBox template renders the closed selection box from SelectionBoxItem,
         // which falls back to ToString(); return DisplayName so the chosen item shows correctly.
         public override string ToString() => DisplayName;
     }

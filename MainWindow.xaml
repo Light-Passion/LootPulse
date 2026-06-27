@@ -21,269 +21,6 @@
     <Window.Resources>
         <!-- Converters -->
         <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
-
-        <!-- Fluent Design Styles -->
-        <Color x:Key="PoeOrange">#FF6124</Color>
-        <Color x:Key="PoeGold">#E5B560</Color>
-        <Color x:Key="BgDark">#181818</Color>
-        <Color x:Key="BgPanel">#252525</Color>
-
-        <!-- Custom ScrollBar Style for Sleek Modern Look -->
-        <Style TargetType="ScrollBar">
-            <Setter Property="Width" Value="8"/>
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-
-        <!-- Custom Buttons -->
-        <Style x:Key="AccentButton" TargetType="Button">
-            <Setter Property="Background" Value="#FF6124"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="15,8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E55018"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="DarkButton" TargetType="Button">
-            <Setter Property="Background" Value="#323232"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#454545"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Dark Tab styling for the Commodities & Valuables panel -->
-        <Style x:Key="DarkTabControl" TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
-
-        <Style x:Key="DarkTabItem" TargetType="TabItem">
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder" Background="Transparent" BorderBrush="Transparent"
-                                BorderThickness="0,0,0,2" Padding="4,6" Margin="0,0,18,0">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#FF6124"/>
-                                <Setter Property="Foreground" Value="#FF6124"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DarkComboBox" TargetType="ComboBox">
-            <Style.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#282828" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF6124" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White" />
-            </Style.Resources>
-            <Setter Property="Background" Value="#282828"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid x:Name="MainGrid" SnapsToDevicePixels="true">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition MinWidth="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}" Width="0"/>
-                            </Grid.ColumnDefinitions>
-                            <Popup x:Name="PART_Popup"
-                                   AllowsTransparency="true"
-                                   Grid.ColumnSpan="2"
-                                   Placement="Bottom"
-                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
-                                   PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}">
-                                <Border x:Name="DropDownBorder"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="#444444"
-                                        BorderThickness="1"
-                                        CornerRadius="0,0,6,6"
-                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                        MinWidth="{Binding ActualWidth, ElementName=MainGrid}">
-                                    <ScrollViewer x:Name="DropDownScrollViewer" CanContentScroll="True">
-                                        <Grid x:Name="Grid" RenderOptions.ClearTypeHint="Enabled">
-                                            <Canvas x:Name="Canvas" HorizontalAlignment="Left" Height="0" VerticalAlignment="Top" Width="0">
-                                                <Rectangle x:Name="OpaqueRect" Fill="{Binding Background, ElementName=DropDownBorder}" Height="{Binding ActualHeight, ElementName=DropDownBorder}" Width="{Binding ActualWidth, ElementName=DropDownBorder}"/>
-                                            </Canvas>
-                                            <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                                        </Grid>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                            <ToggleButton Grid.ColumnSpan="2"
-                                          Background="{TemplateBinding Background}"
-                                          BorderBrush="{TemplateBinding BorderBrush}"
-                                          BorderThickness="{TemplateBinding BorderThickness}"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="templateRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                                            <Grid HorizontalAlignment="Stretch">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Path x:Name="Arrow"
-                                                      Grid.Column="1"
-                                                      Data="M 0 0 L 3.5 3.5 L 7 0"
-                                                      Fill="#CCCCCC"
-                                                      HorizontalAlignment="Center"
-                                                      Margin="0,0,10,0"
-                                                      VerticalAlignment="Center"/>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="true">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#353535"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#FF6124"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="White"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="true">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#202020"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#FF6124"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="White"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled" Value="false">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#1A1A1A"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#333333"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="#555555"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-                            <ContentPresenter x:Name="ContentSite"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              Margin="{TemplateBinding Padding}"
-                                              IsHitTestVisible="false"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="HasItems" Value="false">
-                                <Setter TargetName="PART_Popup" Property="IsOpen" Value="false"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="false">
-                                <Setter Property="Foreground" Value="#555555"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Dark context menu used by the "Load Build" dropdown button -->
-        <Style x:Key="DarkMenuItem" TargetType="MenuItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="14,9"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF6124"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
-            <Style.Resources>
-                <Style TargetType="MenuItem" BasedOn="{StaticResource DarkMenuItem}"/>
-                <Style TargetType="Separator">
-                    <Setter Property="Background" Value="#444444"/>
-                    <Setter Property="Margin" Value="0,4"/>
-                    <Setter Property="Height" Value="1"/>
-                </Style>
-            </Style.Resources>
-            <Setter Property="Background" Value="#252525"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="HasDropShadow" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="3">
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Keyed separator style for context menus built in code-behind. A locally-set Style on the
-             Separator stops WPF's container generator from applying the implicit MenuItem style to it
-             (which throws "A style intended for type 'MenuItem' cannot be applied to type 'Separator'"). -->
-        <Style x:Key="DarkMenuSeparator" TargetType="Separator">
-            <Setter Property="Background" Value="#444444"/>
-            <Setter Property="Margin" Value="0,4"/>
-            <Setter Property="Height" Value="1"/>
-        </Style>
     </Window.Resources>
 
     <!-- Main Window Border -->
@@ -321,7 +58,7 @@
 
                 <!-- Window Actions -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0">
-                    <Button x:Name="SettingsToggleButton" Style="{StaticResource DarkButton}" Content="⚙ Settings" FontSize="12" Padding="10,5" VerticalAlignment="Center" Margin="0,0,8,0" Click="ToggleSettings_Click"/>
+                    <Button x:Name="SettingsToggleButton" Style="{StaticResource BtnSecondary}" Content="⚙ Settings" FontSize="12" Padding="10,5" VerticalAlignment="Center" Margin="0,0,8,0" Click="ToggleSettings_Click"/>
                     <Button Content="—" Foreground="Gray" FontSize="14" Background="Transparent" BorderThickness="0" Width="35" Height="35" Cursor="Hand" Click="MinimizeButton_Click">
                         <Button.Style>
                             <Style TargetType="Button">
@@ -405,11 +142,11 @@
                                         <TextBlock x:Name="SelectedFilterNameText" Text="Base Filter: None (LootPulse Highlights Only)" Foreground="#FF6124" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="BuildNameText" Text="No active build loaded" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click" Margin="0,0,8,0" />
-                                            <Button x:Name="BaseFilterButton" Style="{StaticResource AccentButton}" Content="Select Base Filter  ▾" Click="BaseFilterButton_Click"/>
+                                            <Button x:Name="LoadBuildButton" Style="{StaticResource BtnPrimary}" Content="Load Build  ▾" Click="LoadBuildButton_Click" Margin="0,0,8,0" />
+                                            <Button x:Name="BaseFilterButton" Style="{StaticResource BtnPrimary}" Content="Select Base Filter  ▾" Click="BaseFilterButton_Click"/>
                                         </StackPanel>
                                     </StackPanel>
-                                    <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Sync Economy &amp; Build" VerticalAlignment="Center" Margin="15,0,0,0" Click="SyncAll_Click"/>
+                                    <Button Grid.Column="1" Style="{StaticResource BtnPrimary}" Content="Sync Economy &amp; Build" VerticalAlignment="Center" Margin="15,0,0,0" Click="SyncAll_Click"/>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -425,9 +162,9 @@
 
                             <TextBlock Grid.Row="0" Text="COMMODITIES &amp; VALUABLES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <TabControl Grid.Row="1" Style="{StaticResource DarkTabControl}" SelectionChanged="CommoditiesTab_SelectionChanged">
+                            <TabControl Grid.Row="1" Style="{StaticResource PulseTabControl}" SelectionChanged="CommoditiesTab_SelectionChanged">
                                 <!-- Tab 1: existing poe.ninja economy list -->
-                                <TabItem Header="Currency Exchange Rates" Style="{StaticResource DarkTabItem}">
+                                <TabItem Header="Currency Exchange Rates" Style="{StaticResource PulseTabItem}">
                                     <Grid Margin="0,10,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -437,7 +174,7 @@
                                         <!-- Category Filter Dropdown -->
                                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                                             <TextBlock Text="Filter by Category:" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11" FontWeight="SemiBold"/>
-                                            <ComboBox x:Name="EconomyCategoryComboBox" Width="180" Height="26" Style="{StaticResource DarkComboBox}" SelectionChanged="EconomyCategoryComboBox_SelectionChanged"/>
+                                            <ComboBox x:Name="EconomyCategoryComboBox" Width="180" Height="26" Style="{StaticResource LootComboBox}" SelectionChanged="EconomyCategoryComboBox_SelectionChanged"/>
                                         </StackPanel>
 
                                         <ListView Grid.Row="1" x:Name="ItemListView" Background="Transparent" BorderThickness="0" Foreground="White" AlternationCount="2" ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -525,7 +262,7 @@
                                 </TabItem>
 
                                 <!-- Tab 2: PoE2 trade site listings for build items -->
-                                <TabItem x:Name="TradeMarketTab" Header="Trade Market" Style="{StaticResource DarkTabItem}">
+                                <TabItem x:Name="TradeMarketTab" Header="Trade Market" Style="{StaticResource PulseTabItem}">
                                     <Grid Margin="0,10,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -535,8 +272,8 @@
                                         <!-- Action bar -->
                                         <StackPanel Grid.Row="0" Margin="0,0,0,10">
                                             <StackPanel Orientation="Horizontal">
-                                                <Button x:Name="ConnectTradeButton" Style="{StaticResource DarkButton}" Content="Connect Trade Account" Margin="0,0,10,0" Click="ConnectTradeAccount_Click"/>
-                                                <Button x:Name="SearchTradeButton" Style="{StaticResource AccentButton}" Content="Search Trade Market" Click="SearchTradeMarket_Click"/>
+                                                <Button x:Name="ConnectTradeButton" Style="{StaticResource BtnSecondary}" Content="Connect Trade Account" Margin="0,0,10,0" Click="ConnectTradeAccount_Click"/>
+                                                <Button x:Name="SearchTradeButton" Style="{StaticResource BtnPrimary}" Content="Search Trade Market" Click="SearchTradeMarket_Click"/>
                                                 <StackPanel x:Name="MinMatchedPanel" Orientation="Horizontal">
                                                     <TextBlock Text="Min. matched affixes:" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="14,0,6,0"/>
                                                     <TextBox x:Name="MinAffixMatchBox" Text="2" Width="36" Height="24" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
@@ -596,7 +333,7 @@
                                                                     <Border Grid.Column="1" Background="#1C1C1C" CornerRadius="4" Padding="6,2" Margin="8,0" VerticalAlignment="Center">
                                                                         <TextBlock Text="{Binding LevelNote}" Foreground="#E5B560" FontSize="11"/>
                                                                     </Border>
-                                                                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Open on Trade Site" Click="OpenTradeSearch_Click" Tag="{Binding BrowserUrl}"/>
+                                                                    <Button Grid.Column="2" Style="{StaticResource BtnSecondary}" Content="Open on Trade Site" Click="OpenTradeSearch_Click" Tag="{Binding BrowserUrl}"/>
                                                                 </Grid>
 
                                                                 <ItemsControl Grid.Row="1" ItemsSource="{Binding Listings}" Margin="0,8,0,0">
@@ -631,7 +368,7 @@
                                 </TabItem>
 
                                 <!-- Tab 3: Custom weights for recommended build affixes -->
-                                <TabItem x:Name="AffixWeightsTab" Header="Affix Weights" Style="{StaticResource DarkTabItem}" Visibility="Collapsed">
+                                <TabItem x:Name="AffixWeightsTab" Header="Affix Weights" Style="{StaticResource PulseTabItem}" Visibility="Collapsed">
                                     <Grid Margin="0,10,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -669,7 +406,7 @@
                                                                                     <ColumnDefinition Width="180"/>
                                                                                 </Grid.ColumnDefinitions>
                                                                                 <TextBlock Text="{Binding Text}" Foreground="#DDDDDD" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0" TextWrapping="Wrap"/>
-                                                                                <ComboBox Grid.Column="1" Style="{StaticResource DarkComboBox}" Height="24"
+                                                                                <ComboBox Grid.Column="1" Style="{StaticResource LootComboBox}" Height="24"
                                                             ItemsSource="{Binding Source={x:Static local:MainWindow.ImportanceOptions}}"
                                                             SelectedValue="{Binding Importance, Mode=TwoWay}"
                                                             SelectedValuePath="Value"
@@ -689,7 +426,7 @@
                                 </TabItem>
 
                                 <!-- Tab 4: ground-drop appearance / style editor -->
-                                <TabItem x:Name="FilterStylesTab" Header="Filter Styles" Style="{StaticResource DarkTabItem}">
+                                <TabItem x:Name="FilterStylesTab" Header="Filter Styles" Style="{StaticResource PulseTabItem}">
                                     <ContentControl x:Name="FilterStylesHost"/>
                                 </TabItem>
                             </TabControl>
@@ -712,7 +449,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="LogPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
-                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
+                                <Button Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseLog_Click"/>
                             </Grid>
 
 
@@ -728,7 +465,7 @@
                             <!-- Metadata & Data Updates -->
                             <TextBlock Text="METADATA &amp; DATA UPDATES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,22">
-                                <Button x:Name="UpdateMetadataButton" Style="{StaticResource AccentButton}" Content="Update Base Items &amp; Currencies" Click="UpdateMetadata_Click" Padding="15,6" Margin="0,0,12,0"/>
+                                <Button x:Name="UpdateMetadataButton" Style="{StaticResource BtnPrimary}" Content="Update Base Items &amp; Currencies" Click="UpdateMetadata_Click" Padding="15,6" Margin="0,0,12,0"/>
                                 <TextBlock x:Name="MetadataStatusText" Text="Status: Local database loaded" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap" MaxWidth="500"/>
                             </StackPanel>
 
@@ -775,7 +512,7 @@
                                 <TextBlock Grid.Column="1" Text="{Binding ElementName=HudOpacitySlider, Path=Value, StringFormat={}{0:P0}}" Foreground="White" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
 
-                            <Button Style="{StaticResource DarkButton}" Content="Reset HUD Size &amp; Position" HorizontalAlignment="Left" Click="ResetHudPosition_Click"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="Reset HUD Size &amp; Position" HorizontalAlignment="Left" Click="ResetHudPosition_Click"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
@@ -791,8 +528,8 @@
                 <TextBlock x:Name="StatusText" Text="Ready" Foreground="#888888" FontSize="11" VerticalAlignment="Center"/>
                 <TextBlock x:Name="VersionText" Grid.Column="1" Text="LootPulse Overlay" Foreground="#555555" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource AccentButton}" Content="Save Settings" FontSize="11" Padding="10,3" Margin="0,0,8,0" Click="SaveSettings_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="Exit Application" FontSize="11" Padding="10,3" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
+                    <Button Style="{StaticResource BtnPrimary}" Content="Save Settings" FontSize="11" Padding="10,3" Margin="0,0,8,0" Click="SaveSettings_Click"/>
+                    <Button Style="{StaticResource BtnSecondary}" Content="Exit Application" FontSize="11" Padding="10,3" Background="#4A1515" Foreground="#FF9999" Click="ExitButton_Click"/>
                 </StackPanel>
             </Grid>
         </Grid>
