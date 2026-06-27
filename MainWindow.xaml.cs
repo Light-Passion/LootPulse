@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using LootPulse.Models;
 using LootPulse.Services;
@@ -123,6 +124,13 @@ namespace LootPulse
         private HwndSource? _hwndSource;
         private readonly TaskCompletionSource<bool> _sourceInitializedTcs = new();
 
+        // EKG Market Pulse Graph state
+        private DispatcherTimer? _ekgTimer;
+        private double _ekgScrollX;
+        private double _ekgSegmentWidth = 50;
+        private double _ekgAmplitude = 6;
+        private readonly Random _ekgRng = new();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -158,6 +166,9 @@ namespace LootPulse
 
             // Initialize application asynchronously
             _ = InitializeAppAsync();
+
+            // Start the EKG heartbeat animation in the header
+            Loaded += (s, e) => StartEkgAnimation();
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -178,8 +189,95 @@ namespace LootPulse
             _sourceInitializedTcs.SetResult(true);
         }
 
+        /// <summary>
+        /// Starts the EKG heartbeat animation in the header bar.
+        /// Generates EKG-shaped path geometry and scrolls it continuously.
+        /// </summary>
+        private void StartEkgAnimation()
+        {
+            GenerateEkgWave();
+            _ekgTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) }; // ~30fps
+            _ekgTimer.Tick += OnEkgTick;
+            _ekgTimer.Start();
+        }
+
+        private void OnEkgTick(object? sender, EventArgs e)
+        {
+            _ekgScrollX += 50.0 / 30.0; // 50px/sec scroll speed
+            if (_ekgScrollX >= _ekgSegmentWidth)
+            {
+                _ekgScrollX -= _ekgSegmentWidth;
+                GenerateEkgWave();
+            }
+            WaveTranslate.X = -_ekgScrollX;
+            GlowTranslate.X = -_ekgScrollX;
+        }
+
+        private void GenerateEkgWave()
+        {
+            const double width = 200;
+            const double height = 24;
+            var centerY = height / 2;
+            var totalWidth = width + _ekgSegmentWidth * 4;
+
+            var figure = new PathFigure
+            {
+                StartPoint = new Point(0, centerY),
+                IsClosed = false
+            };
+
+            var x = 0.0;
+            while (x < totalWidth)
+            {
+                var amp = _ekgAmplitude;
+
+                // Flat baseline (30%)
+                var w = _ekgSegmentWidth * 0.3;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+
+                // Q wave — downward dip (5%)
+                w = _ekgSegmentWidth * 0.05;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY + amp * 0.4), true));
+                x += w;
+
+                // R wave — sharp upward spike (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY - amp), true));
+                x += w;
+
+                // S wave — sharp downward (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY + amp * 0.6), true));
+                x += w;
+
+                // Return to baseline (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+
+                // T wave — gentle bump (15%)
+                w = _ekgSegmentWidth * 0.15;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY - amp * 0.3), true));
+                x += w;
+
+                // Flat to end (20%)
+                w = _ekgSegmentWidth * 0.2;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+            }
+
+            var geo = new PathGeometry();
+            geo.Figures.Add(figure);
+            geo.Freeze();
+
+            EkgPath.Data = geo;
+            EkgGlowPath.Data = geo;
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            _ekgTimer?.Stop();
             _logMonitor.StopMonitoring();
             _hwndSource?.RemoveHook(HwndHook);
             UnregisterHotKey(_hwnd, _hotkeyId);

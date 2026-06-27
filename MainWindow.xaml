@@ -45,11 +45,31 @@
                 <StackPanel Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Center">
                     <Ellipse Width="10" Height="10" Fill="#FF6124" Margin="0,0,10,0"/>
                     <TextBlock Text="LOOTPULSE" Foreground="White" FontSize="14" FontWeight="Bold"/>
-                    <!-- Market Pulse Graph — live EKG heartbeat line -->
-                    <controls:MarketPulseGraph x:Name="HeaderPulseGraph"
-                                                Width="200" Height="24"
-                                                Margin="12,0,12,0"
-                                                VerticalAlignment="Center"/>
+                    <!-- Market Pulse Graph — live EKG heartbeat line (inline) -->
+                    <Canvas x:Name="EkgCanvas" Width="200" Height="24" Margin="12,0,12,0" VerticalAlignment="Center" Background="#18FF6124" ClipToBounds="True">
+                        <Path x:Name="EkgGlowPath"
+                              Stroke="#FF6124"
+                              StrokeThickness="3"
+                              StrokeLineJoin="Round"
+                              Opacity="0.35">
+                            <Path.Effect>
+                                <BlurEffect Radius="6"/>
+                            </Path.Effect>
+                            <Path.RenderTransform>
+                                <TranslateTransform x:Name="GlowTranslate" X="0"/>
+                            </Path.RenderTransform>
+                        </Path>
+                        <Path x:Name="EkgPath"
+                              Stroke="#E5B560"
+                              StrokeThickness="1.5"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round">
+                            <Path.RenderTransform>
+                                <TranslateTransform x:Name="WaveTranslate" X="0"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Canvas>
                     <Border CornerRadius="4" Background="#323232" Margin="0,0,0,0" Padding="6,2">
                         <TextBlock x:Name="OverlayModeText" Text="EDIT MODE" Foreground="#FF6124" FontSize="10" FontWeight="Bold"/>
                     </Border>
