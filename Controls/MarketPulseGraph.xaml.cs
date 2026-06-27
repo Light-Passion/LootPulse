@@ -27,18 +27,22 @@ public partial class MarketPulseGraph
         Flatline
     }
 
-    private DispatcherTimer? _waveTimer;
-    private DoubleAnimation? _scrollAnimation;
-    private double _waveOffset;
-    private double _segmentWidth = 40;       // px per EKG beat segment
-    private double _amplitude = 8;            // base wave amplitude
-    private double _spikeAmplitude = 18;      // spike peak height
+    private DispatcherTimer? _renderTimer;
     private PulseState _currentState = PulseState.Calm;
+    private double _segmentWidth = 50;       // px per EKG beat segment
+    private double _amplitude = 6;            // base wave amplitude
+    private double _spikeAmplitude = 18;      // spike peak height
     private int _spikeCountdown;               // remaining spikes to inject
     private readonly Random _rng = new();
 
-    // Wave generation buffer — we build path geometry from these points
-    private double _lastY = 20;
+    // Scroll state — we advance this each frame and regenerate the path
+    private double _scrollX;
+    private const double ScrollSpeed = 50;     // px per second
+    private const double RenderFps = 30;       // frames per second
+    private const double FrameInterval = 1000.0 / RenderFps;
+
+    // Pre-generated wave data — one long path that we scroll and regenerate
+    private PathGeometry _waveGeometry = new();
 
     /// <summary>
     /// Sets the market pulse state. Call this when market data changes
@@ -49,13 +53,12 @@ public partial class MarketPulseGraph
         _currentState = state;
         _spikeCountdown = state == PulseState.Spike ? 3 : 0;
 
-        // Adjust wave parameters based on state
         (_amplitude, _segmentWidth) = state switch
         {
-            PulseState.Calm      => (6, 50),     // slow, gentle
-            PulseState.Active    => (12, 30),    // faster, taller
-            PulseState.Spike     => (14, 28),    // tall spikes
-            PulseState.Flatline  => (0.5, 80),   // nearly flat
+            PulseState.Calm      => (6, 50),
+            PulseState.Active    => (12, 30),
+            PulseState.Spike     => (14, 28),
+            PulseState.Flatline  => (0.5, 80),
             _ => (6, 50)
         };
     }
@@ -68,73 +71,136 @@ public partial class MarketPulseGraph
 
     private void UserControl_Loaded(object sender, RoutedEventArgs e)
     {
-        InitializeWave();
-        StartAnimation();
+        // Generate the initial wave
+        GenerateWave();
+
+        // Start the render loop
+        _renderTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(FrameInterval)
+        };
+        _renderTimer.Tick += OnRenderTick;
+        _renderTimer.Start();
+
+        // Start the heartbeat on the status dot
+        StartHeartbeatPulse();
     }
 
     private void UserControl_Unloaded(object sender, RoutedEventArgs e)
     {
-        _waveTimer?.Stop();
-        _waveTimer = null;
+        _renderTimer?.Stop();
+        _renderTimer = null;
     }
 
-    private void InitializeWave()
+    private void OnRenderTick(object? sender, EventArgs e)
     {
-        _waveOffset = 0;
-        _lastY = ActualHeight / 2;
-        GenerateWaveSegments();
+        // Advance the scroll position
+        _scrollX += ScrollSpeed / RenderFps;
 
-        // Timer to append new wave segments and cycle the scroll
-        _waveTimer = new DispatcherTimer
+        // When we've scrolled one full segment width, regenerate the wave
+        // and reset the scroll position so it wraps seamlessly
+        if (_scrollX >= _segmentWidth)
         {
-            Interval = TimeSpan.FromMilliseconds(50) // 20fps — smooth enough, light on CPU
-        };
-        _waveTimer.Tick += OnWaveTick;
-        _waveTimer.Start();
+            _scrollX -= _segmentWidth;
+            GenerateWave();
+        }
+
+        // Apply the scroll offset directly to the render transforms
+        WaveTranslate.X = -_scrollX;
+        GlowTranslate.X = -_scrollX;
     }
 
-    private void StartAnimation()
+    /// <summary>
+    /// Generates EKG-shaped path geometry directly on the Path elements.
+    /// Creates a path that's 2x the visible width for seamless scrolling.
+    /// </summary>
+    private void GenerateWave()
     {
-        // Continuous scroll animation — move wave left at constant speed
-        // The path is wider than the canvas, so we scroll it and regenerate
-        var scrollSpeed = _currentState switch
+        var width = ActualWidth > 0 ? ActualWidth : 200;
+        var height = ActualHeight > 0 ? ActualHeight : 24;
+        var centerY = height / 2;
+
+        var totalWidth = width + _segmentWidth * 4; // extra width for scroll buffer
+        var figure = new PathFigure
         {
-            PulseState.Calm     => 40,   // px/sec
-            PulseState.Active   => 80,
-            PulseState.Spike    => 100,
-            PulseState.Flatline => 10,
-            _ => 40
+            StartPoint = new Point(0, centerY),
+            IsClosed = false
         };
 
-        _scrollAnimation = new DoubleAnimation
+        var x = 0.0;
+
+        while (x < totalWidth)
         {
-            From = 0,
-            To = -_segmentWidth,
-            Duration = TimeSpan.FromSeconds(_segmentWidth / scrollSpeed),
-            RepeatBehavior = RepeatBehavior.Forever
-        };
+            var beatWidth = _segmentWidth;
+            var amp = _amplitude;
+            var hasSpike = _spikeCountdown > 0;
+            if (hasSpike)
+            {
+                amp = _spikeAmplitude;
+                _spikeCountdown--;
+            }
 
-        WaveTranslate.BeginAnimation(TranslateTransform.XProperty, _scrollAnimation);
-        GlowTranslate.BeginAnimation(TranslateTransform.XProperty, _scrollAnimation);
+            // 1. Flat baseline (30% of beat)
+            var flatWidth = beatWidth * 0.3;
+            AddLineSegment(figure, x + flatWidth, centerY);
+            x += flatWidth;
 
-        // Status dot heartbeat pulse (1.2s cycle — lub-dub... ...lub-dub)
-        StartHeartbeatPulse();
+            // 2. Q wave — small downward dip (5%)
+            var qWidth = beatWidth * 0.05;
+            AddLineSegment(figure, x + qWidth, centerY + amp * 0.4);
+            x += qWidth;
+
+            // 3. R wave — sharp upward spike (10%)
+            var rWidth = beatWidth * 0.1;
+            AddLineSegment(figure, x + rWidth * 0.5, centerY - amp);
+            x += rWidth;
+
+            // 4. S wave — sharp downward (10%)
+            var sWidth = beatWidth * 0.1;
+            AddLineSegment(figure, x + sWidth * 0.5, centerY + amp * 0.6);
+            x += sWidth;
+
+            // 5. Return to baseline (10%)
+            var returnWidth = beatWidth * 0.1;
+            AddLineSegment(figure, x + returnWidth, centerY);
+            x += returnWidth;
+
+            // 6. T wave — gentle bump (15%) — only on non-flatline states
+            if (_currentState != PulseState.Flatline)
+            {
+                var tWidth = beatWidth * 0.15;
+                AddLineSegment(figure, x + tWidth * 0.5, centerY - amp * 0.3);
+                x += tWidth;
+            }
+
+            // 7. Flat to end of beat
+            AddLineSegment(figure, x + (beatWidth * 0.2), centerY);
+            x += beatWidth * 0.2;
+
+            // Add small random jitter for organic feel in Active state
+            if (_currentState == PulseState.Active)
+            {
+                x += _rng.NextDouble() * 4 - 2;
+            }
+        }
+
+        _waveGeometry = new PathGeometry();
+        _waveGeometry.Figures.Add(figure);
+
+        // CRITICAL: Set Data directly on the Path elements, not on the
+        // PathGeometry field reference — WPF doesn't propagate field reassignment
+        EkgPath.Data = _waveGeometry;
+        EkgGlowPath.Data = _waveGeometry;
+    }
+
+    private static void AddLineSegment(PathFigure figure, double x, double y)
+    {
+        figure.Segments.Add(new LineSegment(new Point(x, y), true));
     }
 
     private void StartHeartbeatPulse()
     {
-        // Mimics a heartbeat: quick scale-up + scale-down, then rest
-        var scaleUp = new DoubleAnimation(1, 1.4, TimeSpan.FromMilliseconds(150))
-        {
-            AutoReverse = true,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-
-        var scaleDown = new DoubleAnimation(1, 1, TimeSpan.FromMilliseconds(450))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
-        };
-
+        // Mimics a heartbeat: lub-dub... ...lub-dub...
         var heartbeat = new DoubleAnimationUsingKeyFrames
         {
             Duration = TimeSpan.FromSeconds(1.2),
@@ -183,127 +249,13 @@ public partial class MarketPulseGraph
         StatusDotGlow.BeginAnimation(DropShadowEffect.OpacityProperty, glowPulse);
     }
 
-    private void OnWaveTick(object? sender, EventArgs e)
-    {
-        // Regenerate wave geometry periodically to create the scrolling effect
-        _waveOffset += _segmentWidth;
-
-        if (_waveOffset >= _segmentWidth * 2)
-        {
-            _waveOffset = 0;
-            GenerateWaveSegments();
-        }
-
-        // Reset scroll animation position when we regenerate
-        if (WaveTranslate.X <= -_segmentWidth)
-        {
-            WaveTranslate.X = 0;
-        }
-    }
-
-    /// <summary>
-    /// Generates EKG-shaped path geometry. Creates a wide path that scrolls
-    /// across the canvas, with new segments appended as old ones scroll off.
-    /// </summary>
-    private void GenerateWaveSegments()
-    {
-        var width = ActualWidth > 0 ? ActualWidth : 400;
-        var height = ActualHeight > 0 ? ActualHeight : 40;
-        var centerY = height / 2;
-
-        // Build a path that's 2x the visible width so it can scroll seamlessly
-        var totalWidth = width * 2;
-        var figures = new PathFigureCollection();
-        var figure = new PathFigure
-        {
-            StartPoint = new Point(0, centerY),
-            IsClosed = false
-        };
-
-        _lastY = centerY;
-        var x = 0.0;
-
-        while (x < totalWidth)
-        {
-            // Each EKG "beat" consists of:
-            // 1. Flat baseline segment (P wave area — mostly flat)
-            // 2. Quick downward dip (Q wave)
-            // 3. Sharp upward spike (R wave — the main beat)
-            // 4. Sharp downward spike (S wave)
-            // 5. Return to baseline (T wave — gentle bump)
-            // 6. Flat baseline until next beat
-
-            var beatWidth = _segmentWidth;
-            var amp = _amplitude;
-            var hasSpike = _spikeCountdown > 0;
-            if (hasSpike)
-            {
-                amp = _spikeAmplitude;
-                _spikeCountdown--;
-            }
-
-            // 1. Flat baseline (30% of beat)
-            var flatWidth = beatWidth * 0.3;
-            AddLineSegment(figure, x + flatWidth, centerY);
-            x += flatWidth;
-
-            // 2. Q wave — small downward dip (5%)
-            var qWidth = beatWidth * 0.05;
-            AddLineSegment(figure, x + qWidth, centerY + amp * 0.4);
-            x += qWidth;
-
-            // 3. R wave — sharp upward spike (10%)
-            var rWidth = beatWidth * 0.1;
-            AddLineSegment(figure, x + rWidth * 0.5, centerY - amp);
-            x += rWidth;
-
-            // 4. S wave — sharp downward (10%)
-            var sWidth = beatWidth * 0.1;
-            AddLineSegment(figure, x + sWidth * 0.5, centerY + amp * 0.6);
-            x += sWidth;
-
-            // 5. Return to baseline (10%)
-            var returnWidth = beatWidth * 0.1;
-            AddLineSegment(figure, x + returnWidth, centerY);
-            x += returnWidth;
-
-            // 6. T wave — gentle bump (15%) — only on non-flatline states
-            if (_currentState != PulseState.Flatline)
-            {
-                var tWidth = beatWidth * 0.15;
-                AddLineSegment(figure, x + tWidth * 0.5, centerY - amp * 0.3);
-                x += tWidth;
-            }
-
-            // 7. Flat to end of beat
-            AddLineSegment(figure, x + (beatWidth * 0.2), centerY);
-            x += beatWidth * 0.2;
-
-            // Add small random jitter for organic feel
-            if (_currentState == PulseState.Active)
-            {
-                x += _rng.NextDouble() * 4 - 2; // ±2px jitter
-            }
-        }
-
-        figures.Add(figure);
-
-        var geometry = new PathGeometry { Figures = figures };
-        EkgGeometry = geometry;
-        EkgGlowGeometry = geometry.Clone();
-    }
-
-    private static void AddLineSegment(PathFigure figure, double x, double y)
-    {
-        figure.Segments.Add(new LineSegment(new Point(x, y), true));
-    }
-
     /// <summary>
     /// Updates the scroll speed based on the current pulse state.
     /// Call after SetPulseState to re-sync the animation.
     /// </summary>
     public void RefreshAnimation()
     {
-        StartAnimation();
+        // Timer-driven approach doesn't need animation restart
+        GenerateWave();
     }
 }

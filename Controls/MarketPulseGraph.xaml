@@ -31,39 +31,31 @@
               Opacity="0.5"/>
 
         <!-- Main EKG wave — scrolling continuously left -->
-        <Canvas x:Name="WaveCanvas" ClipToBounds="True">
-            <Path x:Name="EkgPath"
-                  Stroke="{DynamicResource PulseSecondary}"
-                  StrokeThickness="1.5"
-                  StrokeLineJoin="Round"
-                  StrokeStartLineCap="Round"
-                  StrokeEndLineCap="Round"
-                  Effect="{DynamicResource GoldGlowEffect}">
-                <Path.Data>
-                    <PathGeometry x:Name="EkgGeometry"/>
-                </Path.Data>
-                <Path.RenderTransform>
-                    <TranslateTransform x:Name="WaveTranslate" X="0"/>
-                </Path.RenderTransform>
-            </Path>
+        <Path x:Name="EkgPath"
+              Stroke="{DynamicResource PulseSecondary}"
+              StrokeThickness="1.5"
+              StrokeLineJoin="Round"
+              StrokeStartLineCap="Round"
+              StrokeEndLineCap="Round"
+              Effect="{DynamicResource GoldGlowEffect}">
+            <Path.RenderTransform>
+                <TranslateTransform x:Name="WaveTranslate" X="0"/>
+            </Path.RenderTransform>
+        </Path>
 
-            <!-- Orange glow trail (slightly behind, thicker, blurred) -->
-            <Path x:Name="EkgGlowPath"
-                  Stroke="{DynamicResource PulsePrimary}"
-                  StrokeThickness="3"
-                  StrokeLineJoin="Round"
-                  Opacity="0.4">
-                <Path.Data>
-                    <PathGeometry x:Name="EkgGlowGeometry"/>
-                </Path.Data>
-                <Path.RenderTransform>
-                    <TranslateTransform x:Name="GlowTranslate" X="0"/>
-                </Path.RenderTransform>
-                <Path.Effect>
-                    <BlurEffect Radius="6"/>
-                </Path.Effect>
-            </Path>
-        </Canvas>
+        <!-- Orange glow trail (slightly behind, thicker, blurred) -->
+        <Path x:Name="EkgGlowPath"
+              Stroke="{DynamicResource PulsePrimary}"
+              StrokeThickness="3"
+              StrokeLineJoin="Round"
+              Opacity="0.4">
+            <Path.RenderTransform>
+                <TranslateTransform x:Name="GlowTranslate" X="0"/>
+            </Path.RenderTransform>
+            <Path.Effect>
+                <BlurEffect Radius="6"/>
+            </Path.Effect>
+        </Path>
 
         <!-- Status indicator dot (pulses with the heartbeat) -->
         <Ellipse x:Name="StatusDot"
