@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using LootPulse.Models;
 using LootPulse.Services;
@@ -33,6 +34,7 @@ namespace LootPulse
         private readonly ClientLogMonitor _logMonitor;
         private readonly FilterBuilder _filterBuilder;
         private readonly MetadataUpdateService _metadataService;
+        private readonly PriceHistoryService _priceHistory;
 
         // Trade Market (PoE2 trade2 API) services
         private readonly WebView2TradeTransport _tradeTransport;
@@ -79,8 +81,8 @@ namespace LootPulse
         private const string _clientLogFile = "Client.txt";
         private const string _steamappsFolder = "steamapps";
         private const string _commonFolder = "common";
-        private const string _darkMenuItemStyleKey = "DarkMenuItem";
-        private const string _darkContextMenuStyleKey = "DarkContextMenu";
+        private const string _darkMenuItemStyleKey = "LootMenuItem";
+        private const string _darkContextMenuStyleKey = "LootContextMenu";
 
         private const string _classMercenary = "Mercenary";
         private const string _classMonk = "Monk";
@@ -123,6 +125,13 @@ namespace LootPulse
         private HwndSource? _hwndSource;
         private readonly TaskCompletionSource<bool> _sourceInitializedTcs = new();
 
+        // EKG Market Pulse Graph state
+        private DispatcherTimer? _ekgTimer;
+        private double _ekgScrollX;
+        private double _ekgSegmentWidth = 50;
+        private double _ekgAmplitude = 6;
+        private readonly Random _ekgRng = new();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -140,6 +149,7 @@ namespace LootPulse
                 ActiveBuildClassSynonymsProvider = GetActiveBuildClassSynonyms
             };
             _metadataService = new MetadataUpdateService();
+            _priceHistory = new PriceHistoryService();
             _filterBuilder = new FilterBuilder();
 
             // Load dynamic base items and currencies data
@@ -152,12 +162,20 @@ namespace LootPulse
             _tradeClient = new Poe2TradeClient(_tradeTransport, _tradeRateLimiter);
             _tradeTransport.ConnectionChanged += TradeTransport_ConnectionChanged;
 
+            // Search button is disabled until trade session is connected.
+            // Without a session, the stat resolver can't fetch GGG's stat table,
+            // so Best-in-Slot searches would silently drop all affix weights.
+            SearchTradeButton.IsEnabled = false;
+
             // Bind log monitor events
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
             _logMonitor.PlayerLevelChanged += LogMonitor_PlayerLevelChanged;
 
             // Initialize application asynchronously
             _ = InitializeAppAsync();
+
+            // Start the EKG heartbeat animation in the header
+            Loaded += (s, e) => StartEkgAnimation();
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -178,8 +196,106 @@ namespace LootPulse
             _sourceInitializedTcs.SetResult(true);
         }
 
+        /// <summary>
+        /// Starts the EKG heartbeat animation in the header bar.
+        /// Generates EKG-shaped path geometry and scrolls it continuously.
+        /// </summary>
+        private void StartEkgAnimation()
+        {
+            GenerateEkgWave();
+            _ekgTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) }; // ~30fps
+            _ekgTimer.Tick += OnEkgTick;
+            _ekgTimer.Start();
+        }
+
+        private void OnEkgTick(object? sender, EventArgs e)
+        {
+            _ekgScrollX += 50.0 / 30.0; // 50px/sec scroll speed
+            if (_ekgScrollX >= _ekgSegmentWidth)
+            {
+                _ekgScrollX -= _ekgSegmentWidth;
+                GenerateEkgWave();
+            }
+            WaveTranslate.X = -_ekgScrollX;
+            GlowTranslate.X = -_ekgScrollX;
+        }
+
+        private void GenerateEkgWave()
+        {
+            const double width = 200;
+            const double height = 24;
+            var centerY = height / 2;
+            var totalWidth = width + _ekgSegmentWidth * 4;
+
+            var figure = new PathFigure
+            {
+                StartPoint = new Point(0, centerY),
+                IsClosed = false
+            };
+
+            var x = 0.0;
+            while (x < totalWidth)
+            {
+                var amp = _ekgAmplitude;
+
+                // Flat baseline (30%)
+                var w = _ekgSegmentWidth * 0.3;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+
+                // Q wave — downward dip (5%)
+                w = _ekgSegmentWidth * 0.05;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY + amp * 0.4), true));
+                x += w;
+
+                // R wave — sharp upward spike (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY - amp), true));
+                x += w;
+
+                // S wave — sharp downward (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY + amp * 0.6), true));
+                x += w;
+
+                // Return to baseline (10%)
+                w = _ekgSegmentWidth * 0.1;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+
+                // T wave — gentle bump (15%)
+                w = _ekgSegmentWidth * 0.15;
+                figure.Segments.Add(new LineSegment(new Point(x + w * 0.5, centerY - amp * 0.3), true));
+                x += w;
+
+                // Flat to end (20%)
+                w = _ekgSegmentWidth * 0.2;
+                figure.Segments.Add(new LineSegment(new Point(x + w, centerY), true));
+                x += w;
+            }
+
+            var geo = new PathGeometry();
+            geo.Figures.Add(figure);
+            geo.Freeze();
+
+            EkgPath.Data = geo;
+            EkgGlowPath.Data = geo;
+        }
+
+        /// <summary>
+        /// Toggles the EKG heartbeat between Active (fast, tall spikes) and Calm (slow, gentle).
+        /// Called when market data sync starts (active=true) and completes (active=false).
+        /// </summary>
+        private void SetEkgState(bool active)
+        {
+            _ekgAmplitude = active ? 12 : 6;
+            _ekgSegmentWidth = active ? 30 : 50;
+            GenerateEkgWave();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            _ekgTimer?.Stop();
             _logMonitor.StopMonitoring();
             _hwndSource?.RemoveHook(HwndHook);
             UnregisterHotKey(_hwnd, _hotkeyId);
@@ -396,6 +512,8 @@ namespace LootPulse
 
         private async Task SyncEconomyDataAsync()
         {
+            // Spike the EKG heartbeat to show active market sync
+            SetEkgState(true);
             StatusText.Text = "Syncing with poe.ninja...";
             string activeLeague = _appSettings.League;
             if (string.IsNullOrEmpty(activeLeague))
@@ -474,11 +592,18 @@ namespace LootPulse
                 ApplyCategoryFilter();
 
                 await TriggerFilterRegenerationAsync();
+
+                // Record daily price snapshot for sparkline history
+                _priceHistory.RecordSnapshot(
+                    _marketItems.Select(i => (i.Name, i.ExaltedValue > 0 ? i.ExaltedValue : i.DivineValue)));
+
                 StatusText.Text = "Sync complete. All economy categories updated.";
+                SetEkgState(false);
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"Sync failed: {ex.Message}";
+                SetEkgState(false);
                 Debug.WriteLine($"Error during parallel economy sync: {ex.Message}");
             }
         }
@@ -530,6 +655,11 @@ namespace LootPulse
             {
                 ConnectTradeButton.IsEnabled = !connected;
                 ConnectTradeButton.Content = connected ? "Trade Account Connected" : "Connect Trade Account";
+                SearchTradeButton.IsEnabled = connected;
+                if (!connected)
+                {
+                    TradeStatusText.Text = "Trade session expired — click \"Connect Trade Account\" to re-authenticate before searching.";
+                }
             });
         }
 
@@ -539,6 +669,7 @@ namespace LootPulse
             {
                 TradeStatusText.Text = "Checking Path of Exile session…";
                 await _tradeTransport.ConnectAsync();
+                SearchTradeButton.IsEnabled = _tradeTransport.IsConnected;
                 TradeStatusText.Text = _tradeTransport.IsConnected
                     ? "Connected. Click \"Search Trade Market\" to price your build items."
                     : "Sign in to Path of Exile in the window, then run a search.";
@@ -553,6 +684,12 @@ namespace LootPulse
         {
             if (_isTradeSearchRunning)
             {
+                return;
+            }
+
+            if (!_tradeTransport.IsConnected)
+            {
+                TradeStatusText.Text = "Not connected to trade — click \"Connect Trade Account\" first. Affix weights and stat filters require an authenticated session.";
                 return;
             }
 
@@ -579,6 +716,7 @@ namespace LootPulse
 
             _isTradeSearchRunning = true;
             SearchTradeButton.IsEnabled = false;
+            SetEkgState(true);
             _tradeGroups.Clear();
             RefreshTradeGroups();
 
@@ -599,11 +737,13 @@ namespace LootPulse
             catch (Exception ex)
             {
                 TradeStatusText.Text = $"Trade search stopped: {ex.Message}";
+                SetEkgState(false);
             }
             finally
             {
                 _isTradeSearchRunning = false;
-                SearchTradeButton.IsEnabled = true;
+                SearchTradeButton.IsEnabled = _tradeTransport.IsConnected;
+                SetEkgState(false);
             }
         }
 
@@ -918,6 +1058,9 @@ namespace LootPulse
             {
                 AffixWeightsControl.ItemsSource = _tradeQueries.Where(q => q.Affixes.Count > 0).ToList();
             }
+
+            // Refresh context menu checkmarks and items
+            LoadBuildButtonOptions();
         }
 
         private async void AffixImportance_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1118,6 +1261,9 @@ namespace LootPulse
             // Populate base filter options
             LoadBaseFilterOptions();
 
+            // Populate base build planner options
+            LoadBuildButtonOptions();
+
             // Initialize FileSystemWatcher for the loaded base filter
             SetupBaseFilterWatcher(_selectedBaseFilterPath);
 
@@ -1267,6 +1413,7 @@ namespace LootPulse
                         loadedFilterPath = settings.FilterOutputPath;
                         loadedBaseFilterPath = settings.SelectedBaseFilterPath;
                         _appSettings.BuildFilePath = settings.BuildFilePath;
+                        _appSettings.BuildCustomWeights = settings.BuildCustomWeights ?? [];
 
                         _appSettings.HudWidth = settings.HudWidth;
                         _appSettings.HudHeight = settings.HudHeight;
@@ -1656,7 +1803,7 @@ namespace LootPulse
                 }
             }
 
-            contextMenu.Items.Add(new Separator { Style = (Style)FindResource("DarkMenuSeparator") });
+            contextMenu.Items.Add(new Separator { Style = (Style)FindResource("LootMenuSeparator") });
 
             var browseItem = new MenuItem
             {
@@ -1669,6 +1816,131 @@ namespace LootPulse
             BaseFilterButton.ContextMenu = contextMenu;
 
             UpdateSelectedFilterDisplayText();
+        }
+
+        private static string ParseBuildDisplayName(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    string content = File.ReadAllText(filePath);
+                    using var doc = JsonDocument.Parse(content);
+                    if (doc.RootElement.TryGetProperty("name", out var prop))
+                    {
+                        string? name = prop.GetString();
+                        if (!string.IsNullOrEmpty(name)) return name;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback to filename
+            }
+            return Path.GetFileNameWithoutExtension(filePath);
+        }
+
+        private void LoadBuildButtonOptions()
+        {
+            var contextMenu = new ContextMenu { Style = (Style)FindResource(_darkContextMenuStyleKey) };
+
+            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string onlineBuildsDir = Path.Combine(myDocs, @"My Games\Path of Exile 2\OnlineBuilds");
+
+            bool matchedAny = false;
+            string selectedPath = _appSettings.BuildFilePath ?? string.Empty;
+
+            if (Directory.Exists(onlineBuildsDir))
+            {
+                try
+                {
+                    var files = Directory.GetFiles(onlineBuildsDir, "*.build");
+                    foreach (var file in files)
+                    {
+                        string displayName = ParseBuildDisplayName(file);
+                        bool isSelected = string.Equals(file, selectedPath, StringComparison.OrdinalIgnoreCase);
+                        if (isSelected) matchedAny = true;
+
+                        var item = new MenuItem
+                        {
+                            Header = $"{displayName} (Subscribed)",
+                            Style = (Style)FindResource(_darkMenuItemStyleKey),
+                            IsChecked = isSelected
+                        };
+                        item.Click += (s, e) => SelectBuildOption(file, item);
+                        contextMenu.Items.Add(item);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error scanning OnlineBuilds: {ex.Message}");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(selectedPath) && !matchedAny)
+            {
+                if (File.Exists(selectedPath))
+                {
+                    string displayName = ParseBuildDisplayName(selectedPath);
+                    var item = new MenuItem
+                    {
+                        Header = $"{displayName} (Local)",
+                        Style = (Style)FindResource(_darkMenuItemStyleKey),
+                        IsChecked = true
+                    };
+                    item.Click += (s, e) => SelectBuildOption(selectedPath, item);
+                    contextMenu.Items.Add(item);
+                }
+            }
+
+            if (contextMenu.Items.Count > 0)
+            {
+                contextMenu.Items.Add(new Separator { Style = (Style)FindResource("LootMenuSeparator") });
+            }
+
+            var importItem = new MenuItem
+            {
+                Header = "Import PoB Share Code...",
+                Style = (Style)FindResource(_darkMenuItemStyleKey)
+            };
+            importItem.Click += ImportPob_Click;
+            contextMenu.Items.Add(importItem);
+
+            var browseItem = new MenuItem
+            {
+                Header = "Browse for Local .build File...",
+                Style = (Style)FindResource(_darkMenuItemStyleKey)
+            };
+            browseItem.Click += SelectBuildFile_Click;
+            contextMenu.Items.Add(browseItem);
+
+            LoadBuildButton.ContextMenu = contextMenu;
+        }
+
+        private async void SelectBuildOption(string filePath, MenuItem selectedItem)
+        {
+            try
+            {
+                var build = await _buildParser.ParseBuildFileAsync(filePath);
+                if (build != null)
+                {
+                    OnActiveBuildLoaded(build);
+                    StatusText.Text = $"Loaded .build file: {build.Name}";
+                    _appSettings.BuildFilePath = filePath;
+                    await SaveSettingsAsync();
+                    _logMonitor.TriggerHistoryScan();
+                    await LoadBuildUniquePricesAsync(build);
+                    await TriggerFilterRegenerationAsync();
+                }
+                else
+                {
+                    MessageBox.Show("Invalid build planner file format.", "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to load build: {ex.Message}", "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private async Task CheckMissingBaseFilterAsync()
@@ -2259,17 +2531,15 @@ namespace LootPulse
 
             string selectedCategory = (EconomyCategoryComboBox.SelectedItem as string) ?? "All Categories";
 
-            if (selectedCategory == "All Categories")
-            {
-                ItemListView.ItemsSource = null;
-                ItemListView.ItemsSource = _marketItems;
-            }
-            else
-            {
-                var filtered = _marketItems.Where(i => i.Category == _exchangeRateCategory || i.Category == selectedCategory).ToList();
-                ItemListView.ItemsSource = null;
-                ItemListView.ItemsSource = filtered;
-            }
+            IEnumerable<MarketItem> source = selectedCategory == "All Categories"
+                ? _marketItems
+                : _marketItems.Where(i => i.Category == _exchangeRateCategory || i.Category == selectedCategory);
+
+            // Wrap in MarketItemDisplay to provide sparkline/trend bindings
+            var displayItems = source.Select(i => new MarketItemDisplay(i, _priceHistory)).ToList();
+
+            ItemListView.ItemsSource = null;
+            ItemListView.ItemsSource = displayItems;
         }
 
         private void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2414,7 +2684,7 @@ namespace LootPulse
         public string FilePath { get; set; } = string.Empty;
         public bool IsSubscribed { get; set; }
 
-        // The custom DarkComboBox template renders the closed selection box from SelectionBoxItem,
+        // The custom LootComboBox template renders the closed selection box from SelectionBoxItem,
         // which falls back to ToString(); return DisplayName so the chosen item shows correctly.
         public override string ToString() => DisplayName;
     }

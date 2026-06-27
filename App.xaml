@@ -4,6 +4,12 @@
              xmlns:local="clr-namespace:LootPulse"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Theme.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Typography.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

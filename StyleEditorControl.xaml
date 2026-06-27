@@ -6,263 +6,7 @@
         mc:Ignorable="d"
         d:DesignHeight="700" d:DesignWidth="680">
 
-    <UserControl.Resources>
-        <!-- Modern ScrollViewer style -->
-        <Style TargetType="ScrollBar">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-
-        <!-- Base Label Style -->
-        <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <!-- Base Button Style -->
-        <Style x:Key="ModernButton" TargetType="Button">
-            <Setter Property="Background" Value="#2A2A2A"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" SnapsToDevicePixels="true">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#3D3D3D"/>
-                                <Setter TargetName="border" Property="BorderBrush" Value="#FF6124"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#1A1A1A"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-            <Setter Property="Background" Value="#FF6124"/>
-            <Setter Property="BorderBrush" Value="#FF6124"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" SnapsToDevicePixels="true">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#FF7A47"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#E05018"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-            <Setter Property="Background" Value="#990000"/>
-            <Setter Property="BorderBrush" Value="#BB0000"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" SnapsToDevicePixels="true">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#BB2222"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="true">
-                                <Setter TargetName="border" Property="Background" Value="#770000"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#222222"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="5,3"/>
-            <Setter Property="CaretBrush" Value="White"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false"
-                                          HorizontalScrollBarVisibility="Hidden"
-                                          VerticalScrollBarVisibility="Hidden"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsFocused" Value="true">
-                                <Setter TargetName="border" Property="BorderBrush" Value="#FF6124"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ComboBox">
-            <Style.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#222222" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF6124" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White" />
-            </Style.Resources>
-            <Setter Property="Background" Value="#222222"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="6,3"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid x:Name="MainGrid" SnapsToDevicePixels="true">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition MinWidth="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}" Width="0"/>
-                            </Grid.ColumnDefinitions>
-                            <Popup x:Name="PART_Popup"
-                                   AllowsTransparency="true"
-                                   Grid.ColumnSpan="2"
-                                   Placement="Bottom"
-                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
-                                   PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}">
-                                <Border x:Name="DropDownBorder"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="#444444"
-                                        BorderThickness="1"
-                                        CornerRadius="0,0,6,6"
-                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                        MinWidth="{Binding ActualWidth, ElementName=MainGrid}">
-                                    <ScrollViewer x:Name="DropDownScrollViewer" CanContentScroll="True">
-                                        <Grid x:Name="Grid" RenderOptions.ClearTypeHint="Enabled">
-                                            <Canvas x:Name="Canvas" HorizontalAlignment="Left" Height="0" VerticalAlignment="Top" Width="0">
-                                                <Rectangle x:Name="OpaqueRect" Fill="{Binding Background, ElementName=DropDownBorder}" Height="{Binding ActualHeight, ElementName=DropDownBorder}" Width="{Binding ActualWidth, ElementName=DropDownBorder}"/>
-                                            </Canvas>
-                                            <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                                        </Grid>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                            <ToggleButton Grid.ColumnSpan="2"
-                                          Background="{TemplateBinding Background}"
-                                          BorderBrush="{TemplateBinding BorderBrush}"
-                                          BorderThickness="{TemplateBinding BorderThickness}"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="templateRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                                            <Grid HorizontalAlignment="Stretch">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Path x:Name="Arrow"
-                                                      Grid.Column="1"
-                                                      Data="M 0 0 L 3.5 3.5 L 7 0"
-                                                      Fill="#CCCCCC"
-                                                      HorizontalAlignment="Center"
-                                                      Margin="0,0,10,0"
-                                                      VerticalAlignment="Center"/>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="true">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#353535"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#FF6124"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="White"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="true">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#202020"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#FF6124"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="White"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled" Value="false">
-                                                <Setter TargetName="templateRoot" Property="Background" Value="#1A1A1A"/>
-                                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#333333"/>
-                                                <Setter TargetName="Arrow" Property="Fill" Value="#555555"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-                            <ContentPresenter x:Name="ContentSite"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              Margin="{TemplateBinding Padding}"
-                                              IsHitTestVisible="false"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="HasItems" Value="false">
-                                <Setter TargetName="PART_Popup" Property="IsOpen" Value="false"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="false">
-                                <Setter Property="Foreground" Value="#555555"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#3D3D3D"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF6124"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </UserControl.Resources>
+    <!-- Styles now provided globally by App.xaml → Controls.xaml -->
 
     <Grid Margin="0,10,0,0">
         <Grid.RowDefinitions>
@@ -291,9 +35,9 @@
                 <TextBox Grid.Column="3" x:Name="PresetNameTextBox" Height="26" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="5" Orientation="Horizontal">
-                    <Button Content="Save Preset" Click="SavePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource ModernButton}"/>
-                    <Button Content="Delete Preset" Click="DeletePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource DangerButton}"/>
-                    <Button Content="Reset Defaults" Click="ResetDefaults_Click" Height="26" Style="{StaticResource ModernButton}"/>
+                    <Button Content="Save Preset" Click="SavePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource BtnSecondary}"/>
+                    <Button Content="Delete Preset" Click="DeletePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource BtnDanger}"/>
+                    <Button Content="Reset Defaults" Click="ResetDefaults_Click" Height="26" Style="{StaticResource BtnSecondary}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -406,7 +150,7 @@
                                                 </Border>
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="TextColor"
-                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
                                             <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="TextColorGrid"/>
@@ -490,7 +234,7 @@
                                                 </Border>
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BorderColor"
-                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
                                             <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BorderColorGrid"/>
@@ -574,7 +318,7 @@
                                                 </Border>
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BackgroundColor"
-                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource ModernButton}" FontSize="10" Padding="5,2"/>
+                                                    Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
                                             <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BackgroundColorGrid"/>
@@ -655,7 +399,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Custom File (.wav):" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1" x:Name="CustomSoundTextBox" Height="26" VerticalAlignment="Center" TextChanged="ControlChanged"/>
-                                <Button Grid.Column="2" Content="Browse..." Click="BrowseSound_Click" Height="26" Margin="5,0,0,0" Style="{StaticResource ModernButton}"/>
+                                <Button Grid.Column="2" Content="Browse..." Click="BrowseSound_Click" Height="26" Margin="5,0,0,0" Style="{StaticResource BtnSecondary}"/>
                             </Grid>
 
                             <CheckBox x:Name="MuteDefaultDropSoundCheckBox" Content="Mute Game Default Drop Sound (DisableDropSound)"
@@ -800,7 +544,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="FooterStatusText" Foreground="#888888" FontSize="11" Text="Styles save to args/filter_presets.json and apply to your generated filter immediately."
                        VerticalAlignment="Center" TextWrapping="Wrap"/>
-            <Button Grid.Column="1" Content="Save &amp; Apply" Click="SaveApply_Click" Width="120" Style="{StaticResource AccentButton}" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="Save &amp; Apply" Click="SaveApply_Click" Width="120" Style="{StaticResource BtnPrimary}" VerticalAlignment="Center"/>
         </Grid>
     </Grid>
 </UserControl>

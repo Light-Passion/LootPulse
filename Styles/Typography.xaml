@@ -1,0 +1,91 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         LOOTPULSE TYPOGRAPHY SYSTEM
+         Fontin = thematic/branded moments | Segoe UI Variable = body
+         Cascadia Code = numeric/market data
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Font Families ─────────────────────────────────────────────── -->
+    <FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontBody">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontSmall">Segoe UI Variable Small, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontThematic">Fontin, Georgia, serif</FontFamily>
+    <FontFamily x:Key="FontMono">Cascadia Code, Consolas, Courier New</FontFamily>
+
+    <!-- ── Display: Window titles, brand name (28px Fontin) ─────────── -->
+    <Style x:Key="TypeDisplay" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontThematic}"/>
+        <Setter Property="FontSize" Value="28"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Typography.Capitals" Value="AllSmallCaps"/>
+    </Style>
+
+    <!-- ── Title: Card titles, tab names, dialog titles (18px Fontin) ─ -->
+    <Style x:Key="TypeTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontThematic}"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Typography.Capitals" Value="AllSmallCaps"/>
+    </Style>
+
+    <!-- ── Subtitle: Section labels, group headers (14px Segoe SemiBold) -->
+    <Style x:Key="TypeSubtitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+
+    <!-- ── Body: General text, labels, descriptions (13px Segoe) ─────── -->
+    <Style x:Key="TypeBody" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+
+    <!-- ── BodyStrong: Selected items, active values (13px SemiBold) ── -->
+    <Style x:Key="TypeBodyStrong" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+
+    <!-- ── Caption: Timestamps, helper text (11px Segoe) ────────────── -->
+    <Style x:Key="TypeCaption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+
+    <!-- ── Micro: Status bar, metadata, badges (9.5px Segoe) ────────── -->
+    <Style x:Key="TypeMicro" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSmall}"/>
+        <Setter Property="FontSize" Value="9.5"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextTertiary}"/>
+    </Style>
+
+    <!-- ── MonoData: Currency ratios, prices, data tables (12px Mono) ─ -->
+    <Style x:Key="TypeMonoData" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="{DynamicResource PulseSecondary}"/>
+    </Style>
+
+    <!-- ── Section Label: Orange uppercase headers for settings sections -->
+    <Style x:Key="TypeSectionLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{DynamicResource PulsePrimary}"/>
+    </Style>
+
+</ResourceDictionary>

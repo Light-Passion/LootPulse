@@ -20,6 +20,8 @@ namespace LootPulse.Services
     [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as instance methods to support future dependency injection, mockability, and extension.")]
     public class MetadataUpdateService
     {
+        private static readonly SemaphoreSlim _fileLock = new(1, 1);
+
         private static readonly string AppDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LootPulse"
@@ -30,6 +32,7 @@ namespace LootPulse.Services
 
         public BaseItemsConfig LoadBaseItemsConfig()
         {
+            _fileLock.Wait();
             try
             {
                 if (File.Exists(BaseItemsPath))
@@ -46,15 +49,28 @@ namespace LootPulse.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to load base items configuration: {ex.Message}");
             }
+            finally
+            {
+                _fileLock.Release();
+            }
 
-            // Fallback & write defaults
+            // Fallback & write defaults. Needs to happen outside the lock to avoid double lock since SaveBaseItemsConfig gets its own lock.
             var defaults = GetDefaultBaseItems();
-            SaveBaseItemsConfig(defaults);
+            _fileLock.Wait();
+            try
+            {
+                SaveBaseItemsConfigInternal(defaults);
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
             return defaults;
         }
 
         public List<EconomyCategoryRecord> LoadEconomyCategories()
         {
+            _fileLock.Wait();
             try
             {
                 if (File.Exists(EconomyCategoriesPath))
@@ -71,20 +87,49 @@ namespace LootPulse.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to load economy categories: {ex.Message}");
             }
+            finally
+            {
+                _fileLock.Release();
+            }
 
-            // Fallback & write defaults
+            // Fallback & write defaults. SaveEconomyCategories handles its own lock.
             var defaults = GetDefaultEconomyCategories();
-            SaveEconomyCategories(defaults);
+            _fileLock.Wait();
+            try
+            {
+                SaveEconomyCategoriesInternal(defaults);
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
             return defaults;
         }
 
         public void SaveBaseItemsConfig(BaseItemsConfig config)
         {
+            _fileLock.Wait();
+            try
+            {
+                SaveBaseItemsConfigInternal(config);
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }
+
+        private void SaveBaseItemsConfigInternal(BaseItemsConfig config)
+        {
             try
             {
                 Directory.CreateDirectory(AppDataFolder);
                 string json = JsonSerializer.Serialize(config, PoeNinjaJsonContext.Default.BaseItemsConfig);
-                File.WriteAllText(BaseItemsPath, json);
+                
+                // Safe Atomic Write-and-Replace
+                string tempPath = BaseItemsPath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, BaseItemsPath, overwrite: true);
             }
             catch (Exception ex)
             {
@@ -94,11 +139,28 @@ namespace LootPulse.Services
 
         public void SaveEconomyCategories(List<EconomyCategoryRecord> categories)
         {
+            _fileLock.Wait();
+            try
+            {
+                SaveEconomyCategoriesInternal(categories);
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }
+
+        private void SaveEconomyCategoriesInternal(List<EconomyCategoryRecord> categories)
+        {
             try
             {
                 Directory.CreateDirectory(AppDataFolder);
                 string json = JsonSerializer.Serialize(categories, PoeNinjaJsonContext.Default.ListEconomyCategoryRecord);
-                File.WriteAllText(EconomyCategoriesPath, json);
+                
+                // Safe Atomic Write-and-Replace
+                string tempPath = EconomyCategoriesPath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, EconomyCategoriesPath, overwrite: true);
             }
             catch (Exception ex)
             {
@@ -114,6 +176,7 @@ namespace LootPulse.Services
 
             log.AppendLine("Starting dynamic metadata harvesting...");
 
+            await _fileLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 // 1. Fetch GGG Static Data
@@ -320,7 +383,7 @@ namespace LootPulse.Services
                             .ToList();
                     }
 
-                    SaveBaseItemsConfig(currentBasesConfig);
+                    SaveBaseItemsConfigInternal(currentBasesConfig);
                     log.AppendLine($"Success! Updated base items configuration. Added {newBasesCount} new base items.");
                 }
                 else
@@ -331,6 +394,10 @@ namespace LootPulse.Services
             catch (Exception ex)
             {
                 log.AppendLine($"Fatal error during metadata update: {ex.Message}");
+            }
+            finally
+            {
+                _fileLock.Release();
             }
 
             return (newCurrenciesCount, newBasesCount, log.ToString());
