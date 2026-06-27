@@ -1406,6 +1406,7 @@ namespace LootPulse
                         loadedFilterPath = settings.FilterOutputPath;
                         loadedBaseFilterPath = settings.SelectedBaseFilterPath;
                         _appSettings.BuildFilePath = settings.BuildFilePath;
+                        _appSettings.BuildCustomWeights = settings.BuildCustomWeights ?? [];
 
                         _appSettings.HudWidth = settings.HudWidth;
                         _appSettings.HudHeight = settings.HudHeight;
