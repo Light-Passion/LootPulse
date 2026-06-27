@@ -34,6 +34,7 @@ namespace LootPulse
         private readonly ClientLogMonitor _logMonitor;
         private readonly FilterBuilder _filterBuilder;
         private readonly MetadataUpdateService _metadataService;
+        private readonly PriceHistoryService _priceHistory;
 
         // Trade Market (PoE2 trade2 API) services
         private readonly WebView2TradeTransport _tradeTransport;
@@ -148,6 +149,7 @@ namespace LootPulse
                 ActiveBuildClassSynonymsProvider = GetActiveBuildClassSynonyms
             };
             _metadataService = new MetadataUpdateService();
+            _priceHistory = new PriceHistoryService();
             _filterBuilder = new FilterBuilder();
 
             // Load dynamic base items and currencies data
@@ -590,6 +592,11 @@ namespace LootPulse
                 ApplyCategoryFilter();
 
                 await TriggerFilterRegenerationAsync();
+
+                // Record daily price snapshot for sparkline history
+                _priceHistory.RecordSnapshot(
+                    _marketItems.Select(i => (i.Name, i.ExaltedValue > 0 ? i.ExaltedValue : i.DivineValue)));
+
                 StatusText.Text = "Sync complete. All economy categories updated.";
                 SetEkgState(false);
             }
@@ -2524,17 +2531,15 @@ namespace LootPulse
 
             string selectedCategory = (EconomyCategoryComboBox.SelectedItem as string) ?? "All Categories";
 
-            if (selectedCategory == "All Categories")
-            {
-                ItemListView.ItemsSource = null;
-                ItemListView.ItemsSource = _marketItems;
-            }
-            else
-            {
-                var filtered = _marketItems.Where(i => i.Category == _exchangeRateCategory || i.Category == selectedCategory).ToList();
-                ItemListView.ItemsSource = null;
-                ItemListView.ItemsSource = filtered;
-            }
+            IEnumerable<MarketItem> source = selectedCategory == "All Categories"
+                ? _marketItems
+                : _marketItems.Where(i => i.Category == _exchangeRateCategory || i.Category == selectedCategory);
+
+            // Wrap in MarketItemDisplay to provide sparkline/trend bindings
+            var displayItems = source.Select(i => new MarketItemDisplay(i, _priceHistory)).ToList();
+
+            ItemListView.ItemsSource = null;
+            ItemListView.ItemsSource = displayItems;
         }
 
         private void EconomyCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

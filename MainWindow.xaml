@@ -265,6 +265,29 @@
                                                             </DataTemplate>
                                                         </GridViewColumn.CellTemplate>
                                                     </GridViewColumn>
+                                                    <GridViewColumn Width="70">
+                                                        <GridViewColumn.HeaderTemplate>
+                                                            <DataTemplate><TextBlock Text="5-DAY" HorizontalAlignment="Center"/></DataTemplate>
+                                                        </GridViewColumn.HeaderTemplate>
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <!-- Sparkline path (visible only when history exists) -->
+                                                                    <Path Stroke="{Binding SparklineColor}"
+                                                                          StrokeThickness="1"
+                                                                          StrokeLineJoin="Round"
+                                                                          Data="{Binding SparklinePath}"
+                                                                          Width="60" Height="14"
+                                                                          VerticalAlignment="Center"
+                                                                          Margin="0,0,4,0"/>
+                                                                    <TextBlock Text="{Binding TrendArrow}"
+                                                                               Foreground="{Binding SparklineColor}"
+                                                                               FontSize="9"
+                                                                               VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
                                                     <GridViewColumn Width="140">
                                                         <GridViewColumn.HeaderTemplate>
                                                             <DataTemplate><TextBlock Text="VALUE" HorizontalAlignment="Right"/></DataTemplate>
