@@ -11,9 +11,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- Product / version metadata (single source of truth for the installer) -->
-    <Version>0.3.32</Version>
-    <FileVersion>0.3.32.0</FileVersion>
-    <AssemblyVersion>0.3.32.0</AssemblyVersion>
+    <Version>0.3.33</Version>
+    <FileVersion>0.3.33.0</FileVersion>
+    <AssemblyVersion>0.3.33.0</AssemblyVersion>
     <Authors>Light-Passion</Authors>
     <Company>LootPulse</Company>
     <Product>LootPulse</Product>

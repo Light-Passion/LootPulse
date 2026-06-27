@@ -709,6 +709,7 @@ namespace LootPulse
 
             _isTradeSearchRunning = true;
             SearchTradeButton.IsEnabled = false;
+            SetEkgState(true);
             _tradeGroups.Clear();
             RefreshTradeGroups();
 
@@ -729,11 +730,13 @@ namespace LootPulse
             catch (Exception ex)
             {
                 TradeStatusText.Text = $"Trade search stopped: {ex.Message}";
+                SetEkgState(false);
             }
             finally
             {
                 _isTradeSearchRunning = false;
-                SearchTradeButton.IsEnabled = true;
+                SearchTradeButton.IsEnabled = _tradeTransport.IsConnected;
+                SetEkgState(false);
             }
         }
 
