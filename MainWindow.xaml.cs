@@ -32,6 +32,7 @@ namespace LootPulse
         private readonly BuildProfileParser _buildParser;
         private readonly ClientLogMonitor _logMonitor;
         private readonly FilterBuilder _filterBuilder;
+        private readonly MetadataUpdateService _metadataService;
 
         // Trade Market (PoE2 trade2 API) services
         private readonly WebView2TradeTransport _tradeTransport;
@@ -135,7 +136,12 @@ namespace LootPulse
             {
                 ActiveBuildClassSynonymsProvider = GetActiveBuildClassSynonyms
             };
+            _metadataService = new MetadataUpdateService();
             _filterBuilder = new FilterBuilder();
+
+            // Load dynamic base items and currencies data
+            var baseConfig = _metadataService.LoadBaseItemsConfig();
+            FilterBuilder.Initialize(baseConfig);
 
             // Trade Market services (WebView2 session-backed; init deferred until first Connect)
             _tradeTransport = new WebView2TradeTransport(this);
@@ -448,38 +454,11 @@ namespace LootPulse
                 var currencyTask = _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
 
                 var categoryTasks = new List<(string Type, string Name, Task<List<MarketItem>> Task)>();
-                var categories = new[]
-                {
-                    // Exchange Commodities
-                    ("Fragments", "Fragments"),
-                    ("Runes", "Runes"),
-                    ("SoulCores", "Soul Cores"),
-                    ("Essences", "Essences"),
-                    ("Ritual", "Omens"),
-                    ("Abyss", "Abyssal Bones"),
-                    ("UncutGems", "Gems"),
-                    ("LineageSupportGems", "Lineage Support Gems"),
-                    ("Idols", "Idols"),
-                    ("Expedition", "Expedition"),
-                    ("Delirium", "Liquid Emotions"),
-                    ("Breach", "Breach Catalysts"),
-                    ("Verisium", "Verisium"),
-
-                    // Unique Items
-                    ("UniqueWeapons", "Unique Weapons"),
-                    ("UniqueArmours", "Unique Armour"),
-                    ("UniqueAccessories", "Unique Accessories"),
-                    ("UniqueFlasks", "Unique Flasks"),
-                    ("UniqueCharms", "Unique Charms"),
-                    ("UniqueJewels", "Unique Jewels"),
-                    ("UniqueSanctumRelics", "Unique Relics"),
-                    ("UniqueTablets", "Unique Tablets"),
-                    ("PrecursorTablets", "Precursor Tablets")
-                };
+                var categories = _metadataService.LoadEconomyCategories();
 
                 foreach (var cat in categories)
                 {
-                    categoryTasks.Add((cat.Item1, cat.Item2, _ninjaClient.FetchItemPricesAsync(activeLeague, cat.Item1, cat.Item2)));
+                    categoryTasks.Add((cat.Type, cat.Name, _ninjaClient.FetchItemPricesAsync(activeLeague, cat.Type, cat.Name)));
                 }
 
                 var allTasks = new List<Task> { currencyTask };
@@ -2354,6 +2333,42 @@ namespace LootPulse
             }
 
             return ("UniqueJewel", "Unique Jewels");
+        }
+
+        private async void UpdateMetadata_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateMetadataButton.IsEnabled = false;
+            MetadataStatusText.Text = "Status: Connecting to trade session and preparing update...";
+
+            try
+            {
+                // Ensure WebView2 is initialized
+                bool connected = await _tradeTransport.ConnectAsync().ConfigureAwait(true);
+                if (!connected)
+                {
+                    MetadataStatusText.Text = "Status: Update failed. Could not connect to Path of Exile trade session (requires login/WebView2).";
+                    return;
+                }
+
+                MetadataStatusText.Text = "Status: Checking GGG static data and scanning poe2db.tw (this may take up to a minute)...";
+
+                var (newCurrencies, newBases, log) = await _metadataService.UpdateMetadataAsync(_tradeTransport).ConfigureAwait(true);
+
+                // Reload the updated base items into FilterBuilder
+                var baseConfig = _metadataService.LoadBaseItemsConfig();
+                FilterBuilder.Initialize(baseConfig);
+
+                MetadataStatusText.Text = $"Status: Update completed. Discovered {newBases} new base items. Local configurations reloaded!";
+                System.Diagnostics.Debug.WriteLine(log);
+            }
+            catch (Exception ex)
+            {
+                MetadataStatusText.Text = $"Status: Error during update: {ex.Message}";
+            }
+            finally
+            {
+                UpdateMetadataButton.IsEnabled = true;
+            }
         }
     }
 

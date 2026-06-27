@@ -21,22 +21,17 @@ namespace LootPulse.Services.Trade
     /// each catalogue entry to a numeric-agnostic template (digits → "#"). Unresolved affixes are
     /// simply dropped so a search still runs.
     /// </summary>
-    public sealed class TradeStatResolver
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075:URIs should not be hardcoded", Justification = "Path of Exile trade data endpoint is fixed by the service provider.")]
+    public sealed class TradeStatResolver(ITradeTransport transport, TradeRateLimiter rateLimiter)
     {
-        private const string StatsUrl = "https://www.pathofexile.com/api/trade2/data/stats";
+        private const string _statsUrl = "https://www.pathofexile.com/api/trade2/data/stats";
 
-        private readonly ITradeTransport _transport;
-        private readonly TradeRateLimiter _rateLimiter;
+        private readonly ITradeTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        private readonly TradeRateLimiter _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter));
 
         // template text -> stat info. Cached once populated; an empty/failed fetch is retried next time
         // (e.g. the first attempt happened before the trade session was connected).
         private Dictionary<string, StatInfo>? _byTemplate;
-
-        public TradeStatResolver(ITradeTransport transport, TradeRateLimiter rateLimiter)
-        {
-            _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-            _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter));
-        }
 
         /// <summary>
         /// Resolve the given affixes to their trade2 stat IDs, keeping the originating affix so callers
@@ -48,13 +43,13 @@ namespace LootPulse.Services.Trade
         {
             if (affixes == null || affixes.Count == 0)
             {
-                return Array.Empty<ResolvedAffix>();
+                return [];
             }
 
             var table = await EnsureTableAsync(ct).ConfigureAwait(false);
             if (table.Count == 0)
             {
-                return Array.Empty<ResolvedAffix>();
+                return [];
             }
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -71,8 +66,8 @@ namespace LootPulse.Services.Trade
 
         private async Task<Dictionary<string, StatInfo>> EnsureTableAsync(CancellationToken ct)
         {
-            // Searches resolve affixes sequentially (awaited in a loop), so a plain field cache is enough;
-            // a concurrent race would at worst fetch the table twice, which is harmless. We only keep a
+            // Searches resolve affixes sequentially (awaited in a loop), so a plain field cache is sufficient.
+            // A concurrent race would at worst fetch the table twice, which is harmless. We only keep a
             // populated table so a fetch attempted before login can be retried once connected.
             if (_byTemplate is { Count: > 0 })
             {
@@ -96,7 +91,7 @@ namespace LootPulse.Services.Trade
             try
             {
                 await _rateLimiter.WaitTurnAsync(ct).ConfigureAwait(false);
-                var resp = await _transport.SendAsync(HttpMethod.Get, StatsUrl, null, ct).ConfigureAwait(false);
+                var resp = await _transport.SendAsync(HttpMethod.Get, _statsUrl, null, ct).ConfigureAwait(false);
                 _rateLimiter.Observe(resp);
                 if (!resp.IsSuccess || string.IsNullOrWhiteSpace(resp.Body))
                 {
@@ -104,28 +99,9 @@ namespace LootPulse.Services.Trade
                 }
 
                 var data = JsonSerializer.Deserialize(resp.Body, Poe2TradeJsonContext.Default.TradeStatsDataResponse);
-                if (data?.Result == null)
+                if (data != null)
                 {
-                    return map;
-                }
-
-                foreach (var category in data.Result)
-                {
-                    if (category?.Entries == null)
-                    {
-                        continue;
-                    }
-                    // Prefer "explicit" mods: a recommended build affix is almost always an explicit roll,
-                    // and several categories (implicit/rune) can share the same text. First write wins per
-                    // template, and we iterate explicit-first to make that the winner.
-                    foreach (var entry in category.Entries.OrderBy(e => e?.Type == "explicit" ? 0 : 1))
-                    {
-                        if (entry?.Id == null || string.IsNullOrWhiteSpace(entry.Text))
-                        {
-                            continue;
-                        }
-                        map.TryAdd(TradeAffixText.Templatize(entry.Text), new StatInfo(entry.Id, entry.Text));
-                    }
+                    PopulateTemplates(map, data);
                 }
             }
             catch (Exception ex) when (ex is JsonException or HttpRequestException or InvalidOperationException)
@@ -134,6 +110,33 @@ namespace LootPulse.Services.Trade
             }
 
             return map;
+        }
+
+        private static void PopulateTemplates(Dictionary<string, StatInfo> map, TradeStatsDataResponse data)
+        {
+            if (data.Result == null)
+            {
+                return;
+            }
+
+            foreach (var category in data.Result)
+            {
+                if (category?.Entries == null)
+                {
+                    continue;
+                }
+                // Prefer "explicit" mods: a recommended build affix is almost always an explicit roll,
+                // and several categories (implicit/rune) can share the same text. First write wins per
+                // template, and we iterate explicit-first to make that the winner.
+                foreach (var entry in category.Entries.OrderBy(e => e?.Type == "explicit" ? 0 : 1))
+                {
+                    if (entry?.Id == null || string.IsNullOrWhiteSpace(entry.Text))
+                    {
+                        continue;
+                    }
+                    map.TryAdd(TradeAffixText.Templatize(entry.Text), new StatInfo(entry.Id, entry.Text));
+                }
+            }
         }
     }
 }

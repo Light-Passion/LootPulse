@@ -724,8 +724,14 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="FilterPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
-                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseFilter_Click"/>
                             </Grid>
+
+                            <!-- Metadata & Data Updates -->
+                            <TextBlock Text="METADATA &amp; DATA UPDATES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,22">
+                                <Button x:Name="UpdateMetadataButton" Style="{StaticResource AccentButton}" Content="Update Base Items &amp; Currencies" Click="UpdateMetadata_Click" Padding="15,6" Margin="0,0,12,0"/>
+                                <TextBlock x:Name="MetadataStatusText" Text="Status: Local database loaded" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap" MaxWidth="500"/>
+                            </StackPanel>
 
                             <!-- Economy Thresholds (Disabled for now) -->
                             <StackPanel Visibility="Collapsed">

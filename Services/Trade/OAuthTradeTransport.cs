@@ -52,5 +52,9 @@ namespace LootPulse.Services.Trade
         public Task<TradeHttpResponse> SendAsync(HttpMethod method, string url, string? jsonBody, CancellationToken ct = default) =>
             throw new NotSupportedException(
                 "OAuthTradeTransport is a placeholder. GGG OAuth cannot authorize /api/trade2 requests.");
+
+        public Task<string> ScrapePageAsync(string url, string scrapeScript, CancellationToken ct = default) =>
+            throw new NotSupportedException(
+                "OAuthTradeTransport is a placeholder and does not support web scraping.");
     }
 }
