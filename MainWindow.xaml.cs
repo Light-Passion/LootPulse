@@ -160,6 +160,11 @@ namespace LootPulse
             _tradeClient = new Poe2TradeClient(_tradeTransport, _tradeRateLimiter);
             _tradeTransport.ConnectionChanged += TradeTransport_ConnectionChanged;
 
+            // Search button is disabled until trade session is connected.
+            // Without a session, the stat resolver can't fetch GGG's stat table,
+            // so Best-in-Slot searches would silently drop all affix weights.
+            SearchTradeButton.IsEnabled = false;
+
             // Bind log monitor events
             _logMonitor.ZoneChanged += LogMonitor_ZoneChanged;
             _logMonitor.PlayerLevelChanged += LogMonitor_PlayerLevelChanged;
@@ -643,6 +648,11 @@ namespace LootPulse
             {
                 ConnectTradeButton.IsEnabled = !connected;
                 ConnectTradeButton.Content = connected ? "Trade Account Connected" : "Connect Trade Account";
+                SearchTradeButton.IsEnabled = connected;
+                if (!connected)
+                {
+                    TradeStatusText.Text = "Trade session expired — click \"Connect Trade Account\" to re-authenticate before searching.";
+                }
             });
         }
 
@@ -652,6 +662,7 @@ namespace LootPulse
             {
                 TradeStatusText.Text = "Checking Path of Exile session…";
                 await _tradeTransport.ConnectAsync();
+                SearchTradeButton.IsEnabled = _tradeTransport.IsConnected;
                 TradeStatusText.Text = _tradeTransport.IsConnected
                     ? "Connected. Click \"Search Trade Market\" to price your build items."
                     : "Sign in to Path of Exile in the window, then run a search.";
@@ -666,6 +677,12 @@ namespace LootPulse
         {
             if (_isTradeSearchRunning)
             {
+                return;
+            }
+
+            if (!_tradeTransport.IsConnected)
+            {
+                TradeStatusText.Text = "Not connected to trade — click \"Connect Trade Account\" first. Affix weights and stat filters require an authenticated session.";
                 return;
             }
 
