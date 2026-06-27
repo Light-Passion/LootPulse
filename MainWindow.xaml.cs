@@ -918,6 +918,9 @@ namespace LootPulse
             {
                 AffixWeightsControl.ItemsSource = _tradeQueries.Where(q => q.Affixes.Count > 0).ToList();
             }
+
+            // Refresh context menu checkmarks and items
+            LoadBuildButtonOptions();
         }
 
         private async void AffixImportance_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1117,6 +1120,9 @@ namespace LootPulse
 
             // Populate base filter options
             LoadBaseFilterOptions();
+
+            // Populate base build planner options
+            LoadBuildButtonOptions();
 
             // Initialize FileSystemWatcher for the loaded base filter
             SetupBaseFilterWatcher(_selectedBaseFilterPath);
@@ -1669,6 +1675,131 @@ namespace LootPulse
             BaseFilterButton.ContextMenu = contextMenu;
 
             UpdateSelectedFilterDisplayText();
+        }
+
+        private static string ParseBuildDisplayName(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    string content = File.ReadAllText(filePath);
+                    using var doc = JsonDocument.Parse(content);
+                    if (doc.RootElement.TryGetProperty("name", out var prop))
+                    {
+                        string? name = prop.GetString();
+                        if (!string.IsNullOrEmpty(name)) return name;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback to filename
+            }
+            return Path.GetFileNameWithoutExtension(filePath);
+        }
+
+        private void LoadBuildButtonOptions()
+        {
+            var contextMenu = new ContextMenu { Style = (Style)FindResource(_darkContextMenuStyleKey) };
+
+            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string onlineBuildsDir = Path.Combine(myDocs, @"My Games\Path of Exile 2\OnlineBuilds");
+
+            bool matchedAny = false;
+            string selectedPath = _appSettings.BuildFilePath ?? string.Empty;
+
+            if (Directory.Exists(onlineBuildsDir))
+            {
+                try
+                {
+                    var files = Directory.GetFiles(onlineBuildsDir, "*.build");
+                    foreach (var file in files)
+                    {
+                        string displayName = ParseBuildDisplayName(file);
+                        bool isSelected = string.Equals(file, selectedPath, StringComparison.OrdinalIgnoreCase);
+                        if (isSelected) matchedAny = true;
+
+                        var item = new MenuItem
+                        {
+                            Header = $"{displayName} (Subscribed)",
+                            Style = (Style)FindResource(_darkMenuItemStyleKey),
+                            IsChecked = isSelected
+                        };
+                        item.Click += (s, e) => SelectBuildOption(file, item);
+                        contextMenu.Items.Add(item);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error scanning OnlineBuilds: {ex.Message}");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(selectedPath) && !matchedAny)
+            {
+                if (File.Exists(selectedPath))
+                {
+                    string displayName = ParseBuildDisplayName(selectedPath);
+                    var item = new MenuItem
+                    {
+                        Header = $"{displayName} (Local)",
+                        Style = (Style)FindResource(_darkMenuItemStyleKey),
+                        IsChecked = true
+                    };
+                    item.Click += (s, e) => SelectBuildOption(selectedPath, item);
+                    contextMenu.Items.Add(item);
+                }
+            }
+
+            if (contextMenu.Items.Count > 0)
+            {
+                contextMenu.Items.Add(new Separator { Style = (Style)FindResource("DarkMenuSeparator") });
+            }
+
+            var importItem = new MenuItem
+            {
+                Header = "Import PoB Share Code...",
+                Style = (Style)FindResource(_darkMenuItemStyleKey)
+            };
+            importItem.Click += ImportPob_Click;
+            contextMenu.Items.Add(importItem);
+
+            var browseItem = new MenuItem
+            {
+                Header = "Browse for Local .build File...",
+                Style = (Style)FindResource(_darkMenuItemStyleKey)
+            };
+            browseItem.Click += SelectBuildFile_Click;
+            contextMenu.Items.Add(browseItem);
+
+            LoadBuildButton.ContextMenu = contextMenu;
+        }
+
+        private async void SelectBuildOption(string filePath, MenuItem selectedItem)
+        {
+            try
+            {
+                var build = await _buildParser.ParseBuildFileAsync(filePath);
+                if (build != null)
+                {
+                    OnActiveBuildLoaded(build);
+                    StatusText.Text = $"Loaded .build file: {build.Name}";
+                    _appSettings.BuildFilePath = filePath;
+                    await SaveSettingsAsync();
+                    _logMonitor.TriggerHistoryScan();
+                    await LoadBuildUniquePricesAsync(build);
+                    await TriggerFilterRegenerationAsync();
+                }
+                else
+                {
+                    MessageBox.Show("Invalid build planner file format.", "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to load build: {ex.Message}", "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private async Task CheckMissingBaseFilterAsync()

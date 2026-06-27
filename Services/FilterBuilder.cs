@@ -574,6 +574,7 @@ namespace LootPulse.Services
         private static List<(string[] Keywords, string Archetype)> _keywordArchetypeMappings = LoadDefaultKeywords();
         private static Dictionary<string, string> _knownUniqueBaseTypes = LoadDefaultUniqueBases();
         private static HashSet<string> _allBaseItemNames = new(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
+        private static BaseItemInfo[] _sortedBaseItems = PrecomputeSortedBases();
 
         private static Dictionary<string, List<BaseItemInfo>> LoadDefaultArchetypes()
         {
@@ -583,6 +584,14 @@ namespace LootPulse.Services
                 kvp => kvp.Value.Select(b => new BaseItemInfo(b.Name, b.RequiredLevel)).ToList(),
                 StringComparer.OrdinalIgnoreCase
             );
+        }
+
+        private static BaseItemInfo[] PrecomputeSortedBases()
+        {
+            return _archetypes.Values
+                .SelectMany(list => list)
+                .OrderByDescending(b => b.Name.Length)
+                .ToArray();
         }
 
         private static List<(string[] Keywords, string Archetype)> LoadDefaultKeywords()
@@ -615,20 +624,24 @@ namespace LootPulse.Services
 
             _knownUniqueBaseTypes = new Dictionary<string, string>(config.KnownUniqueBaseTypes, StringComparer.OrdinalIgnoreCase);
             _allBaseItemNames = new HashSet<string>(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
+            _sortedBaseItems = PrecomputeSortedBases();
         }
 
         private static BaseItemInfo? FindMatchedBase(string itemName)
         {
             if (string.IsNullOrWhiteSpace(itemName)) return null;
 
-            // Prefer the longest (most specific) matching base name so a generic entry
-            // (e.g. "Robe") can't preempt a more specific one (e.g. "Velvet Robe") based
-            // on dictionary/list enumeration order alone.
-            return _archetypes.Values
-                .SelectMany(list => list)
-                .Where(baseItem => itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(baseItem => baseItem.Name.Length)
-                .FirstOrDefault();
+            // Zero-allocation high-frequency loop scan.
+            // Scans base items pre-sorted by name length in descending order.
+            for (int i = 0; i < _sortedBaseItems.Length; i++)
+            {
+                var baseItem = _sortedBaseItems[i];
+                if (itemName.Contains(baseItem.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return baseItem;
+                }
+            }
+            return null;
         }
 
         // Sub-archetype routing below reflects PoE2's actual naming convention (verified

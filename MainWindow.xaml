@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LootPulse"
+        xmlns:controls="clr-namespace:LootPulse.Controls"
         mc:Ignorable="d"
         Title="LootPulse Overlay" 
         Height="650" Width="1000"
@@ -306,8 +307,13 @@
 
                 <StackPanel Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Center">
                     <Ellipse Width="10" Height="10" Fill="#FF6124" Margin="0,0,10,0"/>
-                    <TextBlock Text="LOOTPULSE DASHBOARD" Foreground="White" FontSize="14" FontWeight="Bold"/>
-                    <Border CornerRadius="4" Background="#323232" Margin="15,0,0,0" Padding="6,2">
+                    <TextBlock Text="LOOTPULSE" Foreground="White" FontSize="14" FontWeight="Bold"/>
+                    <!-- Market Pulse Graph — live EKG heartbeat line -->
+                    <controls:MarketPulseGraph x:Name="HeaderPulseGraph"
+                                                Width="200" Height="24"
+                                                Margin="12,0,12,0"
+                                                VerticalAlignment="Center"/>
+                    <Border CornerRadius="4" Background="#323232" Margin="0,0,0,0" Padding="6,2">
                         <TextBlock x:Name="OverlayModeText" Text="EDIT MODE" Foreground="#FF6124" FontSize="10" FontWeight="Bold"/>
                     </Border>
                     <TextBlock Text="[ Ctrl+Shift+O: HUD Mode | Ctrl+Shift+H: Show/Hide HUD ]" Foreground="#888888" FontSize="11" Margin="15,0,0,0" VerticalAlignment="Center"/>
@@ -399,14 +405,7 @@
                                         <TextBlock x:Name="SelectedFilterNameText" Text="Base Filter: None (LootPulse Highlights Only)" Foreground="#FF6124" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="BuildNameText" Text="No active build loaded" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click" Margin="0,0,8,0">
-                                                <Button.ContextMenu>
-                                                    <ContextMenu Style="{StaticResource DarkContextMenu}">
-                                                        <MenuItem Header="Import PoB Share Code" Click="ImportPob_Click"/>
-                                                        <MenuItem Header="Select .build File…" Click="SelectBuildFile_Click"/>
-                                                    </ContextMenu>
-                                                </Button.ContextMenu>
-                                            </Button>
+                                            <Button x:Name="LoadBuildButton" Style="{StaticResource AccentButton}" Content="Load Build  ▾" Click="LoadBuildButton_Click" Margin="0,0,8,0" />
                                             <Button x:Name="BaseFilterButton" Style="{StaticResource AccentButton}" Content="Select Base Filter  ▾" Click="BaseFilterButton_Click"/>
                                         </StackPanel>
                                     </StackPanel>

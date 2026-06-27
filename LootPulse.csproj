@@ -1,19 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType Condition="'$(TargetFramework)' == 'net9.0-windows'">WinExe</OutputType>
-    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF Condition="'$(TargetFramework)' == 'net9.0-windows'">true</UseWPF>
-    <UseWindowsForms Condition="'$(TargetFramework)' == 'net9.0-windows'">true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>lootpulse.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- Product / version metadata (single source of truth for the installer) -->
-    <Version>0.3.23</Version>
-    <FileVersion>0.3.23.0</FileVersion>
-    <AssemblyVersion>0.3.23.0</AssemblyVersion>
+    <Version>0.3.24</Version>
+    <FileVersion>0.3.24.0</FileVersion>
+    <AssemblyVersion>0.3.24.0</AssemblyVersion>
     <Authors>Light-Passion</Authors>
     <Company>LootPulse</Company>
     <Product>LootPulse</Product>
