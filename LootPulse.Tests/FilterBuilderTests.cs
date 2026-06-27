@@ -193,8 +193,8 @@ namespace LootPulse.Tests
         {
             // Arrange
             var builder = new FilterBuilder();
-            // Using a path that is likely invalid or restricted
-            var invalidPath = "/invalid/path/that/does/not/exist/filter.filter";
+            // Using a path that contains invalid characters to force failure on all platforms
+            var invalidPath = "C:\\invalid\\path\\?:|*\\filter.filter";
 
             // Act
             bool result = await builder.GenerateFilterFileAsync(

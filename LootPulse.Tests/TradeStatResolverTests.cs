@@ -25,6 +25,9 @@ public class TradeStatResolverTests
             SendCount++;
             return Task.FromResult(Response);
         }
+
+        public Task<string> ScrapePageAsync(string url, string scrapeScript, CancellationToken ct = default) =>
+            throw new NotSupportedException("ScrapePageAsync is not supported by MockTradeTransport.");
     }
 
     private readonly MockTradeTransport _transport = new();
