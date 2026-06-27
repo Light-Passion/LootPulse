@@ -27,6 +27,10 @@ namespace LootPulse.Services.Trade
         /// <summary>Issue an authenticated request and return the raw response (status + body + headers).</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1054:URI-like parameters should not be strings", Justification = "URL is forwarded verbatim to an in-browser fetch() call; a string keeps the transport boundary simple.")]
         Task<TradeHttpResponse> SendAsync(HttpMethod method, string url, string? jsonBody, CancellationToken ct = default);
+
+        /// <summary>Scrapes a web page by navigating WebView2 to it and executing a script.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1054:URI-like parameters should not be strings", Justification = "URL is forwarded verbatim to a WebView2 navigation call; a string keeps the transport boundary simple.")]
+        Task<string> ScrapePageAsync(string url, string scrapeScript, CancellationToken ct = default);
     }
 
     /// <summary>Transport-agnostic response carrying just what the client and rate limiter need.</summary>

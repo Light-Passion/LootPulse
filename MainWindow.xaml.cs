@@ -32,6 +32,7 @@ namespace LootPulse
         private readonly BuildProfileParser _buildParser;
         private readonly ClientLogMonitor _logMonitor;
         private readonly FilterBuilder _filterBuilder;
+        private readonly MetadataUpdateService _metadataService;
 
         // Trade Market (PoE2 trade2 API) services
         private readonly WebView2TradeTransport _tradeTransport;
@@ -42,6 +43,16 @@ namespace LootPulse
 
         // Active State Data
         private PoeBuild? _activeBuild;
+        private List<TradeItemQuery> _tradeQueries = [];
+
+        public static List<ImportanceOption> ImportanceOptions { get; } =
+        [
+            new() { Name = "Required (AND)", Value = AffixImportance.Required },
+            new() { Name = "Very Important (1000)", Value = AffixImportance.VeryImportant },
+            new() { Name = "Important (100)", Value = AffixImportance.Important },
+            new() { Name = "Wanted (10)", Value = AffixImportance.Wanted }
+        ];
+
         public FilterTheme ActiveTheme { get; set; } = new();
         private List<MarketItem> _marketItems = [];
         private readonly HashSet<string> _marketItemNames = new(StringComparer.OrdinalIgnoreCase);
@@ -128,7 +139,12 @@ namespace LootPulse
             {
                 ActiveBuildClassSynonymsProvider = GetActiveBuildClassSynonyms
             };
+            _metadataService = new MetadataUpdateService();
             _filterBuilder = new FilterBuilder();
+
+            // Load dynamic base items and currencies data
+            var baseConfig = _metadataService.LoadBaseItemsConfig();
+            FilterBuilder.Initialize(baseConfig);
 
             // Trade Market services (WebView2 session-backed; init deferred until first Connect)
             _tradeTransport = new WebView2TradeTransport(this);
@@ -392,38 +408,11 @@ namespace LootPulse
                 var currencyTask = _ninjaClient.FetchCurrencyPricesAsync(activeLeague);
 
                 var categoryTasks = new List<(string Type, string Name, Task<List<MarketItem>> Task)>();
-                var categories = new[]
-                {
-                    // Exchange Commodities
-                    ("Fragments", "Fragments"),
-                    ("Runes", "Runes"),
-                    ("SoulCores", "Soul Cores"),
-                    ("Essences", "Essences"),
-                    ("Ritual", "Omens"),
-                    ("Abyss", "Abyssal Bones"),
-                    ("UncutGems", "Gems"),
-                    ("LineageSupportGems", "Lineage Support Gems"),
-                    ("Idols", "Idols"),
-                    ("Expedition", "Expedition"),
-                    ("Delirium", "Liquid Emotions"),
-                    ("Breach", "Breach Catalysts"),
-                    ("Verisium", "Verisium"),
-
-                    // Unique Items
-                    ("UniqueWeapons", "Unique Weapons"),
-                    ("UniqueArmours", "Unique Armour"),
-                    ("UniqueAccessories", "Unique Accessories"),
-                    ("UniqueFlasks", "Unique Flasks"),
-                    ("UniqueCharms", "Unique Charms"),
-                    ("UniqueJewels", "Unique Jewels"),
-                    ("UniqueSanctumRelics", "Unique Relics"),
-                    ("UniqueTablets", "Unique Tablets"),
-                    ("PrecursorTablets", "Precursor Tablets")
-                };
+                var categories = _metadataService.LoadEconomyCategories();
 
                 foreach (var cat in categories)
                 {
-                    categoryTasks.Add((cat.Item1, cat.Item2, _ninjaClient.FetchItemPricesAsync(activeLeague, cat.Item1, cat.Item2)));
+                    categoryTasks.Add((cat.Type, cat.Name, _ninjaClient.FetchItemPricesAsync(activeLeague, cat.Type, cat.Name)));
                 }
 
                 var allTasks = new List<Task> { currencyTask };
@@ -528,6 +517,10 @@ namespace LootPulse
             {
                 MinMatchedPanel.Visibility = BestInSlotModeRadio.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
             }
+            if (AffixWeightsTab != null && BestInSlotModeRadio != null)
+            {
+                AffixWeightsTab.Visibility = BestInSlotModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
 
         private async void TradeTransport_ConnectionChanged(object? sender, TradeConnectionChangedEventArgs e)
@@ -569,7 +562,7 @@ namespace LootPulse
                 return;
             }
 
-            var queries = BuildTradeQueries(_activeBuild);
+            var queries = _tradeQueries;
             if (queries.Count == 0)
             {
                 TradeStatusText.Text = "No gear with a base type or unique name found in the build.";
@@ -649,36 +642,60 @@ namespace LootPulse
         // Many .build files specify gear only via additional_text (its first line is the base type,
         // e.g. "Topaz Ring", "Varnished Crossbow"); BuildInventorySlot.ItemName already resolves that
         // the same way the loot-filter highlighting does. Deduped. Base searches also carry the slot's
+        private static TradeItemQuery? ProcessInventorySlot(BuildInventorySlot slot, Dictionary<string, AffixImportance>? savedWeights)
+        {
+            TradeItemQuery query;
+            if (!string.IsNullOrWhiteSpace(slot.UniqueName))
+            {
+                query = new TradeItemQuery { Label = slot.UniqueName!, Name = slot.UniqueName };
+            }
+            else
+            {
+                // UniqueName is empty here, so ItemName = BaseType ?? first line of additional_text.
+                string baseType = slot.ItemName;
+                if (string.IsNullOrWhiteSpace(baseType))
+                {
+                    return null;
+                }
+                query = new TradeItemQuery { Label = baseType, BaseType = baseType };
+                var affixes = ParseRecommendedAffixes(slot.AdditionalText).ToList();
+                foreach (var affix in affixes)
+                {
+                    string affixKey = $"{slot.InventoryId}|{affix.Text}";
+                    if (savedWeights != null && savedWeights.TryGetValue(affixKey, out var savedImportance))
+                    {
+                        affix.Importance = savedImportance;
+                    }
+                    else
+                    {
+                        affix.Importance = GetDefaultImportance(slot.InventoryId, affix.Text);
+                    }
+                }
+                query.Affixes.AddRange(affixes);
+            }
+
+            query.SlotId = slot.InventoryId;
+            if (slot.LevelInterval is { Count: >= 1 } interval)
+            {
+                query.MinRequiredLevel = interval[0];
+            }
+            return query;
+        }
+
         // recommended affixes (additional_text lines 2+) and the build's minimum level (level_interval[0]).
-        private static List<TradeItemQuery> BuildTradeQueries(PoeBuild build)
+        private List<TradeItemQuery> BuildTradeQueries(PoeBuild build)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var queries = new List<TradeItemQuery>();
 
+            string buildKey = _appSettings.BuildFilePath ?? string.Empty;
+            _appSettings.BuildCustomWeights ??= [];
+            _appSettings.BuildCustomWeights.TryGetValue(buildKey, out var savedWeights);
+
             foreach (var slot in build.InventorySlots)
             {
-                TradeItemQuery query;
-                if (!string.IsNullOrWhiteSpace(slot.UniqueName))
-                {
-                    query = new TradeItemQuery { Label = slot.UniqueName!, Name = slot.UniqueName };
-                }
-                else
-                {
-                    // UniqueName is empty here, so ItemName = BaseType ?? first line of additional_text.
-                    string baseType = slot.ItemName;
-                    if (string.IsNullOrWhiteSpace(baseType))
-                    {
-                        continue;
-                    }
-                    query = new TradeItemQuery { Label = baseType, BaseType = baseType };
-                    query.Affixes.AddRange(ParseRecommendedAffixes(slot.AdditionalText));
-                }
-
-                query.SlotId = slot.InventoryId;
-                if (slot.LevelInterval is { Count: >= 1 } interval)
-                {
-                    query.MinRequiredLevel = interval[0];
-                }
+                var query = ProcessInventorySlot(slot, savedWeights);
+                if (query == null) continue;
 
                 string key = $"{query.Name}|{query.BaseType}";
                 if (seen.Add(key))
@@ -688,6 +705,17 @@ namespace LootPulse
             }
 
             return queries;
+        }
+
+        private static AffixImportance GetDefaultImportance(string? slotId, string affixText)
+        {
+            var bucket = BisWeighting.Categorize(affixText);
+            double weight = BisWeighting.Weight(slotId, bucket);
+            if (weight >= 100)
+            {
+                return AffixImportance.Important;
+            }
+            return AffixImportance.Wanted;
         }
 
         // additional_text is "<base type>\n1. <affix>\n2. <affix>…"; line 0 is the base type, the rest
@@ -875,11 +903,54 @@ namespace LootPulse
                 return;
             }
 
-            _activeBuild = build;
-            BuildNameText.Text = build.Name;
+            OnActiveBuildLoaded(build);
             StatusText.Text = $"Loaded last used build: {build.Name}";
             _logMonitor.TriggerHistoryScan();
             await LoadBuildUniquePricesAsync(build);
+        }
+
+        private void OnActiveBuildLoaded(PoeBuild build)
+        {
+            _activeBuild = build;
+            BuildNameText.Text = build.Name;
+            _tradeQueries = BuildTradeQueries(build);
+            if (AffixWeightsControl != null)
+            {
+                AffixWeightsControl.ItemsSource = _tradeQueries.Where(q => q.Affixes.Count > 0).ToList();
+            }
+        }
+
+        private async void AffixImportance_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isUiInitialized) return;
+            await SaveActiveBuildCustomWeightsAsync();
+        }
+
+        private async Task SaveActiveBuildCustomWeightsAsync()
+        {
+            if (_activeBuild == null || _tradeQueries == null) return;
+
+            string buildKey = _appSettings.BuildFilePath ?? string.Empty;
+            _appSettings.BuildCustomWeights ??= [];
+
+            if (!_appSettings.BuildCustomWeights.TryGetValue(buildKey, out var savedWeights))
+            {
+                savedWeights = [];
+                _appSettings.BuildCustomWeights[buildKey] = savedWeights;
+            }
+
+            savedWeights.Clear();
+            foreach (var query in _tradeQueries)
+            {
+                if (string.IsNullOrEmpty(query.SlotId)) continue;
+                foreach (var affix in query.Affixes)
+                {
+                    string affixKey = $"{query.SlotId}|{affix.Text}";
+                    savedWeights[affixKey] = affix.Importance;
+                }
+            }
+
+            await SaveSettingsAsync(force: true);
         }
 
         private async Task InitializeStartupDataAsync()
@@ -905,8 +976,7 @@ namespace LootPulse
                     var build = _buildParser.ConvertPobXmlToPoeBuild(xml);
                     if (build != null)
                     {
-                        _activeBuild = build;
-                        BuildNameText.Text = build.Name;
+                        OnActiveBuildLoaded(build);
                         StatusText.Text = $"Loaded PoB build: {build.Name}";
 
                         // Cache the imported build to a .build file and remember it, so it auto-loads
@@ -943,8 +1013,7 @@ namespace LootPulse
                 var build = await _buildParser.ParseBuildFileAsync(ofd.FileName);
                 if (build != null)
                 {
-                    _activeBuild = build;
-                    BuildNameText.Text = build.Name;
+                    OnActiveBuildLoaded(build);
                     StatusText.Text = $"Loaded .build file: {build.Name}";
                     _appSettings.BuildFilePath = ofd.FileName;
                     await SaveSettingsAsync();
@@ -2301,6 +2370,42 @@ namespace LootPulse
 
             return ("UniqueJewel", "Unique Jewels");
         }
+
+        private async void UpdateMetadata_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateMetadataButton.IsEnabled = false;
+            MetadataStatusText.Text = "Status: Connecting to trade session and preparing update...";
+
+            try
+            {
+                // Ensure WebView2 is initialized
+                bool connected = await _tradeTransport.ConnectAsync().ConfigureAwait(true);
+                if (!connected)
+                {
+                    MetadataStatusText.Text = "Status: Update failed. Could not connect to Path of Exile trade session (requires login/WebView2).";
+                    return;
+                }
+
+                MetadataStatusText.Text = "Status: Checking GGG static data and scanning poe2db.tw (this may take up to a minute)...";
+
+                var (newCurrencies, newBases, log) = await _metadataService.UpdateMetadataAsync(_tradeTransport).ConfigureAwait(true);
+
+                // Reload the updated base items into FilterBuilder
+                var baseConfig = _metadataService.LoadBaseItemsConfig();
+                FilterBuilder.Initialize(baseConfig);
+
+                MetadataStatusText.Text = $"Status: Update completed. Discovered {newBases} new base items. Local configurations reloaded!";
+                System.Diagnostics.Debug.WriteLine(log);
+            }
+            catch (Exception ex)
+            {
+                MetadataStatusText.Text = $"Status: Error during update: {ex.Message}";
+            }
+            finally
+            {
+                UpdateMetadataButton.IsEnabled = true;
+            }
+        }
     }
 
     public class FilterOption
@@ -2312,5 +2417,13 @@ namespace LootPulse
         // The custom DarkComboBox template renders the closed selection box from SelectionBoxItem,
         // which falls back to ToString(); return DisplayName so the chosen item shows correctly.
         public override string ToString() => DisplayName;
+    }
+
+    public class ImportanceOption
+    {
+        public string Name { get; set; } = string.Empty;
+        public AffixImportance Value { get; set; }
+
+        public override string ToString() => Name;
     }
 }

@@ -163,18 +163,15 @@ namespace LootPulse.Services
             }
 
             // Check for connection to an instance server (character select complete and loading into game)
-            if (line.Contains("Connecting to instance server at", StringComparison.Ordinal))
+            if (line.Contains("Connecting to instance server at", StringComparison.Ordinal) && _pendingLoginScreen)
             {
-                if (_pendingLoginScreen)
+                _pendingLoginScreen = false;
+                System.Diagnostics.Debug.WriteLine("Instance server connection detected after login. Triggering background character history scan.");
+                Task.Run(async () =>
                 {
-                    _pendingLoginScreen = false;
-                    System.Diagnostics.Debug.WriteLine("Instance server connection detected after login. Triggering background character history scan.");
-                    Task.Run(async () =>
-                    {
-                        await Task.Delay(1000);
-                        TriggerHistoryScan();
-                    });
-                }
+                    await Task.Delay(1000);
+                    TriggerHistoryScan();
+                });
             }
 
             // Check for area-level generation (zone level, not character level)

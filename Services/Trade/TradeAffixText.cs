@@ -83,12 +83,9 @@ namespace LootPulse.Services.Trade
             var variables = new List<double>();
             for (int i = 0; i < gggMatches.Count; i++)
             {
-                if (gggMatches[i].Value == "#")
+                if (gggMatches[i].Value == "#" && double.TryParse(buildMatches[i].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double val))
                 {
-                    if (double.TryParse(buildMatches[i].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double val))
-                    {
-                        variables.Add(val);
-                    }
+                    variables.Add(val);
                 }
             }
 

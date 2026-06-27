@@ -11,9 +11,7 @@ namespace LootPulse.Services.Trade
     [JsonSerializable(typeof(TradeSearchResponse))]
     [JsonSerializable(typeof(TradeFetchResponse))]
     [JsonSerializable(typeof(TradeStatsDataResponse))]
-    internal sealed partial class Poe2TradeJsonContext : JsonSerializerContext
-    {
-    }
+    internal sealed partial class Poe2TradeJsonContext : JsonSerializerContext;
 
     // ---- Request shape: POST /api/trade2/search/<league> ----
     // { "query": { "status": {"option":"online"}, "name"?, "type"?, "stats":[{"type":"and","filters":[]}],

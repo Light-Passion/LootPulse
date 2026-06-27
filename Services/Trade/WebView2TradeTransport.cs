@@ -387,6 +387,45 @@ namespace LootPulse.Services.Trade
 }})();";
         }
 
+        public async Task<string> ScrapePageAsync(string url, string scrapeScript, CancellationToken ct = default)
+        {
+            if (!_owner.Dispatcher.CheckAccess())
+            {
+                return await _owner.Dispatcher.InvokeAsync(() => ScrapePageAsync(url, scrapeScript, ct)).Task.Unwrap().ConfigureAwait(false);
+            }
+
+            await EnsureInitializedAsync().ConfigureAwait(true);
+
+            // Navigate to the target URL
+            var navigationTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler<CoreWebView2NavigationCompletedEventArgs>? handler = null;
+            handler = (s, e) =>
+            {
+                _webView!.CoreWebView2.NavigationCompleted -= handler;
+                if (e.IsSuccess)
+                    navigationTcs.TrySetResult(true);
+                else
+                    navigationTcs.TrySetException(new InvalidOperationException($"Failed to navigate to {url}: {e.WebErrorStatus}"));
+            };
+            _webView!.CoreWebView2.NavigationCompleted += handler;
+            _webView.CoreWebView2.Navigate(url);
+
+            // Wait for navigation or cancellation
+            using var reg = ct.Register(() => navigationTcs.TrySetCanceled());
+            await navigationTcs.Task.ConfigureAwait(true);
+
+            // Give the page an extra 800ms to render table elements via JS
+            await Task.Delay(800, ct).ConfigureAwait(true);
+
+            // Execute the scraping script
+            string result = await _webView.CoreWebView2.ExecuteScriptAsync(scrapeScript).ConfigureAwait(true);
+
+            // Return back to the trade2 origin if we were there, to avoid breaking other logic
+            _webView.CoreWebView2.Navigate($"{Origin}/trade2");
+
+            return result;
+        }
+
         public void Dispose()
         {
             try

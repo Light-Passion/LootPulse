@@ -2,11 +2,21 @@ using System.Collections.Generic;
 
 namespace LootPulse.Models
 {
+    public enum AffixImportance
+    {
+        Required,
+        VeryImportant,
+        Important,
+        Wanted
+    }
+
     /// <summary>One recommended affix line lifted from a build slot's additional_text (lines 2+).</summary>
     public sealed class BuildAffix
     {
         /// <summary>Human-readable mod text, e.g. "253% increased Physical Damage" (leading "N. " stripped).</summary>
         public string Text { get; set; } = string.Empty;
+
+        public AffixImportance Importance { get; set; } = AffixImportance.Wanted;
     }
 
     /// <summary>What to search the trade site for, derived from one build inventory slot.</summary>
@@ -22,7 +32,7 @@ namespace LootPulse.Models
         public string? BaseType { get; set; }
 
         /// <summary>Recommended affixes from the build for this slot (base searches only); may be empty.</summary>
-        public List<BuildAffix> Affixes { get; } = new();
+        public List<BuildAffix> Affixes { get; } = [];
 
         /// <summary>The build's minimum level for this item (level_interval[0]), or null if unknown.</summary>
         public int? MinRequiredLevel { get; set; }
@@ -72,6 +82,6 @@ namespace LootPulse.Models
         public string StatusText { get; set; } = string.Empty;  // e.g. "no listings ≤ Lv 42"
         public bool HasListings => Listings.Count > 0;
 
-        public List<TradeListingRow> Listings { get; } = new();
+        public List<TradeListingRow> Listings { get; } = [];
     }
 }

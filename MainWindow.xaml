@@ -631,7 +631,65 @@
                                     </Grid>
                                 </TabItem>
 
-                                <!-- Tab 3: ground-drop appearance / style editor -->
+                                <!-- Tab 3: Custom weights for recommended build affixes -->
+                                <TabItem x:Name="AffixWeightsTab" Header="Affix Weights" Style="{StaticResource DarkTabItem}" Visibility="Collapsed">
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Text="Assign importance to recommended affixes for Best-in-Slot mode. 'Required' affixes must be present on the item." 
+                                                   Foreground="#888888" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="AffixWeightsControl">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#232323" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                                                            <StackPanel>
+                                                                <Grid Margin="0,0,0,8">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                                                        <TextBlock Text="{Binding Label}" Foreground="White" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                                                                        <Border Background="#1C1C1C" CornerRadius="4" Padding="6,2" Margin="8,0" VerticalAlignment="Center">
+                                                                            <TextBlock Text="{Binding SlotId}" Foreground="#E5B560" FontSize="11"/>
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </Grid>
+
+                                                                <ItemsControl ItemsSource="{Binding Affixes}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,4">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="*"/>
+                                                                                    <ColumnDefinition Width="180"/>
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <TextBlock Text="{Binding Text}" Foreground="#DDDDDD" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0" TextWrapping="Wrap"/>
+                                                                                <ComboBox Grid.Column="1" Style="{StaticResource DarkComboBox}" Height="24"
+                                                            ItemsSource="{Binding Source={x:Static local:MainWindow.ImportanceOptions}}"
+                                                            SelectedValue="{Binding Importance, Mode=TwoWay}"
+                                                            SelectedValuePath="Value"
+                                                            DisplayMemberPath="Name"
+                                                            SelectionChanged="AffixImportance_SelectionChanged"/>
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- Tab 4: ground-drop appearance / style editor -->
                                 <TabItem x:Name="FilterStylesTab" Header="Filter Styles" Style="{StaticResource DarkTabItem}">
                                     <ContentControl x:Name="FilterStylesHost"/>
                                 </TabItem>
@@ -666,8 +724,14 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="FilterPathBox" Background="#282828" Foreground="White" BorderThickness="0" Padding="8,5" FontSize="11"/>
-                                <Button Grid.Column="1" Style="{StaticResource DarkButton}" Content="Browse" Padding="8,4" Margin="5,0,0,0" Click="BrowseFilter_Click"/>
                             </Grid>
+
+                            <!-- Metadata & Data Updates -->
+                            <TextBlock Text="METADATA &amp; DATA UPDATES" Foreground="#FF6124" FontSize="12" FontWeight="Bold" Margin="0,0,0,12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,22">
+                                <Button x:Name="UpdateMetadataButton" Style="{StaticResource AccentButton}" Content="Update Base Items &amp; Currencies" Click="UpdateMetadata_Click" Padding="15,6" Margin="0,0,12,0"/>
+                                <TextBlock x:Name="MetadataStatusText" Text="Status: Local database loaded" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap" MaxWidth="500"/>
+                            </StackPanel>
 
                             <!-- Economy Thresholds (Disabled for now) -->
                             <StackPanel Visibility="Collapsed">

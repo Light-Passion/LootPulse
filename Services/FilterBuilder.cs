@@ -570,263 +570,52 @@ namespace LootPulse.Services
         // (e.g. "Paua Ring", "Iron Mace", "Falconer's Jacket") that do not exist in PoE2 -
         // the game rejects the whole filter on load if a BaseType rule references one.
         // Do not add entries here without verifying them against poe2db.tw first.
-        private static readonly Dictionary<string, List<BaseItemInfo>> _archetypes = new()
-        {
-            { "Mace", new() {
-                new("Wooden Club", 1),
-                new("Smithing Hammer", 4),
-                new("Forge Maul", 11),
-                new("Spiked Club", 16),
-                new("Cultist Greathammer", 22),
-                new("Brigand Mace", 33),
-                new("Crumbling Maul", 38),
-                new("Morning Star", 45),
-                new("Totemic Greatclub", 50),
-                new("Giant Maul", 65),
-                new("Sacred Maul", 72),
-                new("Massive Greathammer", 77)
-            }},
-            { "Staff", new() {
-                new("Wrapped Quarterstaff", 1),
-                new("Long Quarterstaff", 4),
-                new("Gothic Quarterstaff", 11),
-                new("Crackling Quarterstaff", 16),
-                new("Crescent Quarterstaff", 20),
-                new("Steelpoint Quarterstaff", 28),
-                new("Barrier Quarterstaff", 37),
-                new("Guardian Quarterstaff", 62),
-                new("Lunar Quarterstaff", 72),
-                new("Aegis Quarterstaff", 79)
-            }},
-            { "Bow", new() {
-                new("Crude Bow", 1),
-                new("Shortbow", 5),
-                new("Warden Bow", 11),
-                new("Recurve Bow", 16),
-                new("Composite Bow", 22),
-                new("Dualstring Bow", 28),
-                new("Cultist Bow", 33),
-                new("Artillery Bow", 45),
-                new("Heavy Bow", 65),
-                new("Cavalry Bow", 72),
-                new("Fanatic Bow", 79)
-            }},
-            { "Crossbow", new() {
-                new("Makeshift Crossbow", 1),
-                new("Tense Crossbow", 4),
-                new("Sturdy Crossbow", 10),
-                new("Varnished Crossbow", 16),
-                new("Alloy Crossbow", 26),
-                new("Bombard Crossbow", 33),
-                new("Blackfire Crossbow", 45),
-                new("Cannonade Crossbow", 59),
-                new("Stout Crossbow", 67),
-                new("Siege Crossbow", 79)
-            }},
-            { "Wand", new() {
-                new("Withered Wand", 1),
-                new("Bone Wand", 2),
-                new("Siphoning Wand", 11),
-                new("Volatile Wand", 16),
-                new("Galvanic Wand", 25),
-                new("Acrid Wand", 33),
-                new("Frigid Wand", 45),
-                new("Primordial Wand", 56),
-                new("Runic Fork", 65)
-            }},
-            { "Body Armour Armour", new() {
-                new("Rusted Cuirass", 1),
-                new("Fur Plate", 4),
-                new("Iron Cuirass", 11),
-                new("Raider Plate", 16),
-                new("Maraketh Cuirass", 20),
-                new("Steel Plate", 27),
-                new("Full Plate", 33),
-                new("Vaal Cuirass", 37),
-                new("Juggernaut Plate", 45),
-                new("Chieftain Cuirass", 50),
-                new("Glorious Plate", 65),
-                new("Abyssal Cuirass", 73)
-            }},
-            { "Body Armour Evasion", new() {
-                new("Leather Vest", 1),
-                new("Quilted Vest", 4),
-                new("Pathfinder Coat", 11),
-                new("Shrouded Vest", 16),
-                new("Rhoahide Coat", 22),
-                new("Studded Vest", 26),
-                new("Scout's Vest", 33),
-                new("Serpentscale Coat", 36),
-                new("Corsair Vest", 45),
-                new("Exquisite Vest", 65),
-                new("Armoured Vest", 73)
-            }},
-            { "Body Armour ES", new() {
-                new("Tattered Robe", 1),
-                new("Feathered Robe", 5),
-                new("Hexer's Robe", 11),
-                new("Bone Raiment", 16),
-                new("Silk Robe", 22),
-                new("Votive Raiment", 33),
-                new("Altar Robe", 40),
-                new("Elementalist Robe", 45),
-                new("Imperial Robe", 52),
-                new("Havoc Raiment", 65),
-                new("Arcane Raiment", 73)
-            }},
-            { "Boots Armour", new() {
-                new("Rough Greaves", 1),
-                new("Iron Greaves", 11),
-                new("Bronze Greaves", 16),
-                new("Trimmed Greaves", 27),
-                new("Stone Greaves", 33),
-                new("Reefsteel Greaves", 45),
-                new("Bulwark Greaves", 65),
-                new("Vaal Greaves", 75),
-                new("Tasalian Greaves", 80)
-            }},
-            { "Boots Evasion", new() {
-                new("Rawhide Boots", 1),
-                new("Laced Boots", 11),
-                new("Embossed Boots", 16),
-                new("Steeltoe Boots", 28),
-                new("Lizardscale Boots", 33),
-                new("Flared Boots", 45),
-                new("Cinched Boots", 65),
-                new("Dragonscale Boots", 75),
-                new("Drakeskin Boots", 80)
-            }},
-            { "Boots ES", new() {
-                new("Straw Sandals", 1),
-                new("Wrapped Sandals", 11),
-                new("Lattice Sandals", 16),
-                new("Silk Slippers", 27),
-                new("Feathered Sandals", 33),
-                new("Bound Sandals", 65),
-                new("Sandsworn Sandals", 75),
-                new("Sekhema Sandals", 80)
-            }},
-            { "Gloves Armour", new() {
-                new("Stocky Mitts", 1),
-                new("Riveted Mitts", 11),
-                new("Tempered Mitts", 16),
-                new("Bolstered Mitts", 27),
-                new("Moulded Mitts", 33),
-                new("Detailed Mitts", 45),
-                new("Titan Mitts", 52),
-                new("Grand Mitts", 65)
-            }},
-            { "Gloves Evasion", new() {
-                new("Suede Bracers", 1),
-                new("Firm Bracers", 11),
-                new("Bound Bracers", 16),
-                new("Sectioned Bracers", 28),
-                new("Spined Bracers", 33),
-                new("Fine Bracers", 45),
-                new("Hardened Bracers", 52),
-                new("Engraved Bracers", 65)
-            }},
-            { "Gloves ES", new() {
-                new("Torn Gloves", 1),
-                new("Sombre Gloves", 12),
-                new("Stitched Gloves", 16),
-                new("Jewelled Gloves", 26),
-                new("Intricate Gloves", 33),
-                new("Embroidered Gloves", 52),
-                new("Adorned Gloves", 65)
-            }},
-            { "Helm Armour", new() {
-                new("Rusted Greathelm", 1),
-                new("Soldier Greathelm", 12),
-                new("Wrapped Greathelm", 16),
-                new("Spired Greathelm", 27),
-                new("Elite Greathelm", 33),
-                new("Commander Greathelm", 45),
-                new("Sentinel Greathelm", 52),
-                new("Guardian Greathelm", 65)
-            }},
-            { "Helm Evasion", new() {
-                new("Shabby Hood", 1),
-                new("Felt Cap", 10),
-                new("Lace Hood", 16),
-                new("Swathed Cap", 26),
-                new("Hunter Hood", 33),
-                new("Viper Cap", 38),
-                new("Corsair Cap", 45),
-                new("Covert Hood", 56),
-                new("Armoured Cap", 65)
-            }},
-            { "Helm ES", new() {
-                new("Twig Circlet", 1),
-                new("Wicker Tiara", 10),
-                new("Beaded Circlet", 16),
-                new("Chain Tiara", 26),
-                new("Feathered Tiara", 33),
-                new("Gold Circlet", 40),
-                new("Noble Circlet", 52),
-                new("Magus Tiara", 65)
-            }},
-            { "Belt", new() {
-                new("Rawhide Belt", 1),
-                new("Linen Belt", 1),
-                new("Wide Belt", 14),
-                new("Long Belt", 20),
-                new("Plate Belt", 25),
-                new("Ornate Belt", 31),
-                new("Mail Belt", 40),
-                new("Double Belt", 44),
-                new("Heavy Belt", 50),
-                new("Utility Belt", 55),
-                new("Fine Belt", 62)
-            }},
-            { "Ring", new() {
-                new("Iron Ring", 1),
-                new("Ruby Ring", 8),
-                new("Golden Hoop", 12),
-                new("Sapphire Ring", 12),
-                new("Topaz Ring", 16),
-                new("Amethyst Ring", 20),
-                new("Emerald Ring", 26),
-                new("Pearl Ring", 32),
-                new("Prismatic Ring", 35),
-                new("Gold Ring", 40),
-                new("Unset Ring", 44)
-            }},
-            { "Charm", new() {
-                new("Ruby Charm", 5),
-                new("Sapphire Charm", 5),
-                new("Topaz Charm", 5),
-                new("Stone Charm", 8),
-                new("Silver Charm", 10),
-                new("Thawing Charm", 12),
-                new("Staunching Charm", 18),
-                new("Antidote Charm", 24),
-                new("Dousing Charm", 32),
-                new("Grounding Charm", 32),
-                new("Amethyst Charm", 40),
-                new("Cleansing Charm", 40),
-                new("Golden Charm", 50)
-            }}
-        };
+        private static Dictionary<string, List<BaseItemInfo>> _archetypes = LoadDefaultArchetypes();
+        private static List<(string[] Keywords, string Archetype)> _keywordArchetypeMappings = LoadDefaultKeywords();
+        private static Dictionary<string, string> _knownUniqueBaseTypes = LoadDefaultUniqueBases();
+        private static HashSet<string> _allBaseItemNames = new(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
 
-        // Note: PoE2's currently obtainable weapon classes do not include a "Sword" class
-        // (confirmed against the live, FilterBlade-authored base filter's Class list, which
-        // enumerates every weapon class and never references Swords). No "Sword" archetype
-        // is defined - guessing base names here risks reintroducing the same kind of bug.
-        private static readonly (string[] Keywords, string Archetype)[] _keywordArchetypeMappings =
-        [
-            (["maul", "mace", "club", "hammer"], "Mace"),
-            (["quarterstaff", "staff"], "Staff"),
-            (["crossbow"], "Crossbow"),
-            (["bow"], "Bow"),
-            (["wand"], "Wand"),
-            (["vest", "coat"], "Body Armour Evasion"),
-            (["plate", "cuirass"], "Body Armour Armour"),
-            (["robe", "raiment", "regalia"], "Body Armour ES"),
-            (["belt", "sash"], "Belt"),
-            (["ring"], "Ring"),
-            (["charm"], "Charm")
-        ];
+        private static Dictionary<string, List<BaseItemInfo>> LoadDefaultArchetypes()
+        {
+            var config = MetadataUpdateService.GetDefaultBaseItems();
+            return config.Archetypes.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.Select(b => new BaseItemInfo(b.Name, b.RequiredLevel)).ToList(),
+                StringComparer.OrdinalIgnoreCase
+            );
+        }
+
+        private static List<(string[] Keywords, string Archetype)> LoadDefaultKeywords()
+        {
+            var config = MetadataUpdateService.GetDefaultBaseItems();
+            return config.KeywordArchetypeMappings
+                .Select(m => (m.Keywords.ToArray(), m.Archetype))
+                .ToList();
+        }
+
+        private static Dictionary<string, string> LoadDefaultUniqueBases()
+        {
+            var config = MetadataUpdateService.GetDefaultBaseItems();
+            return new Dictionary<string, string>(config.KnownUniqueBaseTypes, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public static void Initialize(BaseItemsConfig config)
+        {
+            if (config == null) return;
+
+            _archetypes = config.Archetypes.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.Select(b => new BaseItemInfo(b.Name, b.RequiredLevel)).ToList(),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            _keywordArchetypeMappings = config.KeywordArchetypeMappings
+                .Select(m => (m.Keywords.ToArray(), m.Archetype))
+                .ToList();
+
+            _knownUniqueBaseTypes = new Dictionary<string, string>(config.KnownUniqueBaseTypes, StringComparer.OrdinalIgnoreCase);
+            _allBaseItemNames = new HashSet<string>(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
+        }
 
         private static BaseItemInfo? FindMatchedBase(string itemName)
         {
@@ -1041,23 +830,6 @@ namespace LootPulse.Services
                 return "";
             }
         }
-
-        private static readonly HashSet<string> _allBaseItemNames = new(_archetypes.Values.SelectMany(list => list).Select(b => b.Name), StringComparer.OrdinalIgnoreCase);
-
-        private static readonly Dictionary<string, string> _knownUniqueBaseTypes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Myris Uxor", "Covert Hood" },
-            { "Morior Invictus", "Grand Regalia" },
-            { "Horror's Flight", "Engraved Bracers" },
-            { "Lavianga's Spirits", "Gargantuan Mana Flask" },
-            { "The Fall of the Axe", "Silver Charm" },
-            { "Nascent Hope", "Thawing Charm" },
-            { "Astramentis", "Stellar Amulet" },
-            { "Polcirkeln", "Sapphire Ring" },
-            { "Chernobog's Pillar", "Blacksteel Tower Shield" },
-            { "Constricting Command", "Viper Cap" },
-            { "Time-Lost Diamond", "Time-Lost Diamond" }
-        };
 
         private static string GetUniqueBaseType(string uniqueName, Dictionary<string, string> marketUniqueBasetypes)
         {
