@@ -275,6 +275,17 @@ namespace LootPulse
             EkgGlowPath.Data = geo;
         }
 
+        /// <summary>
+        /// Toggles the EKG heartbeat between Active (fast, tall spikes) and Calm (slow, gentle).
+        /// Called when market data sync starts (active=true) and completes (active=false).
+        /// </summary>
+        private void SetEkgState(bool active)
+        {
+            _ekgAmplitude = active ? 12 : 6;
+            _ekgSegmentWidth = active ? 30 : 50;
+            GenerateEkgWave();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             _ekgTimer?.Stop();
@@ -494,6 +505,8 @@ namespace LootPulse
 
         private async Task SyncEconomyDataAsync()
         {
+            // Spike the EKG heartbeat to show active market sync
+            SetEkgState(true);
             StatusText.Text = "Syncing with poe.ninja...";
             string activeLeague = _appSettings.League;
             if (string.IsNullOrEmpty(activeLeague))
@@ -573,10 +586,12 @@ namespace LootPulse
 
                 await TriggerFilterRegenerationAsync();
                 StatusText.Text = "Sync complete. All economy categories updated.";
+                SetEkgState(false);
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"Sync failed: {ex.Message}";
+                SetEkgState(false);
                 Debug.WriteLine($"Error during parallel economy sync: {ex.Message}");
             }
         }
