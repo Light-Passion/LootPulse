@@ -49,6 +49,10 @@
     <Color x:Key="DangerColor">#F87171</Color>
     <Color x:Key="InfoColor">#60A5FA</Color>
 
+    <!-- Flash tints for ticker cell price-change animation (8% opacity) -->
+    <Color x:Key="SuccessFlashColor">#144ADE80</Color>
+    <Color x:Key="DangerFlashColor">#14F87171</Color>
+
     <SolidColorBrush x:Key="Success"  Color="{StaticResource SuccessColor}"/>
     <SolidColorBrush x:Key="Warning"  Color="{StaticResource WarningColor}"/>
     <SolidColorBrush x:Key="Danger"    Color="{StaticResource DangerColor}"/>

@@ -175,7 +175,13 @@ namespace LootPulse
             _ = InitializeAppAsync();
 
             // Start the EKG heartbeat animation in the header
-            Loaded += (s, e) => StartEkgAnimation();
+            Loaded += (s, e) =>
+            {
+                StartEkgAnimation();
+                // Start the heartbeat pulse on the status dot
+                var heartbeat = (Storyboard)Resources["HeartbeatPulse"];
+                heartbeat.Begin();
+            };
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -2674,6 +2680,339 @@ namespace LootPulse
             finally
             {
                 UpdateMetadataButton.IsEnabled = true;
+            }
+        }
+
+        // --- Cache Maintenance Methods ---
+
+        private void CacheLockToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            bool unlocked = CacheLockToggle.IsChecked == true;
+            ClearPoe2CacheButton.IsEnabled = unlocked;
+            ClearNvidiaCacheButton.IsEnabled = unlocked;
+            ClearAmdCacheButton.IsEnabled = unlocked;
+            ClearSteamCacheButton.IsEnabled = unlocked;
+            CacheStatusText.Text = unlocked
+                ? "Cache clearing unlocked. Click a button above to delete that cache."
+                : "";
+        }
+
+        private static long GetDirectorySize(string path)
+        {
+            if (!Directory.Exists(path)) return 0;
+            long size = 0;
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    try { size += new FileInfo(file).Length; } catch { }
+                }
+            }
+            catch { }
+            return size;
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+            return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
+        }
+
+        private static long ClearDirectoryContents(string path)
+        {
+            if (!Directory.Exists(path)) return 0;
+            long deleted = 0;
+            foreach (var entry in Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    if (File.Exists(entry))
+                    {
+                        var fi = new FileInfo(entry);
+                        deleted += fi.Length;
+                        fi.Attributes = FileAttributes.Normal;
+                        File.Delete(entry);
+                    }
+                    else if (Directory.Exists(entry))
+                    {
+                        // Delete subdirectories first (recursive)
+                        deleted += ClearDirectoryContents(entry);
+                        try { Directory.Delete(entry, false); } catch { }
+                    }
+                }
+                catch { }
+            }
+            return deleted;
+        }
+
+        /// <summary>Locates the PoE2 shader/cache directory under "My Games/Path of Exile 2".</summary>
+        private static string? FindPoe2CacheDirectory()
+        {
+            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string baseDir = Path.Combine(myDocs, _myGamesFolder, _poe2Folder);
+            if (!Directory.Exists(baseDir)) return null;
+
+            // Common cache subdirectories in PoE2's My Games folder
+            string[] cacheSubDirs = ["minimap_dem", "art_cache", "shader_cache"];
+            foreach (var sub in cacheSubDirs)
+            {
+                string cachePath = Path.Combine(baseDir, sub);
+                if (Directory.Exists(cachePath)) return cachePath;
+            }
+
+            // Fallback: if none of the known subdirs exist, return the base dir itself
+            return baseDir;
+        }
+
+        private async void ClearPoe2Cache_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "This will delete the Path of Exile 2 local cache (shaders, minimap, art cache) in your Documents folder.\n\n" +
+                "The game will rebuild these files on next launch (may take longer to load once).\n\n" +
+                "Make sure PoE2 is not running before proceeding.\n\nProceed?",
+                "Confirm PoE2 Cache Clear",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            ClearPoe2CacheButton.IsEnabled = false;
+            CacheStatusText.Text = "Clearing PoE2 cache...";
+
+            try
+            {
+                long freed = await Task.Run(() =>
+                {
+                    string? cacheDir = FindPoe2CacheDirectory();
+                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0;
+                    long sizeBefore = GetDirectorySize(cacheDir);
+                    long deleted = ClearDirectoryContents(cacheDir);
+                    return deleted > 0 ? deleted : sizeBefore;
+                });
+
+                CacheStatusText.Text = freed > 0
+                    ? $"PoE2 cache cleared. Freed {FormatBytes(freed)}."
+                    : "PoE2 cache directory not found or already empty.";
+            }
+            catch (Exception ex)
+            {
+                CacheStatusText.Text = $"Error clearing PoE2 cache: {ex.Message}";
+            }
+            finally
+            {
+                ClearPoe2CacheButton.IsEnabled = CacheLockToggle.IsChecked == true;
+            }
+        }
+
+        /// <summary>Locates the Nvidia shader cache via NVAPI/registry or known %LocalAppData% paths.</summary>
+        private static string? FindNvidiaCacheDirectory()
+        {
+            // Primary: DXCache / OpenGL shader cache under LocalAppData
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string[] candidates =
+            [
+                Path.Combine(localAppData, "NVIDIA", "DXCache"),
+                Path.Combine(localAppData, "NVIDIA", "GLCache"),
+                Path.Combine(localAppData, "NVIDIA Corporation", "NV_Cache"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "Installer2"),
+            ];
+            foreach (var p in candidates)
+            {
+                if (Directory.Exists(p)) return p;
+            }
+            return null;
+        }
+
+        private async void ClearNvidiaCache_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "This will delete the Nvidia GPU shader caches (DXCache, GLCache).\n\n" +
+                "Shaders will be recompiled on next game/driver use (brief stutter possible).\n\nProceed?",
+                "Confirm Nvidia Cache Clear",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            ClearNvidiaCacheButton.IsEnabled = false;
+            CacheStatusText.Text = "Clearing Nvidia cache...";
+
+            try
+            {
+                long freed = await Task.Run(() =>
+                {
+                    string? cacheDir = FindNvidiaCacheDirectory();
+                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0L;
+                    long sizeBefore = GetDirectorySize(cacheDir);
+                    long deleted = ClearDirectoryContents(cacheDir);
+                    return deleted > 0 ? deleted : sizeBefore;
+                });
+
+                CacheStatusText.Text = freed > 0
+                    ? $"Nvidia cache cleared. Freed {FormatBytes(freed)}."
+                    : "Nvidia cache directory not found or already empty.";
+            }
+            catch (Exception ex)
+            {
+                CacheStatusText.Text = $"Error clearing Nvidia cache: {ex.Message}";
+            }
+            finally
+            {
+                ClearNvidiaCacheButton.IsEnabled = CacheLockToggle.IsChecked == true;
+            }
+        }
+
+        /// <summary>Locates the AMD shader cache under %LocalAppData%/AMD.</summary>
+        private static string? FindAmdCacheDirectory()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+            string[] candidates =
+            [
+                Path.Combine(localAppData, "AMD", "DxCache"),
+                Path.Combine(localAppData, "AMD", "GLCache"),
+                Path.Combine(localAppData, "AMD", "DxcCache"),
+                Path.Combine(programFiles, "AMD", "CNext"),
+            ];
+            foreach (var p in candidates)
+            {
+                if (Directory.Exists(p)) return p;
+            }
+            return null;
+        }
+
+        private async void ClearAmdCache_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "This will delete the AMD GPU shader caches (DxCache, GLCache).\n\n" +
+                "Shaders will be recompiled on next game/driver use (brief stutter possible).\n\nProceed?",
+                "Confirm AMD Cache Clear",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            ClearAmdCacheButton.IsEnabled = false;
+            CacheStatusText.Text = "Clearing AMD cache...";
+
+            try
+            {
+                long freed = await Task.Run(() =>
+                {
+                    string? cacheDir = FindAmdCacheDirectory();
+                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0L;
+                    long sizeBefore = GetDirectorySize(cacheDir);
+                    long deleted = ClearDirectoryContents(cacheDir);
+                    return deleted > 0 ? deleted : sizeBefore;
+                });
+
+                CacheStatusText.Text = freed > 0
+                    ? $"AMD cache cleared. Freed {FormatBytes(freed)}."
+                    : "AMD cache directory not found or already empty.";
+            }
+            catch (Exception ex)
+            {
+                CacheStatusText.Text = $"Error clearing AMD cache: {ex.Message}";
+            }
+            finally
+            {
+                ClearAmdCacheButton.IsEnabled = CacheLockToggle.IsChecked == true;
+            }
+        }
+
+        /// <summary>Locates Steam's download cache, shader cache, and htmloverlay cache.</summary>
+        private static string? FindSteamCacheDirectory()
+        {
+            // Try registry first
+            string? steamPath = null;
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+                steamPath = key?.GetValue("SteamPath") as string;
+            }
+            catch { }
+
+            // Fallback to common paths
+            if (string.IsNullOrEmpty(steamPath))
+            {
+                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                string[] commonPaths =
+                [
+                    Path.Combine(programFiles, "Steam"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Steam")
+                ];
+                steamPath = commonPaths.FirstOrDefault(Directory.Exists);
+            }
+
+            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) return null;
+
+            // Steam has multiple cache locations:
+            // - steamapp/shadercache/ (per-game shader cache)
+            // - appcache/ (various downloaded cache data)
+            // - config/htmlcache/ (Steam UI web cache)
+            string[] cacheSubDirs =
+            [
+                Path.Combine(steamPath, "steamapps", "shadercache"),
+                Path.Combine(steamPath, "appcache"),
+                Path.Combine(steamPath, "config", "htmlcache"),
+            ];
+            // Return the first one that exists. We'll clear all of them in the task.
+            foreach (var p in cacheSubDirs)
+            {
+                if (Directory.Exists(p)) return steamPath;
+            }
+            return steamPath; // Return base Steam dir even if subdirs are missing
+        }
+
+        private static long ClearSteamCaches()
+        {
+            string? steamPath = FindSteamCacheDirectory();
+            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) return 0;
+
+            long totalFreed = 0;
+            string[] cacheSubDirs =
+            [
+                Path.Combine(steamPath, "steamapps", "shadercache"),
+                Path.Combine(steamPath, "appcache"),
+                Path.Combine(steamPath, "config", "htmlcache"),
+            ];
+
+            foreach (var cacheDir in cacheSubDirs)
+            {
+                if (Directory.Exists(cacheDir))
+                {
+                    totalFreed += ClearDirectoryContents(cacheDir);
+                }
+            }
+
+            return totalFreed;
+        }
+
+        private async void ClearSteamCache_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "This will delete Steam's shader cache, app cache, and HTML cache.\n\n" +
+                "Steam and games will rebuild these on next use.\n\n" +
+                "Make sure Steam is closed before proceeding.\n\nProceed?",
+                "Confirm Steam Cache Clear",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            ClearSteamCacheButton.IsEnabled = false;
+            CacheStatusText.Text = "Clearing Steam cache...";
+
+            try
+            {
+                long freed = await Task.Run(ClearSteamCaches);
+
+                CacheStatusText.Text = freed > 0
+                    ? $"Steam cache cleared. Freed {FormatBytes(freed)}."
+                    : "Steam cache directory not found or already empty.";
+            }
+            catch (Exception ex)
+            {
+                CacheStatusText.Text = $"Error clearing Steam cache: {ex.Message}";
+            }
+            finally
+            {
+                ClearSteamCacheButton.IsEnabled = CacheLockToggle.IsChecked == true;
             }
         }
     }

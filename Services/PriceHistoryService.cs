@@ -8,12 +8,12 @@ namespace LootPulse.Services
 {
     /// <summary>
     /// Persists daily price snapshots for market items and provides historical data
-    /// for sparkline rendering. Stores up to 5 days of history per item in
+    /// for sparkline rendering. Stores up to 7 days of history per item in
     /// %localappdata%\LootPulse\price_history.json
     /// </summary>
     public class PriceHistoryService
     {
-        private const int MaxHistoryDays = 5;
+        private const int MaxHistoryDays = 7;
         private readonly string _historyFile;
         private Dictionary<string, List<PriceSnapshot>> _history = [];
         private static readonly JsonSerializerOptions _jsonOpts = new() { WriteIndented = true };

@@ -80,6 +80,22 @@
         <Setter Property="Foreground" Value="{DynamicResource PulseSecondary}"/>
     </Style>
 
+    <!-- ── MonoDataSmall: Trend percentages in ticker cells (11px Mono) ─ -->
+    <Style x:Key="TypeMonoDataSmall" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <!-- Foreground NOT set — cell binds trend color dynamically -->
+    </Style>
+
+    <!-- ── MonoMicro: Absolute change, dimmed secondary data (9.5px Mono) ─ -->
+    <Style x:Key="TypeMonoMicro" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="9.5"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextTertiary}"/>
+    </Style>
+
     <!-- ── Section Label: Orange uppercase headers for settings sections -->
     <Style x:Key="TypeSectionLabel" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontBody}"/>

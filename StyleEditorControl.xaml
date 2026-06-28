@@ -17,7 +17,7 @@
         </Grid.RowDefinitions>
 
         <!-- Theme Presets Top Bar -->
-        <Border Grid.Row="0" Background="#1E1E1E" CornerRadius="8" Padding="10" Margin="0,0,0,10" BorderBrush="#2D2D2D" BorderThickness="1">
+        <Border Grid.Row="0" Background="{DynamicResource Surface1}" CornerRadius="8" Padding="10" Margin="0,0,0,10" BorderBrush="{DynamicResource Surface3}" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -29,15 +29,15 @@
                 </Grid.ColumnDefinitions>
 
                 <Label Grid.Column="0" Content="Preset:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <ComboBox Grid.Column="1" x:Name="PresetComboBox" SelectionChanged="PresetComboBox_SelectionChanged" Height="26" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" x:Name="PresetComboBox" SelectionChanged="PresetComboBox_SelectionChanged" Height="26" VerticalAlignment="Center" Style="{StaticResource LootComboBox}"/>
 
                 <Label Grid.Column="2" Content="Name:" VerticalAlignment="Center" Margin="10,0,5,0"/>
-                <TextBox Grid.Column="3" x:Name="PresetNameTextBox" Height="26" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="3" x:Name="PresetNameTextBox" Height="26" VerticalAlignment="Center" Style="{StaticResource LootTextBox}"/>
 
                 <StackPanel Grid.Column="5" Orientation="Horizontal">
-                    <Button Content="Save Preset" Click="SavePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource BtnSecondary}"/>
-                    <Button Content="Delete Preset" Click="DeletePreset_Click" Margin="0,0,5,0" Height="26" Style="{StaticResource BtnDanger}"/>
-                    <Button Content="Reset Defaults" Click="ResetDefaults_Click" Height="26" Style="{StaticResource BtnSecondary}"/>
+                    <Button Content="Save Preset" Click="SavePreset_Click" Margin="0,0,5,0" Height="30" Style="{StaticResource BtnSecondary}"/>
+                    <Button Content="Delete Preset" Click="DeletePreset_Click" Margin="0,0,5,0" Height="30" Style="{StaticResource BtnDanger}"/>
+                    <Button Content="Reset Defaults" Click="ResetDefaults_Click" Height="30" Style="{StaticResource BtnSecondary}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -56,7 +56,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Label Content="Category to edit:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Margin="0,0,10,0"/>
-                <ComboBox Grid.Column="1" x:Name="CategorySelector" Height="28" SelectionChanged="CategorySelector_SelectionChanged">
+                <ComboBox Grid.Column="1" x:Name="CategorySelector" Height="28" SelectionChanged="CategorySelector_SelectionChanged" Style="{StaticResource LootComboBox}">
                     <ComboBoxItem Content="Uniques" Tag="Uniques" IsSelected="True"/>
                     <ComboBoxItem Content="Skill Gems" Tag="Gems"/>
                     <ComboBoxItem Content="Progression Bases (Leveling/Zone)" Tag="ProgressionBases"/>
@@ -69,10 +69,10 @@
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="ControlsContainer" Margin="0,0,5,0">
                     <CheckBox x:Name="CategoryEnabledCheckBox" Content="Enable Highlighting for this category"
-                              Foreground="White" FontWeight="SemiBold" Margin="0,0,0,10" Checked="ControlChanged" Unchecked="ControlChanged"/>
+                                                  FontWeight="SemiBold" Margin="0,0,0,10" Checked="ControlChanged" Unchecked="ControlChanged"/>
 
                     <!-- Ground Visuals Card -->
-                    <GroupBox Header="Ground Label Colors &amp; Size" Foreground="#FF6124" BorderBrush="#333333" Margin="0,0,0,12" Padding="10">
+                    <GroupBox Header="Ground Label Colors &amp; Size" Foreground="{DynamicResource PulsePrimary}" BorderBrush="{DynamicResource BorderSubtle}" Margin="0,0,0,12" Padding="10">
                         <StackPanel>
                             <!-- Text Color -->
                             <Grid Margin="0,0,0,8">
@@ -84,9 +84,9 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Text Color (Hex):" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" x:Name="TextColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9"/>
+                                <TextBox Grid.Column="1" x:Name="TextColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9" Style="{StaticResource LootTextBox}"/>
                                 <!-- Color Button & Swatch Popup -->
-                                <Button Grid.Column="2" x:Name="TextColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="#555555">
+                                <Button Grid.Column="2" x:Name="TextColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="{DynamicResource BorderDefault}">
                                     <Button.Background>
                                         <SolidColorBrush Color="White"/>
                                     </Button.Background>
@@ -151,7 +151,7 @@
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="TextColor"
                                                     Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
-                                            <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                            <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="TextColorGrid"/>
                                         </StackPanel>
@@ -173,8 +173,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Border Color (Hex):" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" x:Name="BorderColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9"/>
-                                <Button Grid.Column="2" x:Name="BorderColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="#555555"/>
+                                <TextBox Grid.Column="1" x:Name="BorderColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9" Style="{StaticResource LootTextBox}"/>
+                                <Button Grid.Column="2" x:Name="BorderColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="{DynamicResource BorderDefault}"/>
                                 <Popup x:Name="BorderColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=BorderColorBtn}" Placement="Bottom">
                                     <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8">
                                         <StackPanel>
@@ -235,7 +235,7 @@
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BorderColor"
                                                     Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
-                                            <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                            <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BorderColorGrid"/>
                                         </StackPanel>
@@ -257,8 +257,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Background (Hex):" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" x:Name="BackgroundColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9"/>
-                                <Button Grid.Column="2" x:Name="BackgroundColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="#555555"/>
+                                <TextBox Grid.Column="1" x:Name="BackgroundColorTextBox" Height="26" TextChanged="ColorTextBox_TextChanged" MaxLength="9" Style="{StaticResource LootTextBox}"/>
+                                <Button Grid.Column="2" x:Name="BackgroundColorBtn" Click="ColorBtn_Click" Width="26" Height="26" BorderThickness="1" BorderBrush="{DynamicResource BorderDefault}"/>
                                 <Popup x:Name="BackgroundColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=BackgroundColorBtn}" Placement="Bottom">
                                     <Border Background="#202020" BorderBrush="#FF6124" BorderThickness="1.5" Padding="10" CornerRadius="8">
                                         <StackPanel>
@@ -319,7 +319,7 @@
                                             </Grid>
                                             <Button Content="👁️‍🗨️ Screen Picker" Click="ScreenPicker_Click" Tag="BackgroundColor"
                                                     Height="24" Margin="0,0,0,8" Style="{StaticResource BtnSecondary}" FontSize="10" Padding="5,2"/>
-                                            <Border BorderBrush="#333333" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
+                                            <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,0,0,8"/>
                                             <TextBlock Text="Swatches" Foreground="#888888" FontSize="10" Margin="0,0,0,6" FontWeight="SemiBold" FontFamily="Segoe UI Variable Small"/>
                                             <UniformGrid Rows="4" Columns="6" Width="168" Height="112" x:Name="BackgroundColorGrid"/>
                                         </StackPanel>
@@ -341,14 +341,14 @@
                                 <Label Grid.Column="0" Content="Font Size (18-45):" VerticalAlignment="Center"/>
                                 <Slider Grid.Column="1" x:Name="FontSizeSlider" Minimum="18" Maximum="45" Value="32"
                                         IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" ValueChanged="ControlChanged"/>
-                                <TextBlock Grid.Column="2" Text="{Binding ElementName=FontSizeSlider, Path=Value}" Foreground="White"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                <TextBlock Grid.Column="2" Text="{Binding ElementName=FontSizeSlider, Path=Value}" Foreground="{DynamicResource TextPrimary}"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
                             </Grid>
                         </StackPanel>
                     </GroupBox>
 
                     <!-- Audio Cues Card -->
-                    <GroupBox Header="Audio Alerts" Foreground="#FF6124" BorderBrush="#333333" Margin="0,0,0,12" Padding="10">
+                    <GroupBox Header="Audio Alerts" Foreground="{DynamicResource PulsePrimary}" BorderBrush="{DynamicResource BorderSubtle}" Margin="0,0,0,12" Padding="10">
                         <StackPanel>
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
@@ -356,7 +356,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Sound Type:" VerticalAlignment="Center"/>
-                                <ComboBox Grid.Column="1" x:Name="SoundTypeComboBox" SelectionChanged="SoundTypeComboBox_SelectionChanged">
+                                <ComboBox Grid.Column="1" x:Name="SoundTypeComboBox" SelectionChanged="SoundTypeComboBox_SelectionChanged" Style="{StaticResource LootComboBox}">
                                     <ComboBoxItem Content="Disabled (No Alert)" Tag="None"/>
                                     <ComboBoxItem Content="Game Alert Sound" Tag="BuiltIn"/>
                                     <ComboBoxItem Content="Custom Sound File" Tag="Custom"/>
@@ -370,7 +370,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Alert Sound ID:" VerticalAlignment="Center"/>
-                                <ComboBox Grid.Column="1" x:Name="SoundIdComboBox" SelectionChanged="ControlChanged">
+                                <ComboBox Grid.Column="1" x:Name="SoundIdComboBox" SelectionChanged="ControlChanged" Style="{StaticResource LootComboBox}">
                                     <ComboBoxItem Content="Sound 1 (Standard)" Tag="1"/>
                                     <ComboBoxItem Content="Sound 2 (Medium Value)" Tag="2"/>
                                     <ComboBoxItem Content="Sound 3 (Exotic Value)" Tag="3"/>
@@ -398,17 +398,17 @@
                                     <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
                                 <Label Grid.Column="0" Content="Custom File (.wav):" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" x:Name="CustomSoundTextBox" Height="26" VerticalAlignment="Center" TextChanged="ControlChanged"/>
+                                <TextBox Grid.Column="1" x:Name="CustomSoundTextBox" Height="26" VerticalAlignment="Center" TextChanged="ControlChanged" Style="{StaticResource LootTextBox}"/>
                                 <Button Grid.Column="2" Content="Browse..." Click="BrowseSound_Click" Height="26" Margin="5,0,0,0" Style="{StaticResource BtnSecondary}"/>
                             </Grid>
 
                             <CheckBox x:Name="MuteDefaultDropSoundCheckBox" Content="Mute Game Default Drop Sound (DisableDropSound)"
-                                      Foreground="White" Margin="0,5,0,0" Checked="ControlChanged" Unchecked="ControlChanged"/>
+                                                                  Margin="0,5,0,0" Checked="ControlChanged" Unchecked="ControlChanged"/>
                         </StackPanel>
                     </GroupBox>
 
                     <!-- Minimap & Effects Card -->
-                    <GroupBox Header="Minimap Icon &amp; Light Beams" Foreground="#FF6124" BorderBrush="#333333" Margin="0,0,0,5" Padding="10">
+                    <GroupBox Header="Minimap Icon &amp; Light Beams" Foreground="{DynamicResource PulsePrimary}" BorderBrush="{DynamicResource BorderSubtle}" Margin="0,0,0,5" Padding="10">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -422,7 +422,7 @@
                             <!-- Minimap Icon Subgroup -->
                             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,0">
                                 <Label Content="Minimap Shape:" FontWeight="SemiBold"/>
-                                <ComboBox x:Name="MapShapeComboBox" SelectionChanged="Minimap_SelectionChanged" Margin="0,0,0,8">
+                                <ComboBox x:Name="MapShapeComboBox" SelectionChanged="Minimap_SelectionChanged" Margin="0,0,0,8" Style="{StaticResource LootComboBox}">
                                     <ComboBoxItem Content="None" Tag=""/>
                                     <ComboBoxItem Content="Star" Tag="Star"/>
                                     <ComboBoxItem Content="Circle" Tag="Circle"/>
@@ -445,7 +445,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,5,0">
                                         <Label Content="Size:"/>
-                                        <ComboBox x:Name="MapSizeComboBox" SelectionChanged="Minimap_SelectionChanged">
+                                        <ComboBox x:Name="MapSizeComboBox" SelectionChanged="Minimap_SelectionChanged" Style="{StaticResource LootComboBox}">
                                             <ComboBoxItem Content="Large (0)" Tag="0"/>
                                             <ComboBoxItem Content="Medium (1)" Tag="1"/>
                                             <ComboBoxItem Content="Small (2)" Tag="2"/>
@@ -453,7 +453,7 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="5,0,0,0">
                                         <Label Content="Color:"/>
-                                        <ComboBox x:Name="MapColorComboBox" SelectionChanged="Minimap_SelectionChanged">
+                                        <ComboBox x:Name="MapColorComboBox" SelectionChanged="Minimap_SelectionChanged" Style="{StaticResource LootComboBox}">
                                             <ComboBoxItem Content="Red" Tag="Red"/>
                                             <ComboBoxItem Content="Orange" Tag="Orange"/>
                                             <ComboBoxItem Content="Yellow" Tag="Yellow"/>
@@ -474,7 +474,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,0,0,0">
                                 <Label Content="Light Beam Effect:" FontWeight="SemiBold"/>
                                 <Label Content="Color:" Margin="0"/>
-                                <ComboBox x:Name="BeamColorComboBox" SelectionChanged="Beam_SelectionChanged" Margin="0,0,0,8">
+                                <ComboBox x:Name="BeamColorComboBox" SelectionChanged="Beam_SelectionChanged" Margin="0,0,0,8" Style="{StaticResource LootComboBox}">
                                     <ComboBoxItem Content="None" Tag=""/>
                                     <ComboBoxItem Content="Red" Tag="Red"/>
                                     <ComboBoxItem Content="Orange" Tag="Orange"/>
@@ -490,7 +490,7 @@
                                 </ComboBox>
 
                                 <CheckBox x:Name="BeamTempCheckBox" Content="Temporary Beam (Fades away)"
-                                          Foreground="White" Margin="0,8,0,0" Checked="Beam_SelectionChanged" Unchecked="Beam_SelectionChanged"/>
+                                                                          Margin="0,8,0,0" Checked="Beam_SelectionChanged" Unchecked="Beam_SelectionChanged"/>
                             </StackPanel>
                         </Grid>
                     </GroupBox>
@@ -524,11 +524,11 @@
                     <StackPanel Orientation="Horizontal">
                         <!-- Map Icon indicator -->
                         <Grid Width="40" Height="40" Margin="0,0,10,0">
-                            <Ellipse x:Name="PreviewIconIndicator" Fill="Transparent" Stroke="#555555" StrokeThickness="1"/>
+                            <Ellipse x:Name="PreviewIconIndicator" Fill="Transparent" Stroke="{DynamicResource BorderDefault}" StrokeThickness="1"/>
                             <TextBlock x:Name="PreviewIconChar" Text="✦" Foreground="#888888" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
                         <!-- Beam indicator -->
-                        <Border x:Name="PreviewBeamIndicator" CornerRadius="2" Width="100" Height="24" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1">
+                        <Border x:Name="PreviewBeamIndicator" CornerRadius="2" Width="100" Height="24" Background="{DynamicResource Surface0}" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1">
                             <TextBlock x:Name="PreviewBeamText" Text="No Beam" Foreground="#666666" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         </Border>
                     </StackPanel>
