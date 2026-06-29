@@ -30,6 +30,7 @@ namespace LootPulse.Models
             ExaltedValue = item.ExaltedValue;
             DivineValue = item.DivineValue;
             LastUpdated = item.LastUpdated;
+            IsHudSelected = item.IsHudSelected;
         }
 
         /// <summary>Mini path geometry string for the sparkline, or null if no history.</summary>

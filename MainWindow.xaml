@@ -385,6 +385,20 @@
                                                             </DataTemplate>
                                                         </GridViewColumn.CellTemplate>
                                                     </GridViewColumn>
+                                                    <GridViewColumn Width="50">
+                                                        <GridViewColumn.HeaderTemplate>
+                                                            <DataTemplate><TextBlock Text="HUD" HorizontalAlignment="Center"/></DataTemplate>
+                                                        </GridViewColumn.HeaderTemplate>
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <CheckBox IsChecked="{Binding IsHudSelected, Mode=OneWay}"
+                                                                          Checked="HudCurrencyCheckBox_Changed"
+                                                                          Unchecked="HudCurrencyCheckBox_Changed"
+                                                                          HorizontalAlignment="Center"
+                                                                          Cursor="Hand"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
                                                 </GridView>
                                             </ListView.View>
                                         </ListView>

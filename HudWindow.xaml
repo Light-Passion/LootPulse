@@ -22,12 +22,12 @@
         <!-- HUD Outer Border — "Floating Obsidian Panel" with PoeGold accent -->
         <Border x:Name="HudOuterBorder" CornerRadius="10" BorderBrush="#3D3D3D" BorderThickness="1.5" Background="#F2121212">
             <Viewbox x:Name="HudViewbox" Stretch="Uniform" Margin="8">
-                <Grid Width="260" Height="140">
+                <Grid Width="260" Height="152">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="20"/>  <!-- Header -->
                         <RowDefinition Height="14"/>  <!-- EKG Line -->
                         <RowDefinition Height="*"/>   <!-- Main Info -->
-                        <RowDefinition Height="22"/>  <!-- Currency Ticker -->
+                        <RowDefinition Height="36"/>  <!-- Currency Ticker (2 rows of 3) -->
                         <RowDefinition Height="16"/>  <!-- Status Footer -->
                     </Grid.RowDefinitions>
 
@@ -46,9 +46,9 @@
 
                     <!-- Row 1: EKG Pulse Line — animated heartbeat trace -->
                     <Canvas Grid.Row="1" Height="12" ClipToBounds="True" Margin="0,1,0,0">
-                        <!-- Glow trail -->
+                        <!-- Glow trail — duplicated waveform (0→520) for seamless loop -->
                         <Path x:Name="HudEkgGlow" Stroke="#FF6124" StrokeThickness="2.5" Opacity="0.3"
-                              StrokeLineJoin="Round" Data="M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6">
+                              StrokeLineJoin="Round" Data="M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6 L 300,6 L 308,2 L 312,10 L 316,6 L 360,6 L 368,3 L 372,9 L 376,6 L 420,6 L 428,2 L 432,10 L 436,6 L 480,6 L 488,3 L 492,9 L 496,6 L 520,6">
                             <Path.Effect>
                                 <BlurEffect Radius="4"/>
                             </Path.Effect>
@@ -56,10 +56,10 @@
                                 <TranslateTransform x:Name="HudEkgGlowTransform" X="0"/>
                             </Path.RenderTransform>
                         </Path>
-                        <!-- Main EKG line -->
+                        <!-- Main EKG line — duplicated waveform (0→520) for seamless loop -->
                         <Path x:Name="HudEkgPath" Stroke="#E5B560" StrokeThickness="1.2"
                               StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              Data="M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6">
+                              Data="M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6 L 300,6 L 308,2 L 312,10 L 316,6 L 360,6 L 368,3 L 372,9 L 376,6 L 420,6 L 428,2 L 432,10 L 436,6 L 480,6 L 488,3 L 492,9 L 496,6 L 520,6">
                             <Path.RenderTransform>
                                 <TranslateTransform x:Name="HudEkgTransform" X="0"/>
                             </Path.RenderTransform>
@@ -80,17 +80,26 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Row 3: Currency Ticker — key exchange rates -->
-                    <Border Grid.Row="3" Background="#1A1A1A" CornerRadius="4" Padding="6,2" Margin="0,0,0,1">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="Div: " Foreground="#6B6B7A" FontSize="9" FontFamily="Cascadia Code"/>
-                            <TextBlock x:Name="HudDivineText" Text="12.5c" Foreground="#E5B560" FontSize="9"
-                                       FontWeight="Medium" FontFamily="Cascadia Code"/>
-                            <TextBlock Text="  |  " Foreground="#3D3D3D" FontSize="9" FontFamily="Cascadia Code"/>
-                            <TextBlock Text="Chaos: " Foreground="#6B6B7A" FontSize="9" FontFamily="Cascadia Code"/>
-                            <TextBlock x:Name="HudChaosText" Text="1:3.2" Foreground="#E5B560" FontSize="9"
-                                       FontWeight="Medium" FontFamily="Cascadia Code"/>
-                        </StackPanel>
+                    <!-- Row 3: Currency Ticker — dynamic, up to 6 items in 2 rows of 3 -->
+                    <Border Grid.Row="3" Background="{DynamicResource Surface1}" CornerRadius="4" Padding="4,2" Margin="0,0,0,1">
+                        <ItemsControl x:Name="HudCurrencyPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="3" HorizontalAlignment="Stretch"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="2,0">
+                                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextTertiary}" FontSize="8.5"
+                                                   FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Value}" Foreground="{DynamicResource PulseSecondary}" FontSize="8.5"
+                                                   FontWeight="Medium" FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"
+                                                   Margin="2,0,0,0"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Border>
 
                     <!-- Row 4: Status Footer -->

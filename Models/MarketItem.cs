@@ -11,6 +11,7 @@ namespace LootPulse.Models
         public double ExaltedValue { get; set; }
         public double DivineValue { get; set; }
         public DateTime LastUpdated { get; set; }
+        public bool IsHudSelected { get; set; }
 
         public string DisplayValue
         {

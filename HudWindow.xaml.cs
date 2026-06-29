@@ -1,23 +1,30 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Threading;
 using LootPulse.Models;
 
 namespace LootPulse
 {
+    /// <summary>
+    /// A single currency entry shown in the HUD ticker panel.
+    /// </summary>
+    public class HudCurrencyItem
+    {
+        public string Label { get; set; } = string.Empty;  // e.g. "Div:"
+        public string Value { get; set; } = string.Empty;  // e.g. "488ex"
+    }
+
     public partial class HudWindow : Window
     {
         private bool _isClickThroughActive;
         private bool _isInitialized;
         private readonly Action<AppSettings> _onPositionChanged;
         private readonly AppSettings _settings;
-        private DispatcherTimer? _ekgTimer;
-        private double _ekgOffset;
         private bool _ekgActive = true;
 
         // Win32 Interop
@@ -66,23 +73,29 @@ namespace LootPulse
 
         /// <summary>
         /// Starts the animated EKG heartbeat line in the HUD.
-        /// Line scrolls continuously; goes flat when connection is lost.
+        /// Uses DoubleAnimation on the rendering clock so it never slows
+        /// when the main dashboard is hidden or the Dispatcher queue backs up.
+        /// The path is a duplicated 520px waveform; translating by -260 and
+        /// looping makes the second copy land exactly where the first started.
         /// </summary>
         private void StartHudEkgAnimation()
         {
-            _ekgTimer = new DispatcherTimer
+            const double loopDistance = 260.0;       // one waveform period
+            const double pixelsPerSecond = 60.0;      // scroll speed
+            var duration = TimeSpan.FromSeconds(loopDistance / pixelsPerSecond);
+
+            var anim = new DoubleAnimation
             {
-                Interval = TimeSpan.FromMilliseconds(33) // ~30fps
+                From = 0,
+                To = -loopDistance,
+                Duration = duration,
+                RepeatBehavior = RepeatBehavior.Forever
             };
-            _ekgTimer.Tick += (s, e) =>
-            {
-                if (!_ekgActive) return;
-                _ekgOffset -= 2.0; // Scroll speed
-                if (_ekgOffset <= -260) _ekgOffset = 0; // Wrap around
-                HudEkgTransform.X = _ekgOffset;
-                HudEkgGlowTransform.X = _ekgOffset;
-            };
-            _ekgTimer.Start();
+
+            // BeginAnimation drives the property directly on the rendering clock
+            // — no Storyboard needed, and it runs even when the Dispatcher is idle.
+            HudEkgTransform.BeginAnimation(TranslateTransform.XProperty, anim);
+            HudEkgGlowTransform.BeginAnimation(TranslateTransform.XProperty, anim);
         }
 
         /// <summary>
@@ -93,29 +106,37 @@ namespace LootPulse
             _ekgActive = active;
             if (!active)
             {
+                // Stop scrolling — pass null to remove the active animation
+                HudEkgTransform.BeginAnimation(TranslateTransform.XProperty, null);
+                HudEkgGlowTransform.BeginAnimation(TranslateTransform.XProperty, null);
+
                 // Flatline — straight line
-                HudEkgPath.Data = Geometry.Parse("M 0,6 L 260,6");
-                HudEkgGlow.Data = Geometry.Parse("M 0,6 L 260,6");
+                HudEkgPath.Data = Geometry.Parse("M 0,6 L 520,6");
+                HudEkgGlow.Data = Geometry.Parse("M 0,6 L 520,6");
                 HudEkgPath.Stroke = new SolidColorBrush(Color.FromRgb(0x6B, 0x6B, 0x7A)); // Dim gray
                 HudEkgGlow.Stroke = new SolidColorBrush(Color.FromRgb(0x6B, 0x6B, 0x7A));
             }
             else
             {
-                // Restore heartbeat wave
-                HudEkgPath.Data = Geometry.Parse("M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6");
-                HudEkgGlow.Data = Geometry.Parse("M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6");
+                // Restore heartbeat wave — duplicated 520px for seamless loop
+                HudEkgPath.Data = Geometry.Parse("M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6 L 300,6 L 308,2 L 312,10 L 316,6 L 360,6 L 368,3 L 372,9 L 376,6 L 420,6 L 428,2 L 432,10 L 436,6 L 480,6 L 488,3 L 492,9 L 496,6 L 520,6");
+                HudEkgGlow.Data = Geometry.Parse("M 0,6 L 40,6 L 48,2 L 52,10 L 56,6 L 100,6 L 108,3 L 112,9 L 116,6 L 160,6 L 168,2 L 172,10 L 176,6 L 220,6 L 228,3 L 232,9 L 236,6 L 260,6 L 300,6 L 308,2 L 312,10 L 316,6 L 360,6 L 368,3 L 372,9 L 376,6 L 420,6 L 428,2 L 432,10 L 436,6 L 480,6 L 488,3 L 492,9 L 496,6 L 520,6");
                 HudEkgPath.Stroke = new SolidColorBrush(Color.FromRgb(0xE5, 0xB5, 0x60)); // PoeGold
                 HudEkgGlow.Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0x61, 0x24)); // PoeOrange
+
+                // Resume scrolling
+                StartHudEkgAnimation();
             }
         }
 
         /// <summary>
-        /// Updates the currency ticker display with key exchange rates.
+        /// Updates the currency ticker with a dynamic list of items.
+        /// Each item has a short label and a value string (e.g. "Div: 488ex").
+        /// Up to 6 items display in a 2×3 WrapPanel grid.
         /// </summary>
-        public void UpdateCurrencyTicker(string divineValue, string chaosRatio)
+        public void UpdateCurrencyTicker(List<HudCurrencyItem> items)
         {
-            HudDivineText.Text = divineValue;
-            HudChaosText.Text = chaosRatio;
+            HudCurrencyPanel.ItemsSource = items;
         }
 
         public void RestorePosition()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -206,15 +207,25 @@ namespace LootPulse
             _sourceInitializedTcs.SetResult(true);
         }
 
-        // ── DWM Acrylic Backdrop Interop ──────────────────────────────────
-        // Enables a subtle blurred backdrop on the borderless transparent window,
-        // creating the "floating obsidian panel" depth effect from the Stylist spec.
+        // ── DWM System Backdrop Interop ────────────────────────────────────
+        // NOTE: The system backdrop (Mica/Acrylic) is intentionally DISABLED
+        // on the main dashboard window. Mica/Acrylic is painted by DWM behind
+        // the window and fills every transparent pixel with a system-tinted
+        // blur. That tint (often light/white on a bright wallpaper or light
+        // system theme) bleeds through as the Dashboard Opacity slider fades
+        // the MainWindowBorder, making the dashboard turn white instead of
+        // see-through. Setting DWMSBT_NONE (0) guarantees that transparent
+        // regions show the actual desktop/game behind the window, so the
+        // opacity slider produces true transparency as documented.
+        // The dark "#E6121212" panel background already carries the "floating
+        // obsidian panel" aesthetic at full opacity without needing Mica.
 
         [LibraryImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static partial int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 
         private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+        private const int DWMSBT_NONE = 0;            // No system backdrop (true transparency)
         private const int DWMSBT_TRANSIENTWINDOW = 1; // Acrylic
         private const int DWMSBT_MAINWINDOW = 2;      // Mica
 
@@ -222,19 +233,16 @@ namespace LootPulse
         {
             try
             {
-                // Try Mica first (Windows 11 22H2+)
-                int backdropType = DWMSBT_MAINWINDOW;
-                int hr = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
-                if (hr != 0)
-                {
-                    // Fall back to Acrylic
-                    backdropType = DWMSBT_TRANSIENTWINDOW;
-                    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
-                }
+                // Explicitly disable the DWM system backdrop so that transparent
+                // regions of the borderless window reveal the desktop/game rather
+                // than a Mica/Acrylic tint. This is what lets the Dashboard Opacity
+                // slider fade the dashboard to genuinely see-through instead of white.
+                int backdropType = DWMSBT_NONE;
+                DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
             }
             catch
             {
-                // Silently ignore — the window will just use its opaque background
+                // Silently ignore — the window falls back to its WPF Background="Transparent".
             }
         }
 
@@ -701,6 +709,13 @@ namespace LootPulse
 
                 _marketItems.Clear();
                 _marketItems.AddRange(allItems);
+                
+                // Sync IsHudSelected flags from saved settings
+                foreach (var item in _marketItems)
+                {
+                    item.IsHudSelected = (_appSettings.HudCurrencies ?? new()).Contains(item.Name);
+                }
+                
                 _marketItemNames.Clear();
                 foreach (var item in allItems)
                 {
@@ -720,6 +735,10 @@ namespace LootPulse
 
                 StatusText.Text = "Sync complete. All economy categories updated.";
                 SetEkgState(false);
+
+                // Update HUD currency ticker with user-selected currencies
+                UpdateHudCurrencyTicker();
+
                 TriggerDataRefreshSweep();
                 ShowToast("Economy Synced", "All market categories updated successfully.", ToastType.Success);
             }
@@ -2327,6 +2346,80 @@ namespace LootPulse
             _hudWindow?.SetClickThrough(_isClickThroughEnabled, _appSettings.HudModeOpacity);
         }
 
+        /// <summary>
+        /// Builds the HUD currency ticker from user-selected currencies in AppSettings.
+        /// Shows up to 6 items, each valued in Exalted.
+        /// </summary>
+        private void UpdateHudCurrencyTicker()
+        {
+            if (_hudWindow == null) return;
+            var selected = _appSettings.HudCurrencies ?? new();
+            var items = new List<HudCurrencyItem>();
+            foreach (var name in selected.Take(6))
+            {
+                var orb = _marketItems.Find(i => i.Name == name && i.Category == _currencyCategory);
+                string shortLabel = GetShortCurrencyLabel(name);
+                string value = orb?.ExaltedValue > 0 ? $"{orb.ExaltedValue:F0}ex" : "—";
+                items.Add(new HudCurrencyItem { Label = $"{shortLabel}:", Value = value });
+            }
+            _hudWindow.UpdateCurrencyTicker(items);
+        }
+
+        /// <summary>
+        /// Short label for currency names in the HUD (e.g. "Divine Orb" → "Div").
+        /// </summary>
+        private static string GetShortCurrencyLabel(string name)
+        {
+            return name switch
+            {
+                "Divine Orb" => "Div",
+                "Exalted Orb" => "Ex",
+                "Chaos Orb" => "Chaos",
+                "Mirror of Kalandra" => "Mirror",
+                "Jeweller's Orb" => "Jew",
+                "Orb of Fusing" => "Fuse",
+                "Orb of Alchemy" => "Alch",
+                "Orb of Scouring" => "Scour",
+                "Chromatic Orb" => "Chrome",
+                _ => name.Length > 6 ? name[..6] : name
+            };
+        }
+
+        /// <summary>
+        /// Handles checkbox toggle on currency list to select/deselect HUD display.
+        /// Enforces max 6 selected currencies.
+        /// </summary>
+        private async void HudCurrencyCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isUiInitialized || _appSettings == null) return;
+            if (sender is not System.Windows.Controls.CheckBox cb) return;
+            if (cb.DataContext is not MarketItem item) return;
+
+            var selected = _appSettings.HudCurrencies ?? new();
+
+            if (cb.IsChecked == true)
+            {
+                if (!selected.Contains(item.Name))
+                {
+                    if (selected.Count >= 6)
+                    {
+                        cb.IsChecked = false;
+                        StatusText.Text = "Maximum 6 currencies can be shown on the HUD.";
+                        return;
+                    }
+                    selected.Add(item.Name);
+                }
+            }
+            else
+            {
+                selected.Remove(item.Name);
+            }
+
+            _appSettings.HudCurrencies = selected;
+            await SaveSettingsAsync();
+            UpdateHudCurrencyTicker();
+        }
+
         private async void ResetHudPosition_Click(object sender, RoutedEventArgs e)
         {
             _appSettings.HudWidth = 250;
@@ -2865,56 +2958,54 @@ namespace LootPulse
             return deleted;
         }
 
-        /// <summary>Locates the PoE2 shader/cache directory under "My Games/Path of Exile 2".</summary>
-        private static string? FindPoe2CacheDirectory()
+        /// <summary>Locates the PoE2 shader cache directories under %APPDATA%\Path of Exile 2.</summary>
+        private static List<string> FindPoe2ShaderCacheDirectories()
         {
-            string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            string baseDir = Path.Combine(myDocs, _myGamesFolder, _poe2Folder);
-            if (!Directory.Exists(baseDir)) return null;
-
-            // Common cache subdirectories in PoE2's My Games folder
-            string[] cacheSubDirs = ["minimap_dem", "art_cache", "shader_cache"];
-            foreach (var sub in cacheSubDirs)
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string baseDir = Path.Combine(appData, "Path of Exile 2");
+            string[] shaderDirs = ["ShaderCacheD3D12", "ShaderCacheVulkan"];
+            var found = new List<string>();
+            foreach (var sub in shaderDirs)
             {
-                string cachePath = Path.Combine(baseDir, sub);
-                if (Directory.Exists(cachePath)) return cachePath;
+                string path = Path.Combine(baseDir, sub);
+                if (Directory.Exists(path)) found.Add(path);
             }
-
-            // Fallback: if none of the known subdirs exist, return the base dir itself
-            return baseDir;
+            return found;
         }
 
         private async void ClearPoe2Cache_Click(object sender, RoutedEventArgs e)
         {
             var confirm = MessageBox.Show(
-                "This will delete the Path of Exile 2 local cache (shaders, minimap, art cache) in your Documents folder.\n\n" +
-                "The game will rebuild these files on next launch (may take longer to load once).\n\n" +
+                "This will delete the Path of Exile 2 shader caches (D3D12 and Vulkan) in %APPDATA%\\Path of Exile 2.\n\n" +
+                "The game will recompile shaders on next launch (may stutter briefly once).\n\n" +
                 "Make sure PoE2 is not running before proceeding.\n\nProceed?",
-                "Confirm PoE2 Cache Clear",
+                "Confirm PoE2 Shader Cache Clear",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
 
             ClearPoe2CacheButton.IsEnabled = false;
-            CacheStatusText.Text = "Clearing PoE2 cache...";
+            CacheStatusText.Text = "Clearing PoE2 shader caches...";
 
             try
             {
                 long freed = await Task.Run(() =>
                 {
-                    string? cacheDir = FindPoe2CacheDirectory();
-                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0;
-                    long sizeBefore = GetDirectorySize(cacheDir);
-                    long deleted = ClearDirectoryContents(cacheDir);
-                    return deleted > 0 ? deleted : sizeBefore;
+                    var cacheDirs = FindPoe2ShaderCacheDirectories();
+                    long total = 0;
+                    foreach (var dir in cacheDirs)
+                    {
+                        total += ClearDirectoryContents(dir);
+                    }
+                    return total;
                 });
 
                 CacheStatusText.Text = freed > 0
-                    ? $"PoE2 cache cleared. Freed {FormatBytes(freed)}."
-                    : "PoE2 cache directory not found or already empty.";
+                    ? $"PoE2 shader caches cleared. Freed {FormatBytes(freed)}."
+                    : "PoE2 shader cache directories not found or already empty.";
             }
             catch (Exception ex)
             {
-                CacheStatusText.Text = $"Error clearing PoE2 cache: {ex.Message}";
+                CacheStatusText.Text = $"Error clearing PoE2 shader cache: {ex.Message}";
             }
             finally
             {
@@ -2922,55 +3013,52 @@ namespace LootPulse
             }
         }
 
-        /// <summary>Locates the Nvidia shader cache via NVAPI/registry or known %LocalAppData% paths.</summary>
-        private static string? FindNvidiaCacheDirectory()
+        /// <summary>Locates Nvidia shader cache directories under %LocalAppData%\NVIDIA.</summary>
+        private static List<string> FindNvidiaShaderCacheDirectories()
         {
-            // Primary: DXCache / OpenGL shader cache under LocalAppData
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string[] candidates =
-            [
-                Path.Combine(localAppData, "NVIDIA", "DXCache"),
-                Path.Combine(localAppData, "NVIDIA", "GLCache"),
-                Path.Combine(localAppData, "NVIDIA Corporation", "NV_Cache"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "Installer2"),
-            ];
-            foreach (var p in candidates)
+            string[] shaderDirs = ["DXCache", "GLCache"];
+            var found = new List<string>();
+            foreach (var sub in shaderDirs)
             {
-                if (Directory.Exists(p)) return p;
+                string path = Path.Combine(localAppData, "NVIDIA", sub);
+                if (Directory.Exists(path)) found.Add(path);
             }
-            return null;
+            return found;
         }
 
         private async void ClearNvidiaCache_Click(object sender, RoutedEventArgs e)
         {
             var confirm = MessageBox.Show(
-                "This will delete the Nvidia GPU shader caches (DXCache, GLCache).\n\n" +
+                "This will delete the Nvidia GPU shader caches (DXCache, GLCache) in %LocalAppData%\\NVIDIA.\n\n" +
                 "Shaders will be recompiled on next game/driver use (brief stutter possible).\n\nProceed?",
-                "Confirm Nvidia Cache Clear",
+                "Confirm Nvidia Shader Cache Clear",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
 
             ClearNvidiaCacheButton.IsEnabled = false;
-            CacheStatusText.Text = "Clearing Nvidia cache...";
+            CacheStatusText.Text = "Clearing Nvidia shader caches...";
 
             try
             {
                 long freed = await Task.Run(() =>
                 {
-                    string? cacheDir = FindNvidiaCacheDirectory();
-                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0L;
-                    long sizeBefore = GetDirectorySize(cacheDir);
-                    long deleted = ClearDirectoryContents(cacheDir);
-                    return deleted > 0 ? deleted : sizeBefore;
+                    var cacheDirs = FindNvidiaShaderCacheDirectories();
+                    long total = 0;
+                    foreach (var dir in cacheDirs)
+                    {
+                        total += ClearDirectoryContents(dir);
+                    }
+                    return total;
                 });
 
                 CacheStatusText.Text = freed > 0
-                    ? $"Nvidia cache cleared. Freed {FormatBytes(freed)}."
-                    : "Nvidia cache directory not found or already empty.";
+                    ? $"Nvidia shader caches cleared. Freed {FormatBytes(freed)}."
+                    : "Nvidia shader cache directories not found or already empty.";
             }
             catch (Exception ex)
             {
-                CacheStatusText.Text = $"Error clearing Nvidia cache: {ex.Message}";
+                CacheStatusText.Text = $"Error clearing Nvidia shader cache: {ex.Message}";
             }
             finally
             {
@@ -2978,56 +3066,52 @@ namespace LootPulse
             }
         }
 
-        /// <summary>Locates the AMD shader cache under %LocalAppData%/AMD.</summary>
-        private static string? FindAmdCacheDirectory()
+        /// <summary>Locates AMD shader cache directories under %LocalAppData%\AMD.</summary>
+        private static List<string> FindAmdShaderCacheDirectories()
         {
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-
-            string[] candidates =
-            [
-                Path.Combine(localAppData, "AMD", "DxCache"),
-                Path.Combine(localAppData, "AMD", "GLCache"),
-                Path.Combine(localAppData, "AMD", "DxcCache"),
-                Path.Combine(programFiles, "AMD", "CNext"),
-            ];
-            foreach (var p in candidates)
+            string[] shaderDirs = ["DxCache", "GLCache"];
+            var found = new List<string>();
+            foreach (var sub in shaderDirs)
             {
-                if (Directory.Exists(p)) return p;
+                string path = Path.Combine(localAppData, "AMD", sub);
+                if (Directory.Exists(path)) found.Add(path);
             }
-            return null;
+            return found;
         }
 
         private async void ClearAmdCache_Click(object sender, RoutedEventArgs e)
         {
             var confirm = MessageBox.Show(
-                "This will delete the AMD GPU shader caches (DxCache, GLCache).\n\n" +
+                "This will delete the AMD GPU shader caches (DxCache, GLCache) in %LocalAppData%\\AMD.\n\n" +
                 "Shaders will be recompiled on next game/driver use (brief stutter possible).\n\nProceed?",
-                "Confirm AMD Cache Clear",
+                "Confirm AMD Shader Cache Clear",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
 
             ClearAmdCacheButton.IsEnabled = false;
-            CacheStatusText.Text = "Clearing AMD cache...";
+            CacheStatusText.Text = "Clearing AMD shader caches...";
 
             try
             {
                 long freed = await Task.Run(() =>
                 {
-                    string? cacheDir = FindAmdCacheDirectory();
-                    if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir)) return 0L;
-                    long sizeBefore = GetDirectorySize(cacheDir);
-                    long deleted = ClearDirectoryContents(cacheDir);
-                    return deleted > 0 ? deleted : sizeBefore;
+                    var cacheDirs = FindAmdShaderCacheDirectories();
+                    long total = 0;
+                    foreach (var dir in cacheDirs)
+                    {
+                        total += ClearDirectoryContents(dir);
+                    }
+                    return total;
                 });
 
                 CacheStatusText.Text = freed > 0
-                    ? $"AMD cache cleared. Freed {FormatBytes(freed)}."
-                    : "AMD cache directory not found or already empty.";
+                    ? $"AMD shader caches cleared. Freed {FormatBytes(freed)}."
+                    : "AMD shader cache directories not found or already empty.";
             }
             catch (Exception ex)
             {
-                CacheStatusText.Text = $"Error clearing AMD cache: {ex.Message}";
+                CacheStatusText.Text = $"Error clearing AMD shader cache: {ex.Message}";
             }
             finally
             {
@@ -3035,8 +3119,8 @@ namespace LootPulse
             }
         }
 
-        /// <summary>Locates Steam's download cache, shader cache, and htmloverlay cache.</summary>
-        private static string? FindSteamCacheDirectory()
+        /// <summary>Locates Steam's per-game shader cache directory under steamapps\shadercache.</summary>
+        private static List<string> FindSteamShaderCacheDirectories()
         {
             // Try registry first
             string? steamPath = null;
@@ -3048,7 +3132,7 @@ namespace LootPulse
             catch { }
 
             // Fallback to common paths
-            if (string.IsNullOrEmpty(steamPath))
+            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath))
             {
                 string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
                 string[] commonPaths =
@@ -3059,74 +3143,45 @@ namespace LootPulse
                 steamPath = commonPaths.FirstOrDefault(Directory.Exists);
             }
 
-            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) return null;
+            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) return [];
 
-            // Steam has multiple cache locations:
-            // - steamapp/shadercache/ (per-game shader cache)
-            // - appcache/ (various downloaded cache data)
-            // - config/htmlcache/ (Steam UI web cache)
-            string[] cacheSubDirs =
-            [
-                Path.Combine(steamPath, "steamapps", "shadercache"),
-                Path.Combine(steamPath, "appcache"),
-                Path.Combine(steamPath, "config", "htmlcache"),
-            ];
-            // Return the first one that exists. We'll clear all of them in the task.
-            foreach (var p in cacheSubDirs)
-            {
-                if (Directory.Exists(p)) return steamPath;
-            }
-            return steamPath; // Return base Steam dir even if subdirs are missing
-        }
-
-        private static long ClearSteamCaches()
-        {
-            string? steamPath = FindSteamCacheDirectory();
-            if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) return 0;
-
-            long totalFreed = 0;
-            string[] cacheSubDirs =
-            [
-                Path.Combine(steamPath, "steamapps", "shadercache"),
-                Path.Combine(steamPath, "appcache"),
-                Path.Combine(steamPath, "config", "htmlcache"),
-            ];
-
-            foreach (var cacheDir in cacheSubDirs)
-            {
-                if (Directory.Exists(cacheDir))
-                {
-                    totalFreed += ClearDirectoryContents(cacheDir);
-                }
-            }
-
-            return totalFreed;
+            string shaderCachePath = Path.Combine(steamPath, "steamapps", "shadercache");
+            return Directory.Exists(shaderCachePath) ? [shaderCachePath] : [];
         }
 
         private async void ClearSteamCache_Click(object sender, RoutedEventArgs e)
         {
             var confirm = MessageBox.Show(
-                "This will delete Steam's shader cache, app cache, and HTML cache.\n\n" +
-                "Steam and games will rebuild these on next use.\n\n" +
+                "This will delete Steam's per-game shader cache (steamapps\\shadercache).\n\n" +
+                "Shaders will be recompiled on next game launch (brief stutter possible).\n\n" +
                 "Make sure Steam is closed before proceeding.\n\nProceed?",
-                "Confirm Steam Cache Clear",
+                "Confirm Steam Shader Cache Clear",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
 
             ClearSteamCacheButton.IsEnabled = false;
-            CacheStatusText.Text = "Clearing Steam cache...";
+            CacheStatusText.Text = "Clearing Steam shader cache...";
 
             try
             {
-                long freed = await Task.Run(ClearSteamCaches);
+                long freed = await Task.Run(() =>
+                {
+                    var cacheDirs = FindSteamShaderCacheDirectories();
+                    long total = 0;
+                    foreach (var dir in cacheDirs)
+                    {
+                        total += ClearDirectoryContents(dir);
+                    }
+                    return total;
+                });
 
                 CacheStatusText.Text = freed > 0
-                    ? $"Steam cache cleared. Freed {FormatBytes(freed)}."
-                    : "Steam cache directory not found or already empty.";
+                    ? $"Steam shader cache cleared. Freed {FormatBytes(freed)}."
+                    : "Steam shader cache directory not found or already empty.";
             }
             catch (Exception ex)
             {
-                CacheStatusText.Text = $"Error clearing Steam cache: {ex.Message}";
+                CacheStatusText.Text = $"Error clearing Steam shader cache: {ex.Message}";
             }
             finally
             {

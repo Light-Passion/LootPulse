@@ -18,6 +18,7 @@ namespace LootPulse.Models
         public double HudModeOpacity { get; set; } = 0.30;
         public bool IsHudVisible { get; set; } = true;
         public bool ShowEconomyHighlights { get; set; } = true;
+        public List<string> HudCurrencies { get; set; } = new() { "Divine Orb", "Chaos Orb" };
         public string League { get; set; } = "Runes of Aldur";
 
         public Dictionary<string, Dictionary<string, AffixImportance>> BuildCustomWeights { get; set; } = [];
