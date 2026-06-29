@@ -1,0 +1,98 @@
+<UserControl x:Class="LootPulse.Controls.TickerCell"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="32" d:DesignWidth="200">
+
+    <UserControl.Resources>
+        <Storyboard x:Key="FlashUp">
+            <ColorAnimation Storyboard.TargetName="FlashOverlay"
+                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                            From="Transparent" To="{StaticResource SuccessFlashColor}"
+                            Duration="0:0:0.15" AutoReverse="True"/>
+        </Storyboard>
+        <Storyboard x:Key="FlashDown">
+            <ColorAnimation Storyboard.TargetName="FlashOverlay"
+                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                            From="Transparent" To="{StaticResource DangerFlashColor}"
+                            Duration="0:0:0.15" AutoReverse="True"/>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Flash overlay (invisible by default, animated on price change) -->
+        <Border x:Name="FlashOverlay"
+                Background="Transparent"
+                IsHitTestVisible="False"/>
+
+        <!-- Main content: sparkline + text -->
+        <DockPanel Margin="4,0,8,0">
+
+            <!-- Right side: percentage + absolute change -->
+            <StackPanel DockPanel.Dock="Right"
+                        VerticalAlignment="Center"
+                        Width="72"
+                        Margin="8,0,0,0">
+
+                <!-- Line 1: Arrow + Percentage -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding TrendArrow}"
+                               FontFamily="{StaticResource FontMono}"
+                               FontSize="11"
+                               FontWeight="Medium"
+                               Foreground="{Binding SparklineStrokeBrush}"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding TrendPercent}"
+                               FontFamily="{StaticResource FontMono}"
+                               FontSize="11"
+                               FontWeight="Medium"
+                               Foreground="{Binding SparklineStrokeBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Line 2: Absolute change (dimmed) -->
+                <TextBlock Text="{Binding TrendAbsoluteChange}"
+                           FontFamily="{StaticResource FontMono}"
+                           FontSize="9.5"
+                           Foreground="{DynamicResource TextTertiary}"
+                           HorizontalAlignment="Right"
+                           Margin="0,1,0,0"/>
+            </StackPanel>
+
+            <!-- Left side: Sparkline -->
+            <Canvas Width="110" Height="22"
+                    VerticalAlignment="Center"
+                    ClipToBounds="True">
+
+                <!-- Subtle baseline -->
+                <Line X1="0" Y1="11" X2="110" Y2="11"
+                      Stroke="{DynamicResource Surface2}"
+                      StrokeThickness="0.5"
+                      Opacity="0.5"/>
+
+                <!-- Area fill under the sparkline -->
+                <Path Fill="{Binding SparklineFillBrush}"
+                      Opacity="0.6"
+                      Data="{Binding SparklineFillPath}"/>
+
+                <!-- Sparkline stroke -->
+                <Path Stroke="{Binding SparklineStrokeBrush}"
+                      StrokeThickness="1.5"
+                      StrokeLineJoin="Round"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      Data="{Binding SparklinePath}"/>
+
+                <!-- End-point dot (latest price position) -->
+                <Ellipse Width="4" Height="4"
+                         Fill="{Binding SparklineStrokeBrush}"
+                         Canvas.Left="{Binding SparklineEndDotX}"
+                         Canvas.Top="{Binding SparklineEndDotY}"/>
+            </Canvas>
+        </DockPanel>
+    </Grid>
+</UserControl>

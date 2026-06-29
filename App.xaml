@@ -9,6 +9,7 @@
                 <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Theme.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Typography.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Controls.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/LootPulse;component/Styles/Icons.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
