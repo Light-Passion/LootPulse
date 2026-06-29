@@ -151,7 +151,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0">
                     <Button x:Name="SettingsToggleButton" Style="{StaticResource BtnSecondary}" FontSize="12" Padding="10,5" VerticalAlignment="Center" Margin="0,0,8,0" Click="ToggleSettings_Click">
                         <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconSettings}" Width="12" Height="12" Margin="0,0,6,0"/>
+                            <Path Style="{StaticResource IconStyleFilled}" Data="{StaticResource IconSettings}" Width="12" Height="12" Margin="0,0,6,0"/>
                             <TextBlock Text="Settings" FontSize="12"/>
                         </StackPanel>
                     </Button>
@@ -239,20 +239,20 @@
                                             <Button x:Name="LoadBuildButton" Style="{StaticResource BtnPrimary}" Click="LoadBuildButton_Click" Margin="0,0,8,0">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="Load Build" FontSize="13" FontWeight="SemiBold"/>
-                                                    <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconChevronDown}" Width="10" Height="10" Margin="6,0,0,0" Fill="{DynamicResource TextInverse}"/>
+                                                    <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconChevronDown}" Width="10" Height="10" Margin="6,0,0,0" Stroke="{DynamicResource TextInverse}" Fill="Transparent"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="BaseFilterButton" Style="{StaticResource BtnPrimary}" Click="BaseFilterButton_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="Select Base Filter" FontSize="13" FontWeight="SemiBold"/>
-                                                    <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconChevronDown}" Width="10" Height="10" Margin="6,0,0,0" Fill="{DynamicResource TextInverse}"/>
+                                                    <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconChevronDown}" Width="10" Height="10" Margin="6,0,0,0" Stroke="{DynamicResource TextInverse}" Fill="Transparent"/>
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="1" Style="{StaticResource BtnPrimary}" VerticalAlignment="Center" Margin="15,0,0,0" Click="SyncAll_Click">
                                         <StackPanel Orientation="Horizontal">
-                                            <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconSync}" Width="12" Height="12" Margin="0,0,8,0" Fill="{DynamicResource TextInverse}"/>
+                                            <Path Style="{StaticResource IconStyleFilled}" Data="{StaticResource IconSync}" Width="12" Height="12" Margin="0,0,8,0" Fill="{DynamicResource TextInverse}"/>
                                             <TextBlock Text="Sync Economy &amp; Build" FontSize="13" FontWeight="SemiBold"/>
                                         </StackPanel>
                                     </Button>
@@ -693,11 +693,11 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource BtnPrimary}" FontSize="11" Padding="10,3" Margin="0,0,8,0" Click="SaveSettings_Click">
                         <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconSave}" Width="10" Height="10" Margin="0,0,5,0" Fill="{DynamicResource TextInverse}"/>
+                            <Path Style="{StaticResource IconStyleFilled}" Data="{StaticResource IconSave}" Width="10" Height="10" Margin="0,0,5,0" Fill="{DynamicResource TextInverse}"/>
                             <TextBlock Text="Save Settings" FontSize="11"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource BtnDanger}" Content="Exit Application" FontSize="11" Padding="10,3" Click="ExitButton_Click"/>
+                    <Button Style="{StaticResource BtnGhost}" Content="Exit Application" FontSize="11" Padding="10,3" Foreground="#F87171" Click="ExitButton_Click"/>
                 </StackPanel>
             </Grid>
 
