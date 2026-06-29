@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using LootPulse.Models;
 using LootPulse.Services;
 using LootPulse.Services.Trade;
+using LootPulse.Controls;
 
 namespace LootPulse
 {
@@ -194,12 +195,47 @@ namespace LootPulse
             _hwndSource = HwndSource.FromHwnd(_hwnd);
             _hwndSource.AddHook(HwndHook);
 
+            // Enable DWM Acrylic backdrop for "floating obsidian panel" effect
+            EnableAcrylicBackdrop(_hwnd);
+
             // Register Hotkeys
             RegisterHotKey(_hwnd, _hotkeyId, 0x0006, 0x4F); // Ctrl + Shift + O
             RegisterHotKey(_hwnd, _hotkeyHudId, 0x0006, 0x48); // Ctrl + Shift + H
 
             // Signal that the window handle is ready
             _sourceInitializedTcs.SetResult(true);
+        }
+
+        // ── DWM Acrylic Backdrop Interop ──────────────────────────────────
+        // Enables a subtle blurred backdrop on the borderless transparent window,
+        // creating the "floating obsidian panel" depth effect from the Stylist spec.
+
+        [LibraryImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static partial int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
+
+        private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+        private const int DWMSBT_TRANSIENTWINDOW = 1; // Acrylic
+        private const int DWMSBT_MAINWINDOW = 2;      // Mica
+
+        private void EnableAcrylicBackdrop(IntPtr hwnd)
+        {
+            try
+            {
+                // Try Mica first (Windows 11 22H2+)
+                int backdropType = DWMSBT_MAINWINDOW;
+                int hr = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
+                if (hr != 0)
+                {
+                    // Fall back to Acrylic
+                    backdropType = DWMSBT_TRANSIENTWINDOW;
+                    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
+                }
+            }
+            catch
+            {
+                // Silently ignore — the window will just use its opaque background
+            }
         }
 
         /// <summary>
@@ -297,6 +333,85 @@ namespace LootPulse
             _ekgAmplitude = active ? 12 : 6;
             _ekgSegmentWidth = active ? 30 : 50;
             GenerateEkgWave();
+        }
+
+        /// <summary>
+        /// Triggers the Data Refresh Pulse — a PoeGold EKG sweep across all cards.
+        /// A gradient band travels left-to-right over 600ms, simulating a heartbeat monitor sweep.
+        /// </summary>
+        private void TriggerDataRefreshSweep()
+        {
+            // Sweep across each card with a slight stagger for a cascading effect
+            var sweepTargets = new (Border sweepBorder, TranslateTransform transform, double width, double delay)[]
+            {
+                (ActiveStateSweep, ActiveStateSweepTransform, 320, 0),
+                (BuildConfigSweep, BuildConfigSweepTransform, 520, 100),
+                (EconomySweep, EconomySweepTransform, 820, 200),
+            };
+
+            foreach (var (sweepBorder, transform, width, delay) in sweepTargets)
+            {
+                var sb = new Storyboard();
+
+                // Reset position
+                transform.X = -width;
+
+                // Fade in
+                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(100))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(delay)
+                };
+                Storyboard.SetTarget(fadeIn, sweepBorder);
+                Storyboard.SetTargetProperty(fadeIn, new PropertyPath("Opacity"));
+                sb.Children.Add(fadeIn);
+
+                // Sweep left-to-right
+                var sweep = new DoubleAnimation(-width, width, TimeSpan.FromMilliseconds(600))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(delay),
+                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                };
+                Storyboard.SetTarget(sweep, transform);
+                Storyboard.SetTargetProperty(sweep, new PropertyPath("(TranslateTransform.X)"));
+                sb.Children.Add(sweep);
+
+                // Fade out
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(delay + 500)
+                };
+                Storyboard.SetTarget(fadeOut, sweepBorder);
+                Storyboard.SetTargetProperty(fadeOut, new PropertyPath("Opacity"));
+                sb.Children.Add(fadeOut);
+
+                sb.Begin();
+            }
+        }
+
+        /// <summary>
+        /// Shows a toast notification in the bottom-right corner.
+        /// Auto-dismisses after 4 seconds.
+        /// </summary>
+        public void ShowToast(string title, string message, ToastType type = ToastType.Info)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var toast = new ToastNotification(title, message, type);
+                toast.Dismissed += (s, e) =>
+                {
+                    Dispatcher.Invoke(() => ToastContainer.Children.Remove(toast));
+                };
+                ToastContainer.Children.Add(toast);
+
+                // Limit to max 4 toasts — remove oldest if exceeded
+                while (ToastContainer.Children.Count > 4)
+                {
+                    if (ToastContainer.Children[0] is ToastNotification oldest)
+                        oldest.Dismiss();
+                    else
+                        ToastContainer.Children.RemoveAt(0);
+                }
+            });
         }
 
         protected override void OnClosed(EventArgs e)
@@ -605,11 +720,14 @@ namespace LootPulse
 
                 StatusText.Text = "Sync complete. All economy categories updated.";
                 SetEkgState(false);
+                TriggerDataRefreshSweep();
+                ShowToast("Economy Synced", "All market categories updated successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"Sync failed: {ex.Message}";
                 SetEkgState(false);
+                ShowToast("Sync Failed", ex.Message, ToastType.Danger);
                 Debug.WriteLine($"Error during parallel economy sync: {ex.Message}");
             }
         }

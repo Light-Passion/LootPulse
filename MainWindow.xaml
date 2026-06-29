@@ -69,10 +69,20 @@
                              AutoReverse="True" BeginTime="0:0:0.6"/>
             <!-- Phase 3: Rest (400ms — total cycle = 1.2s) -->
         </Storyboard>
+
+        <!-- Data Refresh Pulse — PoeGold EKG sweep across cards (600ms) -->
+        <!-- A gradient band travels left-to-right, simulating a heartbeat monitor sweep -->
+        <LinearGradientBrush x:Key="SweepGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#00E5B560"/>
+            <GradientStop Offset="0.4" Color="#00E5B560"/>
+            <GradientStop Offset="0.5" Color="#30E5B560"/>
+            <GradientStop Offset="0.6" Color="#00E5B560"/>
+            <GradientStop Offset="1" Color="#00E5B560"/>
+        </LinearGradientBrush>
     </Window.Resources>
 
     <!-- Main Window Border -->
-    <Border x:Name="MainWindowBorder" CornerRadius="12" BorderBrush="#3D3D3D" BorderThickness="1.5" Background="#121212">
+    <Border x:Name="MainWindowBorder" CornerRadius="12" BorderBrush="#3D3D3D" BorderThickness="1.5" Background="#E6121212">
         <Grid>
             <Grid.RowDefinitions>
                 <!-- Titlebar / Header -->
@@ -172,8 +182,15 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Active State -->
-                        <Border Grid.Column="0" Background="#1C1C1C" CornerRadius="8" Padding="15" Margin="0,0,15,0">
-                            <StackPanel>
+                        <Border Grid.Column="0" x:Name="ActiveStateCard" Background="#1C1C1C" CornerRadius="8" Padding="15" Margin="0,0,15,0" ClipToBounds="True">
+                            <Grid>
+                                <!-- Sweep overlay (animated on data refresh) -->
+                                <Border x:Name="ActiveStateSweep" Background="{StaticResource SweepGradient}" CornerRadius="8" Opacity="0" IsHitTestVisible="False">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="ActiveStateSweepTransform" X="-300"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                                <StackPanel>
                                 <TextBlock Text="ACTIVE STATE" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
                                 <Border Background="#252525" CornerRadius="6" Padding="12">
                                     <StackPanel>
@@ -192,16 +209,24 @@
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
+                            </Grid>
                         </Border>
 
                         <!-- Build Config -->
-                        <Border Grid.Column="1" Background="#1C1C1C" CornerRadius="8" Padding="15">
+                        <Border Grid.Column="1" x:Name="BuildConfigCard" Background="#1C1C1C" CornerRadius="8" Padding="15" ClipToBounds="True">
                             <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="BUILD CONFIG" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <!-- Sweep overlay (animated on data refresh) -->
+                                <Border x:Name="BuildConfigSweep" Background="{StaticResource SweepGradient}" CornerRadius="8" Opacity="0" IsHitTestVisible="False">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="BuildConfigSweepTransform" X="-500"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="BUILD CONFIG" Foreground="#888888" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
                                 <Grid Grid.Row="1">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -232,13 +257,21 @@
                                         </StackPanel>
                                     </Button>
                                 </Grid>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>
 
                     <!-- Economy Items Panel (tabbed) - full width -->
-                    <Border Grid.Row="1" Background="#1C1C1C" CornerRadius="8" Padding="15">
+                    <Border Grid.Row="1" x:Name="EconomyCard" Background="#1C1C1C" CornerRadius="8" Padding="15" ClipToBounds="True">
                         <Grid>
+                            <!-- Sweep overlay (animated on data refresh) -->
+                            <Border x:Name="EconomySweep" Background="{StaticResource SweepGradient}" CornerRadius="8" Opacity="0" IsHitTestVisible="False">
+                                <Border.RenderTransform>
+                                    <TranslateTransform x:Name="EconomySweepTransform" X="-800"/>
+                                </Border.RenderTransform>
+                            </Border>
+                            <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
@@ -528,6 +561,7 @@
                                 </TabItem>
                             </TabControl>
                         </Grid>
+                            </Grid>
                     </Border>
                 </Grid>
 
@@ -666,6 +700,14 @@
                     <Button Style="{StaticResource BtnDanger}" Content="Exit Application" FontSize="11" Padding="10,3" Click="ExitButton_Click"/>
                 </StackPanel>
             </Grid>
+
+            <!-- Toast Notification Container — bottom-right, above all content -->
+            <StackPanel x:Name="ToastContainer"
+                        Grid.RowSpan="3"
+                        VerticalAlignment="Bottom"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,12,38"
+                        IsHitTestVisible="True"/>
         </Grid>
     </Border>
 </Window>

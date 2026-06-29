@@ -1,0 +1,39 @@
+<UserControl x:Class="LootPulse.Controls.ToastNotification"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="Auto" Width="320"
+             RenderTransformOrigin="0.5,0.5">
+    <UserControl.RenderTransform>
+        <TranslateTransform x:Name="ToastTransform" X="0" Y="60"/>
+    </UserControl.RenderTransform>
+
+    <Border x:Name="ToastBorder"
+            Background="#1C1C22"
+            CornerRadius="8"
+            BorderBrush="#38384A"
+            BorderThickness="1"
+            Padding="14,10"
+            Margin="0,0,0,8">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.5" Color="Black"/>
+        </Border.Effect>
+        <DockPanel>
+            <!-- Left accent border (semantic color) -->
+            <Border x:Name="AccentBorder" Width="3" CornerRadius="1.5" DockPanel.Dock="Left" Margin="0,0,12,0"/>
+
+            <!-- Close button -->
+            <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource BtnIcon}"
+                    Width="20" Height="20" VerticalAlignment="Top" Margin="8,0,0,0" Click="CloseButton_Click">
+                <Path Style="{StaticResource IconStyle}" Data="{StaticResource IconClose}" Width="10" Height="10"/>
+            </Button>
+
+            <!-- Content -->
+            <StackPanel>
+                <TextBlock x:Name="TitleText" Text="Notification" Foreground="#F0F0F0" FontSize="12" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,0,2"/>
+                <TextBlock x:Name="MessageText" Text="" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap"
+                           MaxWidth="260"/>
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</UserControl>
